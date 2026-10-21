@@ -30,15 +30,12 @@ interface Track {
   artwork_url?: string;
 }
 
-interface StreamInfo {
-  video_id: string;
-  title: string;
-  artist: string;
-  artwork_url?: string;
-  stream_url: string;
-  duration_seconds?: number;
-  bitrate?: number;
-  mime_type?: string;
+declare global {
+  interface Window {
+    onYouTubeIframeAPIReady?: () => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    YT?: any;
+  }
 }
 
 function formatTime(seconds: number): string {
@@ -58,7 +55,6 @@ export default function App() {
 
   // Playback state
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
-  const [currentStream, setCurrentStream] = useState<StreamInfo | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -66,13 +62,98 @@ export default function App() {
   const [isMuted, setIsMuted] = useState(false);
   const [loadingTrackId, setLoadingTrackId] = useState<string | null>(null);
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ytPlayerRef = useRef<any>(null);
+  const [isPlayerReady, setIsPlayerReady] = useState(false);
 
-  // Carrega status de autenticação inicial e faixas recomendadas
+  // Inicializa o player embutido do YouTube e autenticação
   useEffect(() => {
     loadAuthStatus();
     loadInitialTracks();
-  }, []);
+    initYouTubePlayer();
+
+    // Timer para sincronizar o tempo de reprodução
+    const interval = setInterval(() => {
+      if (ytPlayerRef.current && isPlayerReady) {
+        try {
+          const state = ytPlayerRef.current.getPlayerState();
+          if (state === 1) { // PLAYING
+            const curr = ytPlayerRef.current.getCurrentTime();
+            const dur = ytPlayerRef.current.getDuration();
+            setCurrentTime(curr || 0);
+            if (dur && dur > 0) setDuration(dur);
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [isPlayerReady]);
+
+  function initYouTubePlayer() {
+    if (!window.YT) {
+      const tag = document.createElement("script");
+      tag.src = "https://www.youtube.com/iframe_api";
+      const firstScriptTag = document.getElementsByTagName("script")[0];
+      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+    }
+
+    window.onYouTubeIframeAPIReady = () => {
+      createPlayerInstance();
+    };
+
+    if (window.YT && window.YT.Player) {
+      createPlayerInstance();
+    }
+  }
+
+  function createPlayerInstance() {
+    if (ytPlayerRef.current) return;
+
+    ytPlayerRef.current = new window.YT.Player("yt-player-frame", {
+      height: "200",
+      width: "200",
+      videoId: "",
+      playerVars: {
+        autoplay: 1,
+        controls: 0,
+        disablekb: 1,
+        fs: 0,
+        rel: 0,
+        origin: window.location.origin,
+      },
+      events: {
+        onReady: () => {
+          setIsPlayerReady(true);
+          ytPlayerRef.current.setVolume(volume * 100);
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onStateChange: (event: any) => {
+          // 1 = PLAYING, 2 = PAUSED, 0 = ENDED, 3 = BUFFERING
+          if (event.data === 1) {
+            setIsPlaying(true);
+            setLoadingTrackId(null);
+            const dur = ytPlayerRef.current.getDuration();
+            if (dur) setDuration(dur);
+          } else if (event.data === 2) {
+            setIsPlaying(false);
+          } else if (event.data === 0) {
+            setIsPlaying(false);
+            setCurrentTime(0);
+          }
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onError: (err: any) => {
+          console.error("YouTube Player Error:", err);
+          setErrorMessage("Não foi possível reproduzir esta faixa. Tente outra música.");
+          setLoadingTrackId(null);
+          setIsPlaying(false);
+        },
+      },
+    });
+  }
 
   async function loadAuthStatus() {
     setIsCheckingAuth(true);
@@ -127,45 +208,43 @@ export default function App() {
     }
   }
 
-  async function handlePlayTrack(track: Track) {
+  function handlePlayTrack(track: Track) {
     setLoadingTrackId(track.id);
+    setCurrentTrack(track);
     setErrorMessage(null);
-    try {
-      const stream = await invoke<StreamInfo>("get_track_stream", {
-        videoId: track.id,
-      });
 
-      setCurrentTrack(track);
-      setCurrentStream(stream);
-
-      if (audioRef.current) {
-        audioRef.current.src = stream.stream_url;
-        audioRef.current.volume = isMuted ? 0 : volume;
-        await audioRef.current.play();
-        setIsPlaying(true);
-      }
-    } catch (err) {
-      setErrorMessage(`Falha ao reproduzir áudio: ${String(err)}`);
-    } finally {
-      setLoadingTrackId(null);
+    if (ytPlayerRef.current && typeof ytPlayerRef.current.loadVideoById === "function") {
+      ytPlayerRef.current.loadVideoById(track.id);
+      ytPlayerRef.current.playVideo();
+      setIsPlaying(true);
+    } else {
+      // Se o iframe ainda estiver inicializando, tenta novamente em 300ms
+      setTimeout(() => {
+        if (ytPlayerRef.current && typeof ytPlayerRef.current.loadVideoById === "function") {
+          ytPlayerRef.current.loadVideoById(track.id);
+          ytPlayerRef.current.playVideo();
+          setIsPlaying(true);
+        }
+      }, 500);
     }
   }
 
   function togglePlayPause() {
-    if (!audioRef.current || !currentStream) return;
+    if (!ytPlayerRef.current || !currentTrack) return;
     if (isPlaying) {
-      audioRef.current.pause();
+      ytPlayerRef.current.pauseVideo();
       setIsPlaying(false);
     } else {
-      audioRef.current.play().then(() => setIsPlaying(true)).catch(console.error);
+      ytPlayerRef.current.playVideo();
+      setIsPlaying(true);
     }
   }
 
   function handleSeek(e: React.ChangeEvent<HTMLInputElement>) {
     const time = parseFloat(e.target.value);
     setCurrentTime(time);
-    if (audioRef.current) {
-      audioRef.current.currentTime = time;
+    if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === "function") {
+      ytPlayerRef.current.seekTo(time, true);
     }
   }
 
@@ -173,46 +252,30 @@ export default function App() {
     const val = parseFloat(e.target.value);
     setVolume(val);
     setIsMuted(false);
-    if (audioRef.current) {
-      audioRef.current.volume = val;
+    if (ytPlayerRef.current && typeof ytPlayerRef.current.setVolume === "function") {
+      ytPlayerRef.current.unMute();
+      ytPlayerRef.current.setVolume(val * 100);
     }
   }
 
   function toggleMute() {
-    if (!audioRef.current) return;
+    if (!ytPlayerRef.current) return;
     if (isMuted) {
-      audioRef.current.volume = volume;
+      ytPlayerRef.current.unMute();
+      ytPlayerRef.current.setVolume(volume * 100);
       setIsMuted(false);
     } else {
-      audioRef.current.volume = 0;
+      ytPlayerRef.current.mute();
       setIsMuted(true);
     }
   }
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[#0b0c10] text-[#e0e2ec] select-none">
-      {/* Hidden HTML5 Audio Element */}
-      <audio
-        ref={audioRef}
-        onTimeUpdate={() => {
-          if (audioRef.current) {
-            setCurrentTime(audioRef.current.currentTime);
-          }
-        }}
-        onLoadedMetadata={() => {
-          if (audioRef.current) {
-            setDuration(audioRef.current.duration);
-          }
-        }}
-        onEnded={() => {
-          setIsPlaying(false);
-          setCurrentTime(0);
-        }}
-        onError={(e) => {
-          console.error("Audio error:", e);
-          setErrorMessage("Erro durante a reprodução do stream de áudio.");
-        }}
-      />
+      {/* Hidden YouTube Iframe Player */}
+      <div className="fixed -top-[9999px] -left-[9999px] pointer-events-none opacity-0">
+        <div id="yt-player-frame" />
+      </div>
 
       {/* Top Header */}
       <header className="h-14 border-b border-[#1f232e] bg-[#0e1017] px-6 flex items-center justify-between gap-4 shrink-0">
@@ -241,7 +304,7 @@ export default function App() {
             onClick={handleRefreshAuth}
             disabled={isCheckingAuth}
             title="Recarregar cookies do navegador"
-            className="p-1.5 rounded-lg bg-[#171a24] border border-[#232733] text-[#8c91a4] hover:text-white hover:bg-[#1f2331] transition-colors"
+            className="p-1.5 rounded-lg bg-[#171a24] border border-[#232733] text-[#8c91a4] hover:text-white hover:bg-[#1f2331] transition-colors cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isCheckingAuth ? "animate-spin text-red-400" : ""}`} />
           </button>
@@ -277,7 +340,7 @@ export default function App() {
           <div className="bg-red-950/40 border border-red-800/60 text-red-300 text-xs px-4 py-2.5 rounded-xl flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
             <span className="flex-1">{errorMessage}</span>
-            <button onClick={() => setErrorMessage(null)} className="text-red-400 hover:text-white text-xs underline">
+            <button onClick={() => setErrorMessage(null)} className="text-red-400 hover:text-white text-xs underline cursor-pointer">
               Fechar
             </button>
           </div>
@@ -407,7 +470,7 @@ export default function App() {
           <div className="flex items-center gap-4">
             <button
               onClick={togglePlayPause}
-              disabled={!currentStream}
+              disabled={!currentTrack}
               className="w-9 h-9 rounded-full bg-white hover:scale-105 active:scale-95 disabled:opacity-40 text-black flex items-center justify-center shadow-lg transition-transform cursor-pointer"
             >
               {isPlaying ? (
@@ -427,7 +490,7 @@ export default function App() {
               max={duration || 100}
               value={currentTime}
               onChange={handleSeek}
-              disabled={!currentStream}
+              disabled={!currentTrack}
               className="flex-1 h-1 bg-[#232733] rounded-full accent-red-500 cursor-pointer disabled:cursor-not-allowed"
             />
             <span>{formatTime(duration)}</span>
@@ -436,14 +499,12 @@ export default function App() {
 
         {/* Volume & Stream Quality Info */}
         <div className="flex items-center justify-end gap-4 w-1/4 min-w-[180px]">
-          {currentStream?.bitrate && (
-            <span className="hidden sm:inline-block text-[10px] font-mono px-2 py-0.5 rounded bg-[#171a24] text-emerald-400 border border-emerald-900/40">
-              {Math.round(currentStream.bitrate / 1000)} kbps
-            </span>
-          )}
+          <span className="hidden sm:inline-block text-[10px] font-mono px-2 py-0.5 rounded bg-[#171a24] text-emerald-400 border border-emerald-900/40">
+            {isPlaying ? "Reproduzindo" : "Pausado"}
+          </span>
 
           <div className="flex items-center gap-2">
-            <button onClick={toggleMute} className="text-[#8c91a4] hover:text-white transition-colors">
+            <button onClick={toggleMute} className="text-[#8c91a4] hover:text-white transition-colors cursor-pointer">
               {isMuted || volume === 0 ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
             </button>
             <input
