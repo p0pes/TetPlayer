@@ -84,7 +84,6 @@ pub fn decrypt_aes_gcm(key: &[u8], encrypted_val: &[u8]) -> Result<String, Strin
 
     let prefix = &encrypted_val[..3];
     if prefix != b"v10" && prefix != b"v20" {
-        // Tenta fallback com DPAPI legado se não for v10/v20
         if let Ok(dec) = dpapi_decrypt(encrypted_val) {
             return String::from_utf8(dec).map_err(|e| e.to_string());
         }
@@ -143,6 +142,95 @@ pub fn generate_sapisid_hash(sapisid: &str, origin: &str) -> String {
     format!("SAPISIDHASH {now}_{hash}")
 }
 
+// Extração de cookies do Mozilla Firefox (em texto puro no cookies.sqlite)
+pub fn extract_firefox_session() -> Option<AuthSession> {
+    let app_data = std::env::var("APPDATA").ok()?;
+    let profiles_dir = PathBuf::from(app_data).join("Mozilla").join("Firefox").join("Profiles");
+    if !profiles_dir.exists() {
+        return None;
+    }
+
+    let entries = fs::read_dir(&profiles_dir).ok()?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+
+        let cookies_sqlite = path.join("cookies.sqlite");
+        if !cookies_sqlite.exists() {
+            continue;
+        }
+
+        let temp_dir = std::env::temp_dir();
+        let temp_copy = temp_dir.join(format!("tetplayer_ff_cookies_{}.db", std::process::id()));
+
+        if fs::copy(&cookies_sqlite, &temp_copy).is_err() {
+            continue;
+        }
+
+        let conn = match Connection::open(&temp_copy) {
+            Ok(c) => c,
+            Err(_) => {
+                let _ = fs::remove_file(&temp_copy);
+                continue;
+            }
+        };
+
+        let mut stmt = match conn.prepare(
+            "SELECT name, value FROM moz_cookies WHERE host LIKE '%.youtube.com' OR host LIKE '%.google.com'",
+        ) {
+            Ok(s) => s,
+            Err(_) => {
+                let _ = fs::remove_file(&temp_copy);
+                continue;
+            }
+        };
+
+        let rows = stmt.query_map([], |row| {
+            let name: String = row.get(0)?;
+            let value: String = row.get(1)?;
+            Ok((name, value))
+        });
+
+        let mut cookies = HashMap::new();
+        if let Ok(mapped) = rows {
+            for r in mapped.flatten() {
+                cookies.insert(r.0, r.1);
+            }
+        }
+
+        let _ = fs::remove_file(&temp_copy);
+
+        let has_sapisid = cookies.contains_key("SAPISID") || cookies.contains_key("__Secure-3PAPISID");
+        let has_psid = cookies.contains_key("__Secure-3PSID") || cookies.contains_key("LOGIN_INFO");
+
+        if has_sapisid || has_psid {
+            let sapisid = cookies.get("SAPISID")
+                .or_else(|| cookies.get("__Secure-3PAPISID"))
+                .cloned();
+
+            let mut cookie_parts = Vec::new();
+            for (k, v) in cookies.iter() {
+                cookie_parts.push(format!("{k}={v}"));
+            }
+            let cookie_header = cookie_parts.join("; ");
+            let profile_name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+
+            return Some(AuthSession {
+                is_authenticated: true,
+                browser: "Mozilla Firefox".to_string(),
+                profile: profile_name,
+                cookie_header,
+                sapisid,
+                auth_user: Some("0".to_string()),
+            });
+        }
+    }
+
+    None
+}
+
 pub fn extract_cookies_from_profile(
     user_data_path: &Path,
     profile_name: &str,
@@ -162,11 +250,12 @@ pub fn extract_cookies_from_profile(
         return Err(format!("Banco de cookies não encontrado no perfil {profile_name}"));
     };
 
-    // Copia o SQLite para a pasta temporária para evitar locks pelo navegador em execução
     let temp_dir = std::env::temp_dir();
-    let temp_copy = temp_dir.join(format!("tetplayer_cookies_{}_{}.db", profile_name, std::process::id()));
+    let temp_copy = temp_dir.join(format!("tetplayer_chrome_cookies_{}_{}.db", profile_name.replace(' ', "_"), std::process::id()));
+    
+    // Tenta copiar o arquivo de cookies
     fs::copy(&cookies_path, &temp_copy)
-        .map_err(|e| format!("Erro ao copiar arquivo de cookies: {e}"))?;
+        .map_err(|e| format!("Erro ao copiar arquivo de cookies (o navegador pode estar com lock exclusivo): {e}"))?;
 
     let conn = Connection::open(&temp_copy)
         .map_err(|e| format!("Erro ao abrir SQLite de cookies: {e}"))?;
@@ -198,6 +287,12 @@ pub fn extract_cookies_from_profile(
 }
 
 pub fn find_youtube_session() -> AuthSession {
+    // 1. Tenta o Mozilla Firefox primeiro (que permite leitura transparente mesmo com o navegador aberto)
+    if let Some(session) = extract_firefox_session() {
+        return session;
+    }
+
+    // 2. Tenta navegadores Chromium (Chrome, Edge, Brave) varrendo perfis dinamicamente
     let local_app_data = match std::env::var("LOCALAPPDATA") {
         Ok(v) => PathBuf::from(v),
         Err(_) => return AuthSession::default(),
@@ -209,8 +304,6 @@ pub fn find_youtube_session() -> AuthSession {
         ("Brave Browser", local_app_data.join("BraveSoftware").join("Brave-Browser").join("User Data")),
     ];
 
-    let profiles = ["Default", "Profile 1", "Profile 2", "Profile 3", "Profile 4"];
-
     for (browser_name, user_data_path) in browsers.iter() {
         if !user_data_path.exists() {
             continue;
@@ -221,9 +314,23 @@ pub fn find_youtube_session() -> AuthSession {
             Err(_) => continue,
         };
 
-        for profile in profiles.iter() {
+        // Descobre dinamicamente todas as pastas de perfis
+        let mut profile_candidates = vec!["Default".to_string(), "Profile 1".to_string(), "Profile 2".to_string(), "Profile 3".to_string(), "Profile 4".to_string(), "Profile 5".to_string()];
+        if let Ok(read_dir) = fs::read_dir(user_data_path) {
+            for entry in read_dir.flatten() {
+                if let Ok(file_type) = entry.file_type() {
+                    if file_type.is_dir() {
+                        let name = entry.file_name().to_string_lossy().to_string();
+                        if (name.starts_with("Profile") || name == "Default") && !profile_candidates.contains(&name) {
+                            profile_candidates.push(name);
+                        }
+                    }
+                }
+            }
+        }
+
+        for profile in profile_candidates.iter() {
             if let Ok(cookies) = extract_cookies_from_profile(user_data_path, profile, &master_key) {
-                // Checa se tem cookies essenciais do YouTube
                 let has_sapisid = cookies.contains_key("SAPISID") || cookies.contains_key("__Secure-3PAPISID");
                 let has_psid = cookies.contains_key("__Secure-3PSID") || cookies.contains_key("LOGIN_INFO");
 
