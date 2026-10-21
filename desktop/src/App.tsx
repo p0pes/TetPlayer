@@ -30,6 +30,8 @@ import {
   Repeat1,
   Mic2,
   Sparkles,
+  Sliders,
+  Trash2,
 } from "lucide-react";
 
 interface AuthSession {
@@ -168,6 +170,23 @@ export default function App() {
     }
   });
   const originalQueueRef = useRef<Track[]>([]);
+
+  // Gaveta de Reprodução & Gestão de Fila (Now Playing Drawer & Queue)
+  const [isNowPlayingOpen, setIsNowPlayingOpen] = useState(false);
+  const [nowPlayingTab, setNowPlayingTab] = useState<"queue" | "lyrics">("lyrics");
+  const [showPastTracks, setShowPastTracks] = useState(true);
+
+  // Transição Suave (Crossfade: 0s / 2s / 3s / 5s)
+  const [crossfadeSeconds, setCrossfadeSeconds] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem("tetplayer_crossfade");
+      return saved !== null && !isNaN(parseInt(saved, 10)) ? parseInt(saved, 10) : 3;
+    } catch {
+      return 3;
+    }
+  });
+  const crossfadeSecondsRef = useRef(crossfadeSeconds);
+  crossfadeSecondsRef.current = crossfadeSeconds;
 
   // Lyrics state
   const [showLyrics, setShowLyrics] = useState(false);
@@ -442,12 +461,12 @@ export default function App() {
     }
   }
 
-  // Preservação do scroll da playlist / busca ao alternar letras
+  // Preservação do scroll da playlist / busca ao alternar letras ou gaveta de reprodução
   const mainScrollRef = useRef<HTMLElement | null>(null);
   const playlistScrollPosRef = useRef<number>(0);
 
   useLayoutEffect(() => {
-    if (!showLyrics && mainScrollRef.current) {
+    if (!isNowPlayingOpen && !showLyrics && mainScrollRef.current) {
       mainScrollRef.current.scrollTop = playlistScrollPosRef.current;
       const frameId = requestAnimationFrame(() => {
         if (mainScrollRef.current) {
@@ -456,10 +475,10 @@ export default function App() {
       });
       return () => cancelAnimationFrame(frameId);
     }
-  }, [showLyrics]);
+  }, [isNowPlayingOpen, showLyrics]);
 
-  function toggleShowLyrics() {
-    setShowLyrics((prev) => {
+  function toggleNowPlaying() {
+    setIsNowPlayingOpen((prev) => {
       if (!prev && mainScrollRef.current) {
         playlistScrollPosRef.current = mainScrollRef.current.scrollTop;
       }
@@ -467,9 +486,36 @@ export default function App() {
     });
   }
 
-  function handleCloseLyrics() {
+  function openNowPlaying(tab: "queue" | "lyrics") {
+    if (mainScrollRef.current) {
+      playlistScrollPosRef.current = mainScrollRef.current.scrollTop;
+    }
+    setNowPlayingTab(tab);
+    setIsNowPlayingOpen(true);
+    if (tab === "lyrics") setShowLyrics(true);
+  }
+
+  function closeNowPlaying() {
+    setIsNowPlayingOpen(false);
     setShowLyrics(false);
   }
+
+  function toggleShowLyrics() {
+    if (isNowPlayingOpen && nowPlayingTab === "lyrics") {
+      closeNowPlaying();
+    } else {
+      openNowPlaying("lyrics");
+    }
+  }
+
+  function toggleShowQueue() {
+    if (isNowPlayingOpen && nowPlayingTab === "queue") {
+      closeNowPlaying();
+    } else {
+      openNowPlaying("queue");
+    }
+  }
+
 
   // Refs for access inside callbacks without stale closures
   const activeQueueRef = useRef<Track[]>([]);
@@ -482,6 +528,8 @@ export default function App() {
   const currentTrackRef = useRef<Track | null>(null);
   const repeatModeRef = useRef(repeatMode);
   const isShuffleRef = useRef(isShuffle);
+  const isNowPlayingOpenRef = useRef(isNowPlayingOpen);
+  const nowPlayingTabRef = useRef(nowPlayingTab);
 
   activeQueueRef.current = activeQueue;
   currentQueueIndexRef.current = currentQueueIndex;
@@ -493,13 +541,15 @@ export default function App() {
   currentTrackRef.current = currentTrack;
   repeatModeRef.current = repeatMode;
   isShuffleRef.current = isShuffle;
+  isNowPlayingOpenRef.current = isNowPlayingOpen;
+  nowPlayingTabRef.current = nowPlayingTab;
 
   useEffect(() => {
     loadAuthStatus();
     loadPlaylists();
     initYouTubePlayer();
 
-    // Sincronizador de timeline em alta frequência (80ms para resposta imediata das letras)
+    // Sincronizador de timeline em alta frequência (80ms para resposta imediata das letras + Crossfade suave)
     const interval = setInterval(() => {
       if (ytPlayerRef.current && isPlayerReady) {
         try {
@@ -512,6 +562,27 @@ export default function App() {
             }
             if (typeof dur === "number" && dur > 0 && !isNaN(dur)) {
               setDuration(dur);
+            }
+
+            // Crossfade suave de volume
+            const cf = crossfadeSecondsRef.current;
+            const baseVol = isMutedRef.current ? 0 : volumeRef.current * 100;
+            if (cf > 0 && dur > 0 && typeof curr === "number" && !isNaN(curr)) {
+              const remaining = dur - curr;
+              if (remaining <= cf && remaining >= 0) {
+                // Fade-out no final da faixa
+                const factor = Math.max(0, remaining / cf);
+                const target = Math.round(baseVol * factor);
+                ytPlayerRef.current.setVolume(target);
+              } else if (curr <= cf) {
+                // Fade-in no início da nova faixa
+                const factor = Math.min(1, Math.max(0, curr / cf));
+                const target = Math.round(baseVol * factor);
+                ytPlayerRef.current.setVolume(target);
+              } else {
+                // Volume nominal normal
+                ytPlayerRef.current.setVolume(Math.round(baseVol));
+              }
             }
           }
         } catch {
@@ -747,6 +818,9 @@ export default function App() {
     }
 
     if (ytPlayerRef.current && typeof ytPlayerRef.current.loadVideoById === "function") {
+      if (crossfadeSecondsRef.current > 0) {
+        ytPlayerRef.current.setVolume(0);
+      }
       ytPlayerRef.current.loadVideoById(track.id);
       ytPlayerRef.current.setPlaybackRate(1.0);
       ytPlayerRef.current.playVideo();
@@ -754,6 +828,9 @@ export default function App() {
     } else {
       setTimeout(() => {
         if (ytPlayerRef.current && typeof ytPlayerRef.current.loadVideoById === "function") {
+          if (crossfadeSecondsRef.current > 0) {
+            ytPlayerRef.current.setVolume(0);
+          }
           ytPlayerRef.current.loadVideoById(track.id);
           ytPlayerRef.current.setPlaybackRate(1.0);
           ytPlayerRef.current.playVideo();
@@ -762,6 +839,53 @@ export default function App() {
       }, 500);
     }
   }
+
+  // Alternar configuração de Crossfade (0s -> 2s -> 3s -> 5s -> 0s)
+  function cycleCrossfade() {
+    setCrossfadeSeconds((prev) => {
+      const next = prev === 0 ? 2 : prev === 2 ? 3 : prev === 3 ? 5 : 0;
+      try {
+        localStorage.setItem("tetplayer_crossfade", String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }
+
+  // Tocar uma música diretamente a partir de seu índice na fila de reprodução
+  function handlePlayFromQueue(idx: number) {
+    const queue = activeQueueRef.current;
+    if (idx >= 0 && idx < queue.length) {
+      playTrackWithQueue(queue[idx], queue, idx);
+    }
+  }
+
+  // Remover uma faixa da fila de reprodução
+  function handleRemoveFromQueue(idx: number, e?: React.MouseEvent) {
+    if (e) e.stopPropagation();
+    setActiveQueue((prev) => prev.filter((_, i) => i !== idx));
+    setCurrentQueueIndex((prev) => {
+      if (idx < prev) return Math.max(0, prev - 1);
+      return prev;
+    });
+  }
+
+  // Limpar todas as próximas faixas agendadas na fila
+  function handleClearUpcomingQueue() {
+    setActiveQueue((prev) => prev.slice(0, currentQueueIndex + 1));
+  }
+
+  // Segmentação memoizada da fila ativa: faixas já tocadas e próximas faixas
+  const pastTracks = useMemo(() => {
+    if (currentQueueIndex <= 0) return [];
+    return activeQueue.slice(0, currentQueueIndex);
+  }, [activeQueue, currentQueueIndex]);
+
+  const upcomingTracks = useMemo(() => {
+    if (currentQueueIndex === -1 || currentQueueIndex >= activeQueue.length - 1) return [];
+    return activeQueue.slice(currentQueueIndex + 1);
+  }, [activeQueue, currentQueueIndex]);
 
   function handleNextTrack() {
     const queue = activeQueueRef.current;
@@ -997,13 +1121,32 @@ export default function App() {
           toggleMute();
           break;
         case "KeyL":
-          toggleShowLyrics();
+          e.preventDefault();
+          if (isNowPlayingOpenRef.current && nowPlayingTabRef.current === "lyrics") {
+            closeNowPlaying();
+          } else {
+            openNowPlaying("lyrics");
+          }
+          break;
+        case "KeyQ":
+          e.preventDefault();
+          if (isNowPlayingOpenRef.current && nowPlayingTabRef.current === "queue") {
+            closeNowPlaying();
+          } else {
+            openNowPlaying("queue");
+          }
           break;
         case "KeyS":
           toggleShuffle();
           break;
         case "KeyR":
           cycleRepeatMode();
+          break;
+        case "Escape":
+          if (isNowPlayingOpenRef.current) {
+            e.preventDefault();
+            closeNowPlaying();
+          }
           break;
       }
     };
@@ -1091,7 +1234,8 @@ export default function App() {
 
   // Autoscroll Suave e Otimizado da Linha Ativa (Isolado no container de letras)
   useEffect(() => {
-    if (!showLyrics || activeLyricIndex === -1 || userScrollingLyricsRef.current) return;
+    const isLyricsActive = (isNowPlayingOpen && nowPlayingTab === "lyrics") || showLyrics;
+    if (!isLyricsActive || activeLyricIndex === -1 || userScrollingLyricsRef.current) return;
     if (activeLyricRef.current && lyricsContainerRef.current) {
       const container = lyricsContainerRef.current;
       const activeEl = activeLyricRef.current;
@@ -1102,7 +1246,7 @@ export default function App() {
       });
       setIsUserScrolledAway(false);
     }
-  }, [activeLyricIndex, showLyrics]);
+  }, [activeLyricIndex, isNowPlayingOpen, nowPlayingTab, showLyrics]);
 
   function handleLyricsContainerScroll() {
     userScrollingLyricsRef.current = true;
@@ -1156,6 +1300,9 @@ export default function App() {
     root.style.setProperty("--aurora-1", `hsla(${hue1}, 85%, 52%, 0.45)`);
     root.style.setProperty("--aurora-2", `hsla(${hue2}, 80%, 48%, 0.35)`);
     root.style.setProperty("--aurora-3", `hsla(${hue3}, 75%, 45%, 0.28)`);
+    root.style.setProperty("--aurora-1-glow", `hsla(${hue1}, 95%, 55%, 0.88)`);
+    root.style.setProperty("--aurora-2-glow", `hsla(${hue2}, 90%, 50%, 0.78)`);
+    root.style.setProperty("--aurora-3-glow", `hsla(${hue3}, 85%, 48%, 0.68)`);
 
     const imgUrl =
       currentTrack.artwork_url ||
@@ -1230,6 +1377,9 @@ export default function App() {
           root.style.setProperty("--aurora-1", `rgba(${c1.r}, ${c1.g}, ${c1.b}, 0.45)`);
           root.style.setProperty("--aurora-2", `rgba(${c2.r}, ${c2.g}, ${c2.b}, 0.35)`);
           root.style.setProperty("--aurora-3", `rgba(${c3.r}, ${c3.g}, ${c3.b}, 0.28)`);
+          root.style.setProperty("--aurora-1-glow", `rgba(${c1.r}, ${c1.g}, ${c1.b}, 0.88)`);
+          root.style.setProperty("--aurora-2-glow", `rgba(${c2.r}, ${c2.g}, ${c2.b}, 0.78)`);
+          root.style.setProperty("--aurora-3-glow", `rgba(${c3.r}, ${c3.g}, ${c3.b}, 0.68)`);
         }
       } catch {
         // Fallback resiliente contra DOMException (tainted canvas)
@@ -1313,7 +1463,9 @@ export default function App() {
         {/* Centro: Breadcrumbs / Título da Visualização Ativa */}
         <div data-tauri-drag-region className="flex-1 flex items-center px-4 h-full pointer-events-none min-w-0">
           <span className="text-xs text-[#8c91a4] truncate">
-            {showLyrics
+            {isNowPlayingOpen
+              ? `Reprodução > ${nowPlayingTab === "queue" ? "Fila de Reprodução" : "Letras"} > ${currentTrack?.title || "Música Atual"}`
+              : showLyrics
               ? `Letras Sincronizadas > ${currentTrack?.title || "Música Atual"}`
               : activeTab === "library"
               ? selectedPlaylist
@@ -1631,12 +1783,12 @@ export default function App() {
         <main
           ref={mainScrollRef}
           onScroll={(e) => {
-            if (!showLyrics) {
+            if (!isNowPlayingOpen && !showLyrics) {
               playlistScrollPosRef.current = e.currentTarget.scrollTop;
             }
           }}
           className={`flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar ${
-            showLyrics ? "hidden" : "block"
+            isNowPlayingOpen || showLyrics ? "hidden" : "block"
           }`}
         >
           {/* ABA: BIBLIOTECA (Página Inicial com Playlists) */}
@@ -2024,125 +2176,477 @@ export default function App() {
           )}
         </main>
 
-        {/* Visualização de Letras Sincronizadas (Scroll Isolado e Independente) */}
-        {showLyrics && (
-          <div className="flex-1 overflow-hidden p-6 flex flex-col max-w-4xl mx-auto w-full relative">
-            {/* Header das Letras */}
-            <div className="flex items-center justify-between pb-4 border-b border-[#1f232e] mb-4 shrink-0">
-              <div className="flex items-center gap-3.5 min-w-0">
-                <div className="w-12 h-12 rounded-xl bg-[#171a24] border border-[#232733] overflow-hidden shrink-0">
-                  {currentTrack?.artwork_url ? (
-                    <img
-                      src={currentTrack.artwork_url}
-                      alt={currentTrack.title}
-                      referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <Music className="w-6 h-6 text-[#5e6479] m-auto" />
-                  )}
-                </div>
+        {/* ======================================================= */}
+        {/* GAVETA DE REPRODUÇÃO (Now Playing / Queue / Lyrics)     */}
+        {/* ======================================================= */}
+        {(isNowPlayingOpen || showLyrics) && (
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative bg-[#0b0c10]/95 backdrop-blur-2xl animate-in fade-in duration-200">
+            {/* Header da Gaveta: Tabs (Fila / Letras), Crossfade e Fechar */}
+            <div className="h-14 px-6 border-b border-[#1f232e] flex items-center justify-between shrink-0 bg-[#0e1017]/80 backdrop-blur-md z-20">
+              {/* Esquerda: Identificador da faixa atual */}
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider bg-red-950/80 border border-red-800/40 px-2 py-0.5 rounded-md hidden sm:inline-block">
+                  Reproduzindo Agora
+                </span>
                 <div className="min-w-0">
-                  <h2 className="text-base font-bold text-white truncate">
-                    {currentTrack?.title || "Nenhuma faixa em reprodução"}
-                  </h2>
-                  <p className="text-xs text-[#8c91a4] truncate">
+                  <p className="text-xs font-semibold text-white truncate max-w-[200px] sm:max-w-xs">
+                    {currentTrack?.title || "Nenhuma faixa selecionada"}
+                  </p>
+                  <p className="text-[11px] text-[#8c91a4] truncate max-w-[200px] sm:max-w-xs">
                     {currentTrack?.artist || "TetPlayer"}
                   </p>
                 </div>
               </div>
 
+              {/* Centro: Botão de Troca entre Fila de Reprodução e Letras */}
+              <div className="flex items-center bg-[#141722] p-1 rounded-xl border border-[#232735] shadow-inner">
+                <button
+                  onClick={() => {
+                    setNowPlayingTab("queue");
+                    setShowLyrics(false);
+                  }}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    nowPlayingTab === "queue" && !showLyrics
+                      ? "bg-red-600 text-white shadow-md shadow-red-950/70"
+                      : "text-[#8c91a4] hover:text-white hover:bg-[#1a1e2c]"
+                  }`}
+                >
+                  <ListMusic className="w-3.5 h-3.5" />
+                  <span>Fila de Reprodução</span>
+                  {activeQueue.length > 0 && (
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/30 font-mono">
+                      {activeQueue.length}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => {
+                    setNowPlayingTab("lyrics");
+                    setShowLyrics(true);
+                  }}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    nowPlayingTab === "lyrics" || showLyrics
+                      ? "bg-red-600 text-white shadow-md shadow-red-950/70"
+                      : "text-[#8c91a4] hover:text-white hover:bg-[#1a1e2c]"
+                  }`}
+                >
+                  <Mic2 className="w-3.5 h-3.5" />
+                  <span>Letras</span>
+                  {lyricsData?.synced && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
+                  )}
+                </button>
+              </div>
+
+              {/* Direita: Configuração de Crossfade e Fechar Gaveta */}
               <div className="flex items-center gap-2">
-                {lyricsData?.synced ? (
-                  <span className="flex items-center gap-1.5 text-xs bg-red-950/70 text-red-300 border border-red-800/60 px-3 py-1 rounded-full font-medium shadow-sm">
-                    <Sparkles className="w-3.5 h-3.5 text-red-400 animate-pulse" />
-                    Letra Sincronizada ({lyricsData.source})
-                  </span>
-                ) : lyricsData?.plain ? (
-                  <span className="text-xs bg-[#1a1d28] text-[#8c91a4] border border-[#232733] px-3 py-1 rounded-full font-medium">
-                    Letra Estática ({lyricsData.source})
-                  </span>
-                ) : null}
+                <button
+                  onClick={cycleCrossfade}
+                  title="Alternar Transição Suave (Crossfade: Desligado / 2s / 3s / 5s)"
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer ${
+                    crossfadeSeconds > 0
+                      ? "bg-red-950/60 border-red-800/60 text-red-300 shadow-sm"
+                      : "bg-[#141722] border-[#232735] text-[#8c91a4] hover:text-white"
+                  }`}
+                >
+                  <Sliders className="w-3.5 h-3.5 text-red-400" />
+                  <span className="hidden sm:inline">Crossfade:</span>
+                  <span className="font-mono">{crossfadeSeconds > 0 ? `${crossfadeSeconds}s` : "Off"}</span>
+                </button>
 
                 <button
-                  onClick={handleCloseLyrics}
-                  className="p-1.5 rounded-lg text-[#8c91a4] hover:text-white hover:bg-[#1f232e] transition-colors cursor-pointer"
-                  title="Fechar Letras [L]"
+                  onClick={closeNowPlaying}
+                  title="Recolher Gaveta [Esc]"
+                  aria-label="Recolher gaveta"
+                  className="p-1.5 rounded-xl text-[#8c91a4] hover:text-white hover:bg-[#1f2433] border border-[#232735] transition-colors cursor-pointer"
                 >
-                  <X className="w-5 h-5" />
+                  <ChevronDown className="w-5 h-5" />
                 </button>
               </div>
             </div>
 
-            {/* Corpo das Letras com todos os 4 estados de UI (Loading, Empty, Error, Success) */}
-            <div
-              ref={lyricsContainerRef}
-              onScroll={handleLyricsContainerScroll}
-              className="flex-1 overflow-y-auto px-4 py-6 space-y-4 text-center custom-scrollbar"
-            >
-              {isLoadingLyrics ? (
-                <div className="h-64 flex flex-col items-center justify-center gap-3 text-[#71778c]">
-                  <Loader2 className="w-8 h-8 animate-spin text-red-500" />
-                  <p className="text-sm font-medium">Buscando letra sincronizada...</p>
+            {/* Corpo Dividido: Lado Esquerdo (Capa + Efeito Aurora Forte vindo da capa) & Lado Direito (Letras ou Fila) */}
+            <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
+              {/* LADO ESQUERDO: Capa da música atual com efeito Aurora mais forte e vindo da capa */}
+              <div className="w-full lg:w-[42%] xl:w-[38%] p-6 lg:p-8 flex flex-col items-center justify-center relative overflow-hidden border-b lg:border-b-0 lg:border-r border-[#1f232e] shrink-0 bg-gradient-to-b from-[#10121a]/80 to-[#0a0b10]/95">
+                {/* Camadas Radiantes de Aurora EMANANDO DIRETO DA CAPA */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
+                  {/* Camada 1: Núcleo Aurora Pulsante e Ultra Vibrante */}
+                  <div className="w-80 h-80 sm:w-96 sm:h-96 rounded-full aurora-cover-aura-1 blur-[60px] opacity-90 scale-110 pointer-events-none" />
+                  {/* Camada 2: Difusão Aurora Rotativa com Cores Secundárias */}
+                  <div className="w-[450px] h-[450px] rounded-full aurora-cover-aura-2 blur-[90px] opacity-80 scale-125 pointer-events-none" />
+                  {/* Camada 3: Luz de Fundo Ambiental Profunda */}
+                  <div
+                    className="absolute inset-0 opacity-40 pointer-events-none"
+                    style={{
+                      background: "radial-gradient(circle at center, var(--aurora-1-glow) 0%, transparent 70%)",
+                    }}
+                  />
                 </div>
-              ) : lyricsError || (!lyricsData?.synced && !lyricsData?.plain) ? (
-                <div className="h-64 flex flex-col items-center justify-center gap-3 text-[#71778c]">
-                  <div className="w-14 h-14 rounded-2xl bg-[#141722] border border-[#212638] flex items-center justify-center">
-                    <Mic2 className="w-7 h-7 text-[#4e556e]" />
-                  </div>
-                  <p className="text-sm font-semibold text-white">Nenhuma letra encontrada</p>
-                  <p className="text-xs text-[#71778c] max-w-sm">
-                    Não encontramos a letra desta música no LRCLIB ou no YouTube Music.
+
+                {/* Capa com Elevação e Sombra Dinâmica Profunda */}
+                <div className="relative group/cover z-10 w-56 h-56 sm:w-72 sm:h-72 xl:w-84 xl:h-84 rounded-2xl sm:rounded-3xl overflow-hidden shadow-[0_25px_60px_-15px_rgba(0,0,0,0.95)] border border-white/15 shrink-0 bg-[#141724]">
+                  {currentTrack?.artwork_url ? (
+                    <img
+                      src={currentTrack.artwork_url}
+                      alt={currentTrack.title}
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        const img = e.target as HTMLImageElement;
+                        if (currentTrack?.id && !img.src.includes("hqdefault.jpg")) {
+                          img.src = `https://i.ytimg.com/vi/${currentTrack.id}/hqdefault.jpg`;
+                        }
+                      }}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                    />
+                  ) : currentTrack?.id ? (
+                    <img
+                      src={`https://i.ytimg.com/vi/${currentTrack.id}/hqdefault.jpg`}
+                      alt={currentTrack.title}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <Music className="w-16 h-16 text-[#5e6479]" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Metadados da Faixa Atual */}
+                <div className="relative z-10 mt-6 text-center max-w-sm w-full px-2">
+                  <h2 className="text-lg sm:text-xl font-extrabold text-white tracking-tight truncate drop-shadow-md">
+                    {currentTrack?.title || "Nenhuma faixa selecionada"}
+                  </h2>
+                  <p className="text-sm font-semibold text-red-400 mt-1 truncate">
+                    {currentTrack?.artist || "TetPlayer"}
                   </p>
-                  <button
-                    onClick={handleCloseLyrics}
-                    className="mt-2 text-xs bg-[#1a1d28] hover:bg-[#232738] text-white px-3 py-1.5 rounded-lg transition-colors cursor-pointer border border-[#2b3145]"
-                  >
-                    Voltar para a Biblioteca
-                  </button>
-                </div>
-              ) : parsedLyrics.length > 0 ? (
-                <div className="py-20 space-y-4">
-                  {parsedLyrics.map((line, idx) => {
-                    const isActive = idx === activeLyricIndex;
-                    const isPast = idx < activeLyricIndex;
-                    return (
-                      <div
-                        key={`${line.time}-${idx}`}
-                        ref={isActive ? activeLyricRef : null}
-                        onClick={() => handleSeekTo(line.time)}
-                        className={`py-2 px-4 rounded-xl transition-[transform,opacity,color] duration-200 ease-out will-change-transform cursor-pointer select-none ${
-                          isActive
-                            ? "text-2xl md:text-3xl font-bold text-white scale-[1.03] [text-shadow:0_0_20px_rgba(255,255,255,0.4)]"
-                            : isPast
-                            ? "text-lg md:text-xl text-[#51576d] hover:text-[#9ea5bc] font-medium opacity-60 scale-100"
-                            : "text-lg md:text-xl text-[#787f95] hover:text-white font-medium opacity-85 scale-100"
-                        }`}
-                      >
-                        {line.text}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : lyricsData?.plain ? (
-                <div className="py-8 max-w-2xl mx-auto whitespace-pre-line text-base text-[#c4c8d8] leading-relaxed font-sans">
-                  {lyricsData.plain}
-                </div>
-              ) : null}
-            </div>
+                  {currentTrack?.album && (
+                    <p className="text-xs text-[#8c91a4] mt-0.5 truncate font-medium">
+                      {currentTrack.album}
+                    </p>
+                  )}
 
-            {/* Botão Flutuante de Sincronização ao Rolar Manualmente */}
-            {isUserScrolledAway && parsedLyrics.length > 0 && activeLyricIndex !== -1 && (
-              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20">
-                <button
-                  onClick={handleRecenterLyrics}
-                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-red-600/95 hover:bg-red-500 text-white text-xs font-semibold shadow-xl shadow-red-950/70 border border-red-400/30 backdrop-blur-md transition-all active:scale-95 cursor-pointer animate-pulse"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-red-200" />
-                  <span>Sincronizar com o áudio</span>
-                </button>
+                  {/* Badges de Qualidade e Crossfade */}
+                  <div className="mt-3.5 flex items-center justify-center gap-2">
+                    <span className="text-[10px] font-mono uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-[#c4c8d8]">
+                      {currentTrack?.duration || "Streaming HD"}
+                    </span>
+                    {crossfadeSeconds > 0 && (
+                      <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-red-950/70 border border-red-800/40 text-red-300">
+                        Crossfade {crossfadeSeconds}s
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
-            )}
+
+              {/* LADO DIREITO: Fila de Reprodução OU Letras Sincronizadas */}
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
+                {nowPlayingTab === "queue" && !showLyrics ? (
+                  /* =================================================== */
+                  /* CONTEÚDO DA FILA: Tocadas Anteriormente, Tocando Agora e A Seguir */
+                  /* =================================================== */
+                  <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+                    {/* 1. Músicas que já passaram (Tocadas Anteriormente) */}
+                    {pastTracks.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between pb-1">
+                          <button
+                            onClick={() => setShowPastTracks((prev) => !prev)}
+                            className="flex items-center gap-1.5 text-xs font-bold text-[#71778c] hover:text-white uppercase tracking-wider transition-colors cursor-pointer"
+                          >
+                            <span>Músicas que Já Passaram ({pastTracks.length})</span>
+                            {showPastTracks ? (
+                              <ChevronUp className="w-3.5 h-3.5" />
+                            ) : (
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </div>
+
+                        {showPastTracks && (
+                          <div className="space-y-1 opacity-70 hover:opacity-100 transition-opacity">
+                            {pastTracks.map((track, idx) => (
+                              <div
+                                key={`past-${track.id}-${idx}`}
+                                onClick={() => handlePlayFromQueue(idx)}
+                                className="flex items-center justify-between p-2.5 rounded-xl bg-[#12141c]/60 hover:bg-[#1a1e2c] border border-transparent hover:border-[#282d3d] transition-all cursor-pointer group"
+                              >
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <span className="w-5 text-center text-[11px] font-mono text-[#52576b] group-hover:text-[#8c91a4]">
+                                    {idx + 1}
+                                  </span>
+                                  <div className="w-9 h-9 rounded-lg bg-[#1a1d27] overflow-hidden shrink-0">
+                                    <img
+                                      src={track.artwork_url || `https://i.ytimg.com/vi/${track.id}/hqdefault.jpg`}
+                                      alt={track.title}
+                                      referrerPolicy="no-referrer"
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-medium text-[#c4c8d8] truncate group-hover:text-white">
+                                      {track.title}
+                                    </p>
+                                    <p className="text-[11px] text-[#71778c] truncate">
+                                      {track.artist}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-3 shrink-0">
+                                  {track.duration && (
+                                    <span className="text-[11px] font-mono text-[#52576b]">
+                                      {track.duration}
+                                    </span>
+                                  )}
+                                  <button
+                                    title="Ouvir novamente"
+                                    className="p-1 rounded-lg text-[#71778c] hover:text-white hover:bg-[#252b3d] transition-colors"
+                                  >
+                                    <Play className="w-3 h-3 fill-current ml-0.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 2. Faixa Atual: Tocando Agora */}
+                    {currentTrack && (
+                      <div className="space-y-2">
+                        <span className="text-xs font-bold text-red-400 uppercase tracking-wider flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                          Tocando Agora
+                        </span>
+                        <div className="flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-red-950/40 via-[#181a26] to-[#12141c] border border-red-800/40 shadow-lg shadow-red-950/20">
+                          <div className="flex items-center gap-3.5 min-w-0">
+                            <div className="w-12 h-12 rounded-xl bg-[#171a24] overflow-hidden shrink-0 border border-red-500/30">
+                              <img
+                                src={currentTrack.artwork_url || `https://i.ytimg.com/vi/${currentTrack.id}/hqdefault.jpg`}
+                                alt={currentTrack.title}
+                                referrerPolicy="no-referrer"
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-white truncate">
+                                {currentTrack.title}
+                              </p>
+                              <p className="text-xs text-red-300 font-medium truncate">
+                                {currentTrack.artist} {currentTrack.album ? `• ${currentTrack.album}` : ""}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span className="text-xs font-mono text-[#8c91a4]">
+                              {currentTrack.duration || formatTime(duration)}
+                            </span>
+                            <button
+                              onClick={togglePlayPause}
+                              className="w-8 h-8 rounded-full bg-red-600 hover:bg-red-500 text-white flex items-center justify-center transition-all shadow-md shadow-red-950/60 cursor-pointer"
+                            >
+                              {isPlaying ? (
+                                <Pause className="w-3.5 h-3.5 fill-current" />
+                              ) : (
+                                <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 3. Próximas Músicas (A Seguir na Fila) */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between pb-1">
+                        <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                          <span>A Seguir</span>
+                          <span className="text-[11px] text-[#71778c] font-normal lowercase">
+                            ({upcomingTracks.length} faixas restantes)
+                          </span>
+                        </span>
+
+                        {upcomingTracks.length > 0 && (
+                          <button
+                            onClick={handleClearUpcomingQueue}
+                            title="Remover todas as próximas faixas da fila"
+                            className="text-[11px] text-[#71778c] hover:text-red-400 font-medium transition-colors cursor-pointer"
+                          >
+                            Limpar Próximas
+                          </button>
+                        )}
+                      </div>
+
+                      {upcomingTracks.length === 0 ? (
+                        <div className="py-12 flex flex-col items-center justify-center text-center text-[#71778c] bg-[#10121a]/50 rounded-2xl border border-dashed border-[#1f232e]">
+                          <ListMusic className="w-10 h-10 text-[#3b4154] mb-2" />
+                          <p className="text-sm font-semibold text-white">Fim da fila de reprodução</p>
+                          <p className="text-xs text-[#71778c] max-w-sm mt-1">
+                            Não há próximas músicas agendadas. Selecione uma playlist na biblioteca ou ative a repetição contínua.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {upcomingTracks.map((track, relativeIdx) => {
+                            const actualIdx = currentQueueIndex + 1 + relativeIdx;
+                            return (
+                              <div
+                                key={`upcoming-${track.id}-${actualIdx}`}
+                                onClick={() => handlePlayFromQueue(actualIdx)}
+                                className="flex items-center justify-between p-2.5 rounded-xl bg-[#141722]/70 hover:bg-[#1c2030] border border-[#1f2433] hover:border-[#2d3448] transition-all cursor-pointer group"
+                              >
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <span className="w-5 text-center text-xs font-mono text-[#71778c] group-hover:text-red-400">
+                                    {relativeIdx + 1}
+                                  </span>
+                                  <div className="w-10 h-10 rounded-lg bg-[#1a1d27] overflow-hidden shrink-0 border border-[#232838]">
+                                    <img
+                                      src={track.artwork_url || `https://i.ytimg.com/vi/${track.id}/hqdefault.jpg`}
+                                      alt={track.title}
+                                      referrerPolicy="no-referrer"
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-semibold text-white truncate group-hover:text-red-300">
+                                      {track.title}
+                                    </p>
+                                    <p className="text-[11px] text-[#8c91a4] truncate">
+                                      {track.artist} {track.album ? `• ${track.album}` : ""}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2.5 shrink-0 pl-2">
+                                  {track.duration && (
+                                    <span className="text-xs font-mono text-[#71778c]">
+                                      {track.duration}
+                                    </span>
+                                  )}
+
+                                  {/* Botão de Tocar Imediatamente */}
+                                  <button
+                                    title="Tocar agora"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handlePlayFromQueue(actualIdx);
+                                    }}
+                                    className="p-1.5 rounded-lg text-[#71778c] hover:text-white hover:bg-[#252b3d] transition-colors cursor-pointer"
+                                  >
+                                    <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                                  </button>
+
+                                  {/* Botão de Remover da Fila */}
+                                  <button
+                                    title="Remover da fila"
+                                    onClick={(e) => handleRemoveFromQueue(actualIdx, e)}
+                                    className="p-1.5 rounded-lg text-[#71778c] hover:text-red-400 hover:bg-red-950/40 transition-colors cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  /* =================================================== */
+                  /* CONTEÚDO DAS LETRAS: Sincronizadas / Estáticas     */
+                  /* =================================================== */
+                  <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative p-6">
+                    {/* Header de Status das Letras */}
+                    <div className="flex items-center justify-between pb-3 border-b border-[#1f232e] shrink-0">
+                      <span className="text-xs font-bold text-white uppercase tracking-wider">
+                        Letra da Música
+                      </span>
+                      {lyricsData?.synced ? (
+                        <span className="flex items-center gap-1.5 text-xs bg-red-950/70 text-red-300 border border-red-800/60 px-3 py-0.5 rounded-full font-medium shadow-sm">
+                          <Sparkles className="w-3.5 h-3.5 text-red-400 animate-pulse" />
+                          Sincronizada ({lyricsData.source})
+                        </span>
+                      ) : lyricsData?.plain ? (
+                        <span className="text-xs bg-[#1a1d28] text-[#8c91a4] border border-[#232733] px-3 py-0.5 rounded-full font-medium">
+                          Estática ({lyricsData.source})
+                        </span>
+                      ) : null}
+                    </div>
+
+                    {/* Container com Scroll das Letras */}
+                    <div
+                      ref={lyricsContainerRef}
+                      onScroll={handleLyricsContainerScroll}
+                      className="flex-1 overflow-y-auto px-4 py-8 space-y-4 text-center custom-scrollbar"
+                    >
+                      {isLoadingLyrics ? (
+                        <div className="h-64 flex flex-col items-center justify-center gap-3 text-[#71778c]">
+                          <Loader2 className="w-8 h-8 animate-spin text-red-500" />
+                          <p className="text-sm font-medium">Buscando letra sincronizada...</p>
+                        </div>
+                      ) : lyricsError || (!lyricsData?.synced && !lyricsData?.plain) ? (
+                        <div className="h-64 flex flex-col items-center justify-center gap-3 text-[#71778c]">
+                          <div className="w-14 h-14 rounded-2xl bg-[#141722] border border-[#212638] flex items-center justify-center">
+                            <Mic2 className="w-7 h-7 text-[#4e556e]" />
+                          </div>
+                          <p className="text-sm font-semibold text-white">Nenhuma letra encontrada</p>
+                          <p className="text-xs text-[#71778c] max-w-sm">
+                            Não encontramos a letra desta faixa no LRCLIB ou no YouTube Music.
+                          </p>
+                        </div>
+                      ) : parsedLyrics.length > 0 ? (
+                        <div className="py-16 space-y-4">
+                          {parsedLyrics.map((line, idx) => {
+                            const isActive = idx === activeLyricIndex;
+                            const isPast = idx < activeLyricIndex;
+                            return (
+                              <div
+                                key={`${line.time}-${idx}`}
+                                ref={isActive ? activeLyricRef : null}
+                                onClick={() => handleSeekTo(line.time)}
+                                className={`py-2 px-4 rounded-xl transition-[transform,opacity,color] duration-200 ease-out will-change-transform cursor-pointer select-none ${
+                                  isActive
+                                    ? "text-2xl md:text-3xl font-bold text-white scale-[1.03] [text-shadow:0_0_20px_rgba(255,255,255,0.45)]"
+                                    : isPast
+                                    ? "text-lg md:text-xl text-[#51576d] hover:text-[#9ea5bc] font-medium opacity-60 scale-100"
+                                    : "text-lg md:text-xl text-[#787f95] hover:text-white font-medium opacity-85 scale-100"
+                                }`}
+                              >
+                                {line.text}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : lyricsData?.plain ? (
+                        <div className="py-8 max-w-xl mx-auto whitespace-pre-line text-base text-[#c4c8d8] leading-relaxed font-sans">
+                          {lyricsData.plain}
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {/* Botão Flutuante de Sincronização ao Rolar Manualmente */}
+                    {isUserScrolledAway && parsedLyrics.length > 0 && activeLyricIndex !== -1 && (
+                      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20">
+                        <button
+                          onClick={handleRecenterLyrics}
+                          className="flex items-center gap-2 px-4 py-2 rounded-full bg-red-600/95 hover:bg-red-500 text-white text-xs font-semibold shadow-xl shadow-red-950/70 border border-red-400/30 backdrop-blur-md transition-all active:scale-95 cursor-pointer animate-pulse"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-red-200" />
+                          <span>Sincronizar com o áudio</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -2152,9 +2656,31 @@ export default function App() {
     {/* PLAYER INFERIOR PERSISTENTE (Footer Playback Bar)        */}
     {/* ======================================================= */}
     <footer className="h-20 shrink-0 border-t border-[#1f232e] bg-[#0e1017]/95 backdrop-blur-md px-6 flex items-center justify-between gap-6 z-40">
-        {/* Faixa Atual */}
-        <div className="flex items-center gap-3.5 w-1/4 min-w-[200px]">
-          <div className="w-12 h-12 rounded-lg bg-[#171a24] border border-[#232733] overflow-hidden shrink-0 flex items-center justify-center">
+        {/* Faixa Atual e Botão da Gaveta de Reprodução */}
+        <div className="flex items-center gap-3 w-1/4 min-w-[220px]">
+          {/* Seta na Barra de Baixo Apontada Para Cima para Abrir a Gaveta */}
+          <button
+            onClick={toggleNowPlaying}
+            aria-label={isNowPlayingOpen ? "Recolher gaveta de reprodução" : "Abrir gaveta de reprodução"}
+            title={isNowPlayingOpen ? "Recolher gaveta [Shift+Up / Esc]" : "Abrir gaveta de reprodução (Fila & Letras) [Shift+Up]"}
+            className={`p-2 rounded-xl border transition-all cursor-pointer shrink-0 ${
+              isNowPlayingOpen
+                ? "bg-red-600 text-white border-red-500 shadow-lg shadow-red-950/60"
+                : "bg-[#171a24] text-[#8c91a4] hover:text-white hover:bg-[#202534] border-[#252a3a]"
+            }`}
+          >
+            {isNowPlayingOpen ? (
+              <ChevronDown className="w-4 h-4 transition-transform" />
+            ) : (
+              <ChevronUp className="w-4 h-4 transition-transform group-hover:-translate-y-0.5" />
+            )}
+          </button>
+
+          <div
+            onClick={toggleNowPlaying}
+            className="w-12 h-12 rounded-lg bg-[#171a24] border border-[#232733] overflow-hidden shrink-0 flex items-center justify-center cursor-pointer group relative"
+            title="Abrir gaveta de reprodução"
+          >
             {currentTrack?.artwork_url ? (
               <img
                 src={currentTrack.artwork_url}
@@ -2166,21 +2692,25 @@ export default function App() {
                     img.src = `https://i.ytimg.com/vi/${currentTrack.id}/hqdefault.jpg`;
                   }
                 }}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
               />
             ) : currentTrack?.id ? (
               <img
                 src={`https://i.ytimg.com/vi/${currentTrack.id}/hqdefault.jpg`}
                 alt={currentTrack.title}
                 referrerPolicy="no-referrer"
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
               />
             ) : (
               <Music className="w-5 h-5 text-[#5e6479]" />
             )}
           </div>
-          <div className="min-w-0 overflow-hidden">
-            <p className="text-xs font-semibold text-white truncate">
+          <div
+            onClick={toggleNowPlaying}
+            className="min-w-0 overflow-hidden cursor-pointer"
+            title="Abrir gaveta de reprodução"
+          >
+            <p className="text-xs font-semibold text-white truncate hover:text-red-400 transition-colors">
               {currentTrack?.title || "Nenhuma faixa selecionada"}
             </p>
             <p className="text-[11px] text-[#8c91a4] truncate">
@@ -2299,17 +2829,34 @@ export default function App() {
           </div>
         </div>
 
-        {/* Volume, Letras & Status */}
-        <div className="flex items-center justify-end gap-3.5 w-1/4 min-w-[200px]">
+        {/* Volume, Fila, Letras & Status */}
+        <div className="flex items-center justify-end gap-3 w-1/4 min-w-[220px]">
+          {/* Botão Fila de Reprodução */}
+          <button
+            onClick={toggleShowQueue}
+            disabled={!currentTrack}
+            aria-label="Exibir fila de reprodução"
+            aria-pressed={isNowPlayingOpen && nowPlayingTab === "queue"}
+            title="Fila de Reprodução [Q]"
+            className={`p-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-medium disabled:opacity-30 ${
+              isNowPlayingOpen && nowPlayingTab === "queue"
+                ? "bg-red-600 text-white shadow-lg shadow-red-950/50 border border-red-500"
+                : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
+            }`}
+          >
+            <ListMusic className="w-4 h-4" />
+            <span className="hidden md:inline">Fila</span>
+          </button>
+
           {/* Botão Letras */}
           <button
             onClick={toggleShowLyrics}
             disabled={!currentTrack}
             aria-label="Exibir letras sincronizadas"
-            aria-pressed={showLyrics}
+            aria-pressed={isNowPlayingOpen && nowPlayingTab === "lyrics"}
             title="Letras Sincronizadas [L]"
             className={`p-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-medium disabled:opacity-30 ${
-              showLyrics
+              isNowPlayingOpen && nowPlayingTab === "lyrics"
                 ? "bg-red-600 text-white shadow-lg shadow-red-950/50 border border-red-500"
                 : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
             }`}

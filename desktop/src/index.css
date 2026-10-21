@@ -5,6 +5,9 @@
     --aurora-1: rgba(220, 38, 38, 0.42); /* Vibrant ambient red */
     --aurora-2: rgba(99, 102, 241, 0.32); /* Vibrant ambient indigo */
     --aurora-3: rgba(20, 184, 166, 0.26); /* Vibrant ambient teal */
+    --aurora-1-glow: rgba(220, 38, 38, 0.85); /* High-intensity radiant red */
+    --aurora-2-glow: rgba(99, 102, 241, 0.75); /* High-intensity radiant indigo */
+    --aurora-3-glow: rgba(20, 184, 166, 0.65); /* High-intensity radiant teal */
   }
 
   body {
@@ -55,6 +58,39 @@
 .aurora-blob-3 {
   background: radial-gradient(circle at 50% 50%, var(--aurora-3) 0%, transparent 70%);
   animation: aurora-float-3 28s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+/* Radiant Aurora Bloom Emitter (Emanando diretamente da capa) */
+@keyframes aurora-cover-pulse {
+  0%, 100% {
+    transform: scale(1.06) rotate(0deg);
+    opacity: 0.82;
+  }
+  50% {
+    transform: scale(1.18) rotate(3deg);
+    opacity: 0.98;
+  }
+}
+
+@keyframes aurora-cover-spin {
+  0% {
+    transform: scale(1.25) rotate(0deg);
+  }
+  100% {
+    transform: scale(1.25) rotate(360deg);
+  }
+}
+
+.aurora-cover-aura-1 {
+  background: radial-gradient(circle at center, var(--aurora-1-glow) 0%, var(--aurora-2-glow) 45%, transparent 72%);
+  animation: aurora-cover-pulse 6s ease-in-out infinite alternate;
+  will-change: transform, opacity;
+}
+
+.aurora-cover-aura-2 {
+  background: radial-gradient(circle at center, var(--aurora-2-glow) 15%, var(--aurora-3-glow) 50%, transparent 75%);
+  animation: aurora-cover-spin 20s linear infinite;
   will-change: transform;
 }
 
