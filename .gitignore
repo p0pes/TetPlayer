@@ -1,0 +1,59 @@
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Node / Frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+.eslintcache
+
+# Rust / Tauri
+target/
+src-tauri/target/
+**/target/
+**/*.rs.bk
+Cargo.lock.temp
+
+# Tauri artifacts
+**/src-tauri/WixTools/
+**/src-tauri/binaries/
+
+# Android / Mobile
+.gradle/
+build/
+**/build/
+local.properties
+.cxx/
+*.apk
+*.aab
+*.dex
+captures/
+
+# IDEs & Editors
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.sublime-workspace
+*.sublime-project
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# Environment and sensitive data
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+cookies_dump.json
+temp_cookies.db*

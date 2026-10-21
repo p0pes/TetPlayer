@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Mockup: Player PC & Celular</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #121212; }
+    ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3a3a3a; }
+  </style>
+</head>
+<body class="bg-[#0b0c10] text-[#e0e2ec] font-sans antialiased min-h-screen p-4 md:p-8 flex flex-col items-center justify-start">
+
+  <!-- Header & Tab Controls -->
+  <header class="w-full max-w-6xl mb-6 flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-[#232733] pb-4">
+    <div>
+      <div class="flex items-center gap-3">
+        <div class="w-3.5 h-3.5 rounded-full bg-red-600 shadow-[0_0_12px_rgba(239,68,68,0.8)] animate-pulse"></div>
+        <h1 class="text-xl md:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+          SyncWave <span class="text-xs bg-red-950 text-red-400 border border-red-800/60 px-2 py-0.5 rounded-full font-medium">YT Music Premium</span>
+        </h1>
+      </div>
+      <p class="text-xs md:text-sm text-[#8c91a4] mt-0.5">Mockup conceitual de UI e fluxo de reprodução sincronizada</p>
+    </div>
+
+    <!-- View Switcher -->
+    <div class="flex items-center bg-[#171a23] p-1.5 rounded-xl border border-[#2b3040]">
+      <button id="btn-pc" onclick="switchView('pc')" class="flex items-center gap-2 px-4 py-2 rounded-lg text-xs md:text-sm font-semibold transition-all bg-red-600 text-white shadow-lg shadow-red-900/30">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+        Visão PC (Desktop Hub)
+      </button>
+      <button id="btn-mobile" onclick="switchView('mobile')" class="flex items-center gap-2 px-4 py-2 rounded-lg text-xs md:text-sm font-semibold transition-all text-[#8c91a4] hover:text-white">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+        Visão Celular (Receptor)
+      </button>
+    </div>
+  </header>
+
+  <!-- ======================== VIEW: PC DESKTOP ======================== -->
+  <main id="view-pc" class="w-full max-w-6xl transition-all duration-300">
+    <div class="bg-[#12141c] border border-[#232733] rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[700px]">
+      
+      <!-- Window Title Bar -->
+      <div class="bg-[#0e1017] px-4 py-2.5 border-b border-[#1f232e] flex items-center justify-between text-xs text-[#6e7489]">
+        <div class="flex items-center gap-2">
+          <div class="w-3 h-3 rounded-full bg-red-500/80"></div>
+          <div class="w-3 h-3 rounded-full bg-yellow-500/80"></div>
+          <div class="w-3 h-3 rounded-full bg-green-500/80"></div>
+          <span class="ml-2 font-mono text-[11px] text-[#8e95ad]">SyncWave Desktop v1.0.0</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="inline-flex items-center gap-1.5 bg-emerald-950/80 text-emerald-400 border border-emerald-800/50 px-2.5 py-0.5 rounded-full text-[11px]">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+            Wi-Fi Sync: Galaxy S23 Ativo
+          </span>
+          <span class="inline-flex items-center gap-1 bg-[#1c202d] text-[#a4abbf] px-2 py-0.5 rounded text-[11px]">
+            RAM: 42 MB
+          </span>
+        </div>
+      </div>
+
+      <!-- App Body (Sidebar + Content) -->
+      <div class="flex-1 flex overflow-hidden">
+        
+        <!-- Sidebar -->
+        <aside class="w-56 bg-[#0f1118] border-r border-[#1f232e] p-4 flex flex-col justify-between hidden md:flex">
+          <div class="space-y-6">
+            <!-- Navigation -->
+            <div class="space-y-1">
+              <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg bg-red-600/15 text-red-400 font-semibold text-sm">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+                Início
+              </a>
+              <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg text-[#8c91a4] hover:text-white hover:bg-[#1a1d28] font-medium text-sm transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                Buscar
+              </a>
+              <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg text-[#8c91a4] hover:text-white hover:bg-[#1a1d28] font-medium text-sm transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                Biblioteca
+              </a>
+            </div>
+
+            <!-- Playlists -->
+            <div>
+              <p class="text-[11px] font-bold text-[#555a6d] uppercase tracking-wider px-3 mb-2">Suas Playlists</p>
+              <div class="space-y-1 text-sm text-[#9da3b7]">
+                <div class="px-3 py-1.5 rounded hover:bg-[#1a1d28] hover:text-white cursor-pointer truncate">🔥 Músicas Curtidas (YT)</div>
+                <div class="px-3 py-1.5 rounded hover:bg-[#1a1d28] hover:text-white cursor-pointer truncate">🎧 Synthwave & Lo-fi</div>
+                <div class="px-3 py-1.5 rounded hover:bg-[#1a1d28] hover:text-white cursor-pointer truncate">⚡ Focus & Coding</div>
+                <div class="px-3 py-1.5 rounded hover:bg-[#1a1d28] hover:text-white cursor-pointer truncate">🎸 Rock Classics</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Account Card -->
+          <div class="bg-[#171a24] p-3 rounded-xl border border-[#232836] flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-red-600 to-amber-500 flex items-center justify-center font-bold text-xs text-white">U</div>
+            <div class="overflow-hidden">
+              <p class="text-xs font-semibold text-white truncate">Sua Conta Google</p>
+              <p class="text-[10px] text-emerald-400 font-mono">Premium Ativo</p>
+            </div>
+          </div>
+        </aside>
+
+        <!-- Main Workspace Area -->
+        <section class="flex-1 overflow-y-auto p-6 space-y-6">
+          
+          <!-- Top Bar: Search & Hub Target Selector -->
+          <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+            <div class="relative flex-1 max-w-md">
+              <svg class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#5e6479]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              <input type="text" placeholder="Pesquisar músicas, artistas ou álbuns..." class="w-full bg-[#171923] border border-[#272c3d] rounded-xl pl-10 pr-4 py-2 text-xs md:text-sm text-white placeholder-[#5e6479] focus:outline-none focus:border-red-500 transition-colors">
+            </div>
+
+            <!-- Target Audio Output Toggle -->
+            <div class="bg-[#171a24] border border-[#292f42] rounded-xl p-1 flex items-center gap-1">
+              <button class="px-3 py-1.5 rounded-lg text-xs font-medium text-[#7d849a] hover:text-white transition-colors">
+                🔊 Alto-falante PC
+              </button>
+              <button class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white flex items-center gap-1.5 shadow-md shadow-emerald-950">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                Fone (via Celular)
+              </button>
+            </div>
+          </div>
+
+          <!-- Quick Mix Banner -->
+          <div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-red-950/60 via-[#1c1826] to-[#12141c] border border-red-900/30 p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+            <div class="space-y-2 z-10 text-center md:text-left">
+              <span class="text-[11px] font-bold text-red-400 uppercase tracking-widest bg-red-950/80 px-2.5 py-1 rounded-md border border-red-800/40">Supermix do YouTube</span>
+              <h2 class="text-xl md:text-2xl font-extrabold text-white">Seu mix personalizado</h2>
+              <p class="text-xs md:text-sm text-[#9ea4bc] max-w-lg">Baseado no que você mais escuta. Sincronizado automaticamente com os cookies da sua conta.</p>
+              <div class="pt-2">
+                <button class="bg-red-600 hover:bg-red-500 text-white text-xs md:text-sm font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-red-900/50 flex items-center gap-2 transition-all transform hover:scale-[1.02]">
+                  <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                  Tocar Supermix
+                </button>
+              </div>
+            </div>
+            <div class="flex -space-x-4 overflow-hidden z-10">
+              <div class="w-24 h-24 rounded-xl bg-[#282d3f] border-2 border-[#12141c] shadow-xl flex items-center justify-center font-bold text-xs text-red-400">Rock</div>
+              <div class="w-24 h-24 rounded-xl bg-[#34243a] border-2 border-[#12141c] shadow-xl flex items-center justify-center font-bold text-xs text-purple-400">Synth</div>
+              <div class="w-24 h-24 rounded-xl bg-[#1c3035] border-2 border-[#12141c] shadow-xl flex items-center justify-center font-bold text-xs text-cyan-400">Lo-Fi</div>
+            </div>
+          </div>
+
+          <!-- Section: Recent tracks -->
+          <div>
+            <h3 class="text-sm font-bold text-white mb-3">Tocadas Recentemente</h3>
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              
+              <!-- Card 1 -->
+              <div class="bg-[#171a24] hover:bg-[#1f2331] p-3.5 rounded-xl border border-[#232838] transition-all group cursor-pointer">
+                <div class="relative w-full aspect-square rounded-lg bg-gradient-to-br from-indigo-600 to-purple-800 mb-3 flex items-center justify-center shadow-lg">
+                  <svg class="w-10 h-10 text-white/40" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                  <button class="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center shadow-xl opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0">
+                    <svg class="w-5 h-5 fill-current ml-0.5" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                  </button>
+                </div>
+                <h4 class="text-xs md:text-sm font-semibold text-white truncate">Midnight City</h4>
+                <p class="text-[11px] text-[#787f98] truncate">M83</p>
+              </div>
+
+              <!-- Card 2 -->
+              <div class="bg-[#171a24] hover:bg-[#1f2331] p-3.5 rounded-xl border border-[#232838] transition-all group cursor-pointer">
+                <div class="relative w-full aspect-square rounded-lg bg-gradient-to-br from-red-600 to-amber-700 mb-3 flex items-center justify-center shadow-lg">
+                  <svg class="w-10 h-10 text-white/40" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                  <button class="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center shadow-xl opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0">
+                    <svg class="w-5 h-5 fill-current ml-0.5" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                  </button>
+                </div>
+                <h4 class="text-xs md:text-sm font-semibold text-white truncate">Starboy</h4>
+                <p class="text-[11px] text-[#787f98] truncate">The Weeknd, Daft Punk</p>
+              </div>
+
+              <!-- Card 3 -->
+              <div class="bg-[#171a24] hover:bg-[#1f2331] p-3.5 rounded-xl border border-[#232838] transition-all group cursor-pointer">
+                <div class="relative w-full aspect-square rounded-lg bg-gradient-to-br from-emerald-600 to-cyan-800 mb-3 flex items-center justify-center shadow-lg">
+                  <svg class="w-10 h-10 text-white/40" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                  <button class="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center shadow-xl opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0">
+                    <svg class="w-5 h-5 fill-current ml-0.5" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                  </button>
+                </div>
+                <h4 class="text-xs md:text-sm font-semibold text-white truncate">Resonance</h4>
+                <p class="text-[11px] text-[#787f98] truncate">HOME</p>
+              </div>
+
+              <!-- Card 4 -->
+              <div class="bg-[#171a24] hover:bg-[#1f2331] p-3.5 rounded-xl border border-[#232838] transition-all group cursor-pointer">
+                <div class="relative w-full aspect-square rounded-lg bg-gradient-to-br from-fuchsia-600 to-pink-800 mb-3 flex items-center justify-center shadow-lg">
+                  <svg class="w-10 h-10 text-white/40" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                  <button class="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center shadow-xl opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0">
+                    <svg class="w-5 h-5 fill-current ml-0.5" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                  </button>
+                </div>
+                <h4 class="text-xs md:text-sm font-semibold text-white truncate">After Dark</h4>
+                <p class="text-[11px] text-[#787f98] truncate">Mr.Kitty</p>
+              </div>
+
+            </div>
+          </div>
+
+        </section>
+      </div>
+
+      <!-- Bottom Playback Bar (Always visible) -->
+      <footer class="bg-[#0e1017] border-t border-[#1f232e] px-4 py-3 flex items-center justify-between gap-4">
+        
+        <!-- Track Info -->
+        <div class="flex items-center gap-3 w-1/4 min-w-[180px]">
+          <div class="w-12 h-12 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-800 flex-shrink-0 flex items-center justify-center shadow-md">
+            <svg class="w-6 h-6 text-white/70" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+          </div>
+          <div class="overflow-hidden">
+            <h5 class="text-xs font-semibold text-white truncate">Midnight City</h5>
+            <p class="text-[11px] text-[#8c91a4] truncate">M83 • Hurry Up, We're Dreaming</p>
+          </div>
+        </div>
+
+        <!-- Controls & Scrubber Timeline -->
+        <div class="flex flex-col items-center gap-1.5 flex-1 max-w-xl">
+          <div class="flex items-center gap-5">
+            <!-- Shuffle -->
+            <button class="text-[#7c8297] hover:text-white transition-colors">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-2m-4-3l-4 4 4 4"/></svg>
+            </button>
+            <!-- Prev -->
+            <button class="text-[#b1b7cb] hover:text-white transition-colors">
+              <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+            </button>
+            <!-- Play/Pause Button -->
+            <button class="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 shadow-lg transition-transform">
+              <svg class="w-5 h-5 fill-current ml-0.5" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <!-- Next -->
+            <button class="text-[#b1b7cb] hover:text-white transition-colors">
+              <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+            </button>
+            <!-- Repeat -->
+            <button class="text-[#7c8297] hover:text-white transition-colors">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            </button>
+          </div>
+
+          <!-- Progress bar -->
+          <div class="w-full flex items-center gap-2 text-[10px] text-[#71778c] font-mono">
+            <span>1:24</span>
+            <div class="flex-1 h-1 bg-[#262b3a] rounded-full overflow-hidden cursor-pointer relative group">
+              <div class="h-full bg-red-500 rounded-full w-1/3 group-hover:bg-red-400"></div>
+            </div>
+            <span>4:03</span>
+          </div>
+        </div>
+
+        <!-- Volume & Device Hub Indicator -->
+        <div class="flex items-center justify-end gap-3 w-1/4">
+          <!-- Hub status pill -->
+          <div class="hidden lg:flex items-center gap-1.5 bg-[#171b26] border border-emerald-900/60 px-2.5 py-1 rounded-lg text-[11px] text-emerald-400">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+            <span>Tocando no Celular</span>
+          </div>
+          <!-- Volume slider -->
+          <div class="flex items-center gap-1.5 text-[#8c91a4]">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253"/></svg>
+            <div class="w-16 h-1 bg-[#262b3a] rounded-full overflow-hidden">
+              <div class="h-full bg-white rounded-full w-3/4"></div>
+            </div>
+          </div>
+        </div>
+
+      </footer>
+
+    </div>
+  </main>
+
+  <!-- ======================== VIEW: MOBILE PHONE ======================== -->
+  <main id="view-mobile" class="w-full max-w-sm hidden transition-all duration-300">
+    <div class="bg-[#12141c] border-4 border-[#232733] rounded-[42px] shadow-2xl overflow-hidden flex flex-col h-[680px] relative p-3">
+      
+      <!-- Phone Speaker/Camera Notch -->
+      <div class="absolute top-4 left-1/2 -translate-x-1/2 w-28 h-5 bg-[#0a0c11] rounded-full flex items-center justify-center gap-2 z-30">
+        <div class="w-2.5 h-2.5 rounded-full bg-[#1b1f2b]"></div>
+        <div class="w-1.5 h-1.5 rounded-full bg-[#162a3a]"></div>
+      </div>
+
+      <!-- Mobile Screen Content -->
+      <div class="flex-1 bg-gradient-to-b from-[#181a24] to-[#0c0d13] rounded-[32px] p-5 pt-8 flex flex-col justify-between overflow-hidden relative">
+        
+        <!-- Status Bar -->
+        <div class="flex items-center justify-between text-[11px] text-[#71778c] font-mono px-1">
+          <span>10:25</span>
+          <div class="flex items-center gap-1.5 text-emerald-400">
+            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+            <span class="text-[10px]">Wi-Fi Sync</span>
+          </div>
+        </div>
+
+        <!-- Connection Badge with PC & Bluetooth Headphone -->
+        <div class="bg-[#1b202e] border border-[#2b334a] rounded-2xl p-2.5 flex items-center justify-between shadow-lg my-2">
+          <div class="flex items-center gap-2">
+            <div class="w-7 h-7 rounded-lg bg-emerald-600/20 text-emerald-400 flex items-center justify-center">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            </div>
+            <div>
+              <p class="text-[11px] font-semibold text-white">Comando: PC Desktop</p>
+              <p class="text-[9px] text-[#878fa4]">Sincronizado em tempo real</p>
+            </div>
+          </div>
+          <span class="text-[9px] bg-indigo-950 text-indigo-300 border border-indigo-800 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+            🎧 Fone BT
+          </span>
+        </div>
+
+        <!-- Album Artwork (Big, Modern Square) -->
+        <div class="my-auto py-2 flex items-center justify-center">
+          <div class="w-56 h-56 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-700 to-pink-600 shadow-2xl flex items-center justify-center p-4 relative group">
+            <svg class="w-20 h-20 text-white/50" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+            <div class="absolute bottom-3 left-3 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-lg text-[10px] text-white/90 font-medium">
+              YouTube Music • 256 kbps
+            </div>
+          </div>
+        </div>
+
+        <!-- Song Metadata & Heart -->
+        <div class="flex items-center justify-between mb-2">
+          <div class="overflow-hidden pr-2">
+            <h3 class="text-base font-bold text-white truncate">Midnight City</h3>
+            <p class="text-xs text-[#8c92a6] truncate">M83 • Hurry Up, We're Dreaming</p>
+          </div>
+          <button class="text-red-500 hover:scale-110 transition-transform">
+            <svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+          </button>
+        </div>
+
+        <!-- Progress Scrubber -->
+        <div class="space-y-1 mb-3">
+          <div class="w-full h-1.5 bg-[#252937] rounded-full overflow-hidden">
+            <div class="h-full bg-red-500 rounded-full w-1/3"></div>
+          </div>
+          <div class="flex justify-between text-[10px] text-[#71778c] font-mono">
+            <span>1:24</span>
+            <span>4:03</span>
+          </div>
+        </div>
+
+        <!-- Playback Controls -->
+        <div class="flex items-center justify-around py-1 mb-2">
+          <button class="text-[#8c92a6] hover:text-white">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-2m-4-3l-4 4 4 4"/></svg>
+          </button>
+          <button class="text-white hover:scale-105 transition-transform">
+            <svg class="w-7 h-7 fill-current" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+          </button>
+          <button class="w-14 h-14 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 shadow-xl transition-transform">
+            <svg class="w-7 h-7 fill-current ml-1" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          </button>
+          <button class="text-white hover:scale-105 transition-transform">
+            <svg class="w-7 h-7 fill-current" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+          </button>
+          <button class="text-[#8c92a6] hover:text-white">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          </button>
+        </div>
+
+        <!-- Android Background Service Notification hint -->
+        <div class="bg-[#161822] border border-[#232737] rounded-xl p-2 text-center text-[10px] text-[#6d7386]">
+          🔒 Toque em segundo plano com tela apagada ativo
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Interactive Switcher Script -->
+  <script>
+    function switchView(mode) {
+      const pcView = document.getElementById('view-pc');
+      const mobileView = document.getElementById('view-mobile');
+      const btnPc = document.getElementById('btn-pc');
+      const btnMobile = document.getElementById('btn-mobile');
+
+      if (mode === 'pc') {
+        pcView.classList.remove('hidden');
+        mobileView.classList.add('hidden');
+        
+        btnPc.className = "flex items-center gap-2 px-4 py-2 rounded-lg text-xs md:text-sm font-semibold transition-all bg-red-600 text-white shadow-lg shadow-red-900/30";
+        btnMobile.className = "flex items-center gap-2 px-4 py-2 rounded-lg text-xs md:text-sm font-semibold transition-all text-[#8c91a4] hover:text-white";
+      } else {
+        pcView.classList.add('hidden');
+        mobileView.classList.remove('hidden');
+
+        btnMobile.className = "flex items-center gap-2 px-4 py-2 rounded-lg text-xs md:text-sm font-semibold transition-all bg-red-600 text-white shadow-lg shadow-red-900/30";
+        btnPc.className = "flex items-center gap-2 px-4 py-2 rounded-lg text-xs md:text-sm font-semibold transition-all text-[#8c91a4] hover:text-white";
+      }
+    }
+  </script>
+
+</body>
+</html>
