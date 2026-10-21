@@ -2,9 +2,9 @@
 
 @layer base {
   :root {
-    --aurora-1: rgba(220, 38, 38, 0.12); /* Subtle red glow */
-    --aurora-2: rgba(79, 70, 229, 0.10); /* Subtle indigo glow */
-    --aurora-3: rgba(13, 148, 136, 0.08); /* Subtle cyan/teal glow */
+    --aurora-1: rgba(220, 38, 38, 0.42); /* Vibrant ambient red */
+    --aurora-2: rgba(99, 102, 241, 0.32); /* Vibrant ambient indigo */
+    --aurora-3: rgba(20, 184, 166, 0.26); /* Vibrant ambient teal */
   }
 
   body {
@@ -12,7 +12,7 @@
   }
 }
 
-/* Subtle Aurora Ambient Glow (GPU-Accelerated) */
+/* High-Resolution Dynamic Aurora Glow (GPU-Accelerated) */
 @keyframes aurora-float-1 {
   0%, 100% {
     transform: translate3d(0, 0, 0) scale(1);
@@ -41,19 +41,19 @@
 }
 
 .aurora-blob-1 {
-  background: radial-gradient(circle, var(--aurora-1) 0%, transparent 68%);
+  background: radial-gradient(circle at 50% 50%, var(--aurora-1) 0%, transparent 70%);
   animation: aurora-float-1 24s ease-in-out infinite alternate;
   will-change: transform;
 }
 
 .aurora-blob-2 {
-  background: radial-gradient(circle, var(--aurora-2) 0%, transparent 68%);
+  background: radial-gradient(circle at 50% 50%, var(--aurora-2) 0%, transparent 70%);
   animation: aurora-float-2 30s ease-in-out infinite alternate;
   will-change: transform;
 }
 
 .aurora-blob-3 {
-  background: radial-gradient(circle, var(--aurora-3) 0%, transparent 68%);
+  background: radial-gradient(circle at 50% 50%, var(--aurora-3) 0%, transparent 70%);
   animation: aurora-float-3 28s ease-in-out infinite alternate;
   will-change: transform;
 }

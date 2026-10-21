@@ -94,6 +94,11 @@ fn is_window_maximized(window: tauri::Window) -> bool {
     window.is_maximized().unwrap_or(false)
 }
 
+#[tauri::command]
+fn start_drag_window(window: tauri::Window) {
+    let _ = window.start_dragging();
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let initial_session = find_youtube_session();
@@ -114,7 +119,8 @@ pub fn run() {
             minimize_window,
             toggle_maximize_window,
             close_window,
-            is_window_maximized
+            is_window_maximized,
+            start_drag_window
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

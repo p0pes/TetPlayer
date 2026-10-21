@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   Play,
@@ -423,6 +423,54 @@ export default function App() {
     }
   }
 
+  async function handleStartDrag(e: React.MouseEvent) {
+    if (e.button === 0) {
+      const target = e.target as HTMLElement;
+      if (
+        target.closest("button") ||
+        target.closest("input") ||
+        target.closest("a") ||
+        target.closest("select")
+      ) {
+        return;
+      }
+      try {
+        await invoke("start_drag_window");
+      } catch {
+        // ignore fallback fora do Tauri
+      }
+    }
+  }
+
+  // Preservação do scroll da playlist / busca ao alternar letras
+  const mainScrollRef = useRef<HTMLElement | null>(null);
+  const playlistScrollPosRef = useRef<number>(0);
+
+  useLayoutEffect(() => {
+    if (!showLyrics && mainScrollRef.current) {
+      mainScrollRef.current.scrollTop = playlistScrollPosRef.current;
+      const frameId = requestAnimationFrame(() => {
+        if (mainScrollRef.current) {
+          mainScrollRef.current.scrollTop = playlistScrollPosRef.current;
+        }
+      });
+      return () => cancelAnimationFrame(frameId);
+    }
+  }, [showLyrics]);
+
+  function toggleShowLyrics() {
+    setShowLyrics((prev) => {
+      if (!prev && mainScrollRef.current) {
+        playlistScrollPosRef.current = mainScrollRef.current.scrollTop;
+      }
+      return !prev;
+    });
+  }
+
+  function handleCloseLyrics() {
+    setShowLyrics(false);
+  }
+
   // Refs for access inside callbacks without stale closures
   const activeQueueRef = useRef<Track[]>([]);
   const currentQueueIndexRef = useRef<number>(-1);
@@ -583,6 +631,8 @@ export default function App() {
   }
 
   async function handleSelectPlaylist(playlist: Playlist) {
+    playlistScrollPosRef.current = 0;
+    if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
     setSelectedPlaylist(playlist);
     setActiveTab("library");
     setIsLoadingPlaylistTracks(true);
@@ -947,7 +997,7 @@ export default function App() {
           toggleMute();
           break;
         case "KeyL":
-          setShowLyrics((prev) => !prev);
+          toggleShowLyrics();
           break;
         case "KeyS":
           toggleShuffle();
@@ -1079,7 +1129,7 @@ export default function App() {
     }
   }
 
-  // Fundo Dinâmico Aurora Sutil (Paleta suave + Amostragem via Canvas com Fallback Robusto)
+  // Fundo Dinâmico Aurora de Alta Resolução (Amostragem Inteligente por Saturação + GPU)
   useEffect(() => {
     if (!currentTrack) return;
 
@@ -1090,13 +1140,13 @@ export default function App() {
       hash |= 0;
     }
     const hue1 = Math.abs(hash) % 360;
-    const hue2 = (hue1 + 60) % 360;
-    const hue3 = (hue1 + 180) % 360;
+    const hue2 = (hue1 + 70) % 360;
+    const hue3 = (hue1 + 190) % 360;
 
     const root = document.documentElement;
-    root.style.setProperty("--aurora-1", `hsla(${hue1}, 70%, 45%, 0.12)`);
-    root.style.setProperty("--aurora-2", `hsla(${hue2}, 65%, 40%, 0.10)`);
-    root.style.setProperty("--aurora-3", `hsla(${hue3}, 60%, 35%, 0.08)`);
+    root.style.setProperty("--aurora-1", `hsla(${hue1}, 85%, 52%, 0.45)`);
+    root.style.setProperty("--aurora-2", `hsla(${hue2}, 80%, 48%, 0.35)`);
+    root.style.setProperty("--aurora-3", `hsla(${hue3}, 75%, 45%, 0.28)`);
 
     const imgUrl =
       currentTrack.artwork_url ||
@@ -1104,25 +1154,74 @@ export default function App() {
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onerror = () => {
-      // Mantém silenciosamente a paleta determinística
+      // Mantém silenciosamente a paleta determinística vibrante
     };
     img.onload = () => {
       try {
         const canvas = document.createElement("canvas");
-        canvas.width = 10;
-        canvas.height = 10;
+        canvas.width = 64;
+        canvas.height = 64;
         const ctx = canvas.getContext("2d");
         if (!ctx) return;
-        ctx.drawImage(img, 0, 0, 10, 10);
-        const data = ctx.getImageData(0, 0, 10, 10).data;
+        ctx.drawImage(img, 0, 0, 64, 64);
+        const data = ctx.getImageData(0, 0, 64, 64).data;
 
-        const r1 = data[0] || 0, g1 = data[1] || 0, b1 = data[2] || 0;
-        const r2 = data[48 * 4] || 0, g2 = data[48 * 4 + 1] || 0, b2 = data[48 * 4 + 2] || 0;
-        const r3 = data[96 * 4] || 0, g3 = data[96 * 4 + 1] || 0, b3 = data[96 * 4 + 2] || 0;
+        // Amostragem inteligente de cores dominantes e vibrantes
+        const buckets: { r: number; g: number; b: number; score: number; count: number }[] = [];
+        const step = 4 * 4;
 
-        root.style.setProperty("--aurora-1", `rgba(${r1}, ${g1}, ${b1}, 0.14)`);
-        root.style.setProperty("--aurora-2", `rgba(${r2}, ${g2}, ${b2}, 0.10)`);
-        root.style.setProperty("--aurora-3", `rgba(${r3}, ${g3}, ${b3}, 0.08)`);
+        for (let i = 0; i < data.length; i += step) {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          const a = data[i + 3];
+          if (a < 128) continue;
+
+          const max = Math.max(r, g, b);
+          const min = Math.min(r, g, b);
+          const delta = max - min;
+          const brightness = (r + g + b) / 3;
+
+          // Ignora pretos/brancos extremos e tons cinzas desbotados
+          if (brightness < 28 || brightness > 240 || delta < 20) continue;
+
+          const saturation = delta / (max || 1);
+          const score = saturation * 2.0 + (1 - Math.abs(brightness - 128) / 128);
+
+          let matched = false;
+          for (const bucket of buckets) {
+            const dist = Math.abs(bucket.r - r) + Math.abs(bucket.g - g) + Math.abs(bucket.b - b);
+            if (dist < 80) {
+              bucket.count++;
+              bucket.score = Math.max(bucket.score, score);
+              matched = true;
+              break;
+            }
+          }
+          if (!matched && buckets.length < 32) {
+            buckets.push({ r, g, b, score, count: 1 });
+          }
+        }
+
+        buckets.sort((a, b) => (b.score * Math.log2(b.count + 2)) - (a.score * Math.log2(a.count + 2)));
+
+        if (buckets.length > 0) {
+          const c1 = buckets[0];
+          const c2 = buckets[1] || {
+            r: Math.min(255, c1.g + 50),
+            g: Math.min(255, c1.b + 50),
+            b: Math.min(255, c1.r + 50),
+          };
+          const c3 = buckets[2] || {
+            r: Math.max(0, c1.b - 40),
+            g: Math.max(0, c1.r - 40),
+            b: Math.min(255, c1.g + 60),
+          };
+
+          root.style.setProperty("--aurora-1", `rgba(${c1.r}, ${c1.g}, ${c1.b}, 0.45)`);
+          root.style.setProperty("--aurora-2", `rgba(${c2.r}, ${c2.g}, ${c2.b}, 0.35)`);
+          root.style.setProperty("--aurora-3", `rgba(${c3.r}, ${c3.g}, ${c3.b}, 0.28)`);
+        }
       } catch {
         // Fallback resiliente contra DOMException (tainted canvas)
       }
@@ -1169,12 +1268,14 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen w-screen bg-[#0b0c10] text-[#e0e2ec] select-none overflow-hidden relative">
-      {/* Fundo Dinâmico Aurora Sutil (Otimizado por GPU) */}
+    <div className="flex flex-col h-screen w-screen bg-[#0b0c10] text-[#e0e2ec] select-none overflow-hidden relative">
+      {/* Fundo Dinâmico Aurora de Alta Resolução (Otimizado por GPU) */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute -top-[18%] -left-[10%] w-[55vw] h-[55vw] rounded-full aurora-blob-1 blur-[110px]" />
-        <div className="absolute top-[18%] -right-[15%] w-[50vw] h-[50vw] rounded-full aurora-blob-2 blur-[120px]" />
-        <div className="absolute -bottom-[18%] left-[25%] w-[45vw] h-[45vw] rounded-full aurora-blob-3 blur-[110px]" />
+        <div className="absolute -top-[15%] -left-[10%] w-[60vw] h-[60vw] rounded-full aurora-blob-1 blur-[90px] opacity-90" />
+        <div className="absolute top-[15%] -right-[10%] w-[55vw] h-[55vw] rounded-full aurora-blob-2 blur-[100px] opacity-80" />
+        <div className="absolute -bottom-[15%] left-[20%] w-[50vw] h-[50vw] rounded-full aurora-blob-3 blur-[90px] opacity-85" />
+        {/* Camada sutil de suavização / difusão para eliminar qualquer banding ou pixelado */}
+        <div className="absolute inset-0 bg-[#0b0c10]/45 backdrop-blur-[1px]" />
       </div>
 
       {/* Hidden YouTube Iframe Player */}
@@ -1182,52 +1283,127 @@ export default function App() {
         <div id="yt-player-frame" />
       </div>
 
-      {/* ======================================================= */}
-      {/* SIDEBAR LATERAL (Design System Oficial do Mockup)       */}
-      {/* ======================================================= */}
-      <aside className="w-64 bg-[#0f1118]/90 backdrop-blur-md border-r border-[#1f232e] p-4 flex flex-col justify-between shrink-0 h-full z-10">
-        <div className="space-y-6 flex-1 flex flex-col min-h-0">
-          {/* Logo TetPlayer com suporte a arrastar janela */}
-          <div
-            data-tauri-drag-region
-            onDoubleClick={handleToggleMaximize}
-            className="flex items-center gap-2.5 px-2 pt-1 cursor-default"
-          >
-            <div className="w-3.5 h-3.5 rounded-full bg-red-600 shadow-[0_0_10px_rgba(239,68,68,0.9)] animate-pulse" />
-            <h1 className="font-bold text-lg text-white tracking-tight flex items-center gap-2 pointer-events-none">
-              TetPlayer <span className="text-[10px] bg-red-950 text-red-400 border border-red-800/60 px-2 py-0.5 rounded-full font-medium">Desktop</span>
-            </h1>
+      {/* Barra Superior Integrada com Window Controls (Title Bar Customizada - 100% Arrastável) */}
+      <header
+        data-tauri-drag-region
+        onMouseDown={handleStartDrag}
+        onDoubleClick={handleToggleMaximize}
+        className="h-10 border-b border-[#1f232e] bg-[#0c0e14]/90 backdrop-blur-md flex items-center justify-between shrink-0 select-none z-50 cursor-default"
+      >
+        {/* Esquerda: Logo TetPlayer alinhado à largura da sidebar */}
+        <div
+          data-tauri-drag-region
+          className="flex items-center gap-2.5 px-4 w-64 shrink-0 h-full border-r border-[#1f232e]"
+        >
+          <div className="w-3 h-3 rounded-full bg-red-600 shadow-[0_0_8px_rgba(239,68,68,0.9)] animate-pulse" />
+          <span className="font-bold text-sm text-white tracking-tight flex items-center gap-1.5 pointer-events-none">
+            TetPlayer <span className="text-[9px] bg-red-950/80 text-red-400 border border-red-800/50 px-1.5 py-0.2 rounded font-medium">Desktop</span>
+          </span>
+        </div>
+
+        {/* Centro: Breadcrumbs / Título da Visualização Ativa */}
+        <div data-tauri-drag-region className="flex-1 flex items-center px-4 h-full pointer-events-none min-w-0">
+          <span className="text-xs text-[#8c91a4] truncate">
+            {showLyrics
+              ? `Letras Sincronizadas > ${currentTrack?.title || "Música Atual"}`
+              : activeTab === "library"
+              ? selectedPlaylist
+                ? `Biblioteca > ${selectedPlaylist.title}`
+                : "Biblioteca de Playlists"
+              : "Busca de Músicas"}
+          </span>
+        </div>
+
+        {/* Direita: Status de Sessão + Controles de Janela Colados no Canto */}
+        <div className="flex items-center h-full">
+          {auth?.is_authenticated ? (
+            <span className="inline-flex items-center gap-1.5 bg-emerald-950/70 text-emerald-400 border border-emerald-800/50 px-2.5 py-0.5 rounded-full text-xs mr-3 pointer-events-none">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Sincronizado: {auth.browser}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 bg-amber-950/70 text-amber-300 border border-amber-800/50 px-2.5 py-0.5 rounded-full text-xs mr-3 pointer-events-none">
+              <AlertCircle className="w-3.5 h-3.5" />
+              Modo Anônimo
+            </span>
+          )}
+
+          {/* Menu de Navegação / Janela do Windows (Minimizar, Modo Janela, Fechar) - COLADOS NO CANTO DIREITO */}
+          <div className="flex items-center h-full">
+            <button
+              onClick={handleMinimize}
+              title="Minimizar"
+              aria-label="Minimizar"
+              className="w-12 h-full flex items-center justify-center text-[#8c91a4] hover:text-white hover:bg-[#1f232e] transition-colors cursor-pointer"
+            >
+              <Minus className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              onClick={handleToggleMaximize}
+              title={isMaximized ? "Restaurar (Modo Janela)" : "Maximizar"}
+              aria-label={isMaximized ? "Restaurar" : "Maximizar"}
+              className="w-12 h-full flex items-center justify-center text-[#8c91a4] hover:text-white hover:bg-[#1f232e] transition-colors cursor-pointer"
+            >
+              {isMaximized ? (
+                <Copy className="w-3 h-3" />
+              ) : (
+                <Square className="w-3 h-3" />
+              )}
+            </button>
+
+            <button
+              onClick={handleClose}
+              title="Fechar"
+              aria-label="Fechar"
+              className="w-12 h-full flex items-center justify-center text-[#8c91a4] hover:text-white hover:bg-[#e81123] transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
+        </div>
+      </header>
 
-          {/* Navegação Principal: Biblioteca como Página Inicial + Buscar */}
-          <nav className="space-y-1">
-            <button
-              onClick={() => {
-                setActiveTab("library");
-                setSelectedPlaylist(null);
-              }}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold text-sm transition-all cursor-pointer ${
-                activeTab === "library"
-                  ? "bg-red-600 text-white shadow-lg shadow-red-950/50"
-                  : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
-              }`}
-            >
-              <Library className="w-4 h-4" />
-              Biblioteca
-            </button>
+      {/* ======================================================= */}
+      {/* CORPO PRINCIPAL (Sidebar + Conteúdo Central)            */}
+      {/* ======================================================= */}
+      <div className="flex-1 flex min-h-0 overflow-hidden relative">
+        {/* SIDEBAR LATERAL (Design System Oficial do Mockup) */}
+        <aside className="w-64 bg-[#0f1118]/90 backdrop-blur-md border-r border-[#1f232e] p-4 flex flex-col justify-between shrink-0 h-full z-10">
+          <div className="space-y-4 flex-1 flex flex-col min-h-0">
+            {/* Navegação Principal: Biblioteca como Página Inicial + Buscar */}
+            <nav className="space-y-1">
+              <button
+                onClick={() => {
+                  playlistScrollPosRef.current = 0;
+                  setActiveTab("library");
+                  setSelectedPlaylist(null);
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold text-sm transition-all cursor-pointer ${
+                  activeTab === "library"
+                    ? "bg-red-600 text-white shadow-lg shadow-red-950/50"
+                    : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
+                }`}
+              >
+                <Library className="w-4 h-4" />
+                Biblioteca
+              </button>
 
-            <button
-              onClick={() => setActiveTab("search")}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-medium text-sm transition-all cursor-pointer ${
-                activeTab === "search"
-                  ? "bg-red-600 text-white shadow-lg shadow-red-950/50"
-                  : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
-              }`}
-            >
-              <Search className="w-4 h-4" />
-              Buscar
-            </button>
-          </nav>
+              <button
+                onClick={() => {
+                  playlistScrollPosRef.current = 0;
+                  setActiveTab("search");
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-medium text-sm transition-all cursor-pointer ${
+                  activeTab === "search"
+                    ? "bg-red-600 text-white shadow-lg shadow-red-950/50"
+                    : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
+                }`}
+              >
+                <Search className="w-4 h-4" />
+                Buscar
+              </button>
+            </nav>
 
           {/* Seção de Playlists do Usuário com Scroll Suave e Reordenação */}
           <div className="flex-1 flex flex-col min-h-0 pt-2 border-t border-[#1f232e]">
@@ -1425,218 +1601,36 @@ export default function App() {
       </aside>
 
       {/* ======================================================= */}
-      {/* ÁREA PRINCIPAL (Header superior + Conteúdo dinâmico)    */}
+      {/* ÁREA PRINCIPAL (Conteúdo dinâmico da aplicação)         */}
       {/* ======================================================= */}
-      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-        {/* Barra Superior Integrada com Window Controls (Title Bar Customizada) */}
-        <header
-          data-tauri-drag-region
-          onDoubleClick={handleToggleMaximize}
-          className="h-14 border-b border-[#1f232e] bg-[#0e1017] px-6 flex items-center justify-between gap-4 shrink-0 select-none cursor-default"
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
+        {/* Alerta de Erro se houver */}
+        {errorMessage && (
+          <div className="m-6 mb-0 bg-red-950/40 border border-red-800/60 text-red-300 text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 shrink-0">
+            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+            <span className="flex-1">{errorMessage}</span>
+            <button
+              onClick={() => setErrorMessage(null)}
+              className="text-red-400 hover:text-white text-xs underline cursor-pointer"
+            >
+              Fechar
+            </button>
+          </div>
+        )}
+
+        {/* Conteúdo com Scroll da Playlist e Busca (Scroll Preservado ao fechar letras) */}
+        <main
+          ref={mainScrollRef}
+          onScroll={(e) => {
+            if (!showLyrics) {
+              playlistScrollPosRef.current = e.currentTarget.scrollTop;
+            }
+          }}
+          className={`flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar ${
+            showLyrics ? "hidden" : "block"
+          }`}
         >
-          <div className="flex items-center gap-3" data-tauri-drag-region>
-            <span className="text-xs text-[#8c91a4] pointer-events-none">
-              {showLyrics
-                ? `Letras Sincronizadas > ${currentTrack?.title || "Música Atual"}`
-                : activeTab === "library"
-                ? selectedPlaylist
-                  ? `Biblioteca > ${selectedPlaylist.title}`
-                  : "Biblioteca de Playlists"
-                : "Busca de Músicas"}
-            </span>
-          </div>
-
-          {/* Status Pills e Controles de Navegação da Janela */}
-          <div className="flex items-center gap-3">
-            {auth?.is_authenticated ? (
-              <span className="inline-flex items-center gap-1.5 bg-emerald-950/80 text-emerald-400 border border-emerald-800/50 px-2.5 py-0.5 rounded-full text-xs">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                Sincronizado: {auth.browser}
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 bg-amber-950/80 text-amber-300 border border-amber-800/50 px-2.5 py-0.5 rounded-full text-xs">
-                <AlertCircle className="w-3.5 h-3.5" />
-                Modo Anônimo
-              </span>
-            )}
-
-            {/* Menu de Navegação / Janela do Windows (Minimizar, Modo Janela, Fechar) */}
-            <div className="flex items-center gap-1 border-l border-[#1f232e] pl-3 ml-1">
-              <button
-                onClick={handleMinimize}
-                title="Minimizar"
-                aria-label="Minimizar"
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-[#8c91a4] hover:text-white hover:bg-[#1f232e] transition-colors cursor-pointer"
-              >
-                <Minus className="w-4 h-4" />
-              </button>
-
-              <button
-                onClick={handleToggleMaximize}
-                title={isMaximized ? "Restaurar (Modo Janela)" : "Maximizar"}
-                aria-label={isMaximized ? "Restaurar" : "Maximizar"}
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-[#8c91a4] hover:text-white hover:bg-[#1f232e] transition-colors cursor-pointer"
-              >
-                {isMaximized ? (
-                  <Copy className="w-3.5 h-3.5" />
-                ) : (
-                  <Square className="w-3.5 h-3.5" />
-                )}
-              </button>
-
-              <button
-                onClick={handleClose}
-                title="Fechar"
-                aria-label="Fechar"
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-[#8c91a4] hover:text-white hover:bg-red-600 transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </header>
-
-        {/* Conteúdo Dinâmico */}
-        <main className="flex-1 overflow-y-auto p-6 space-y-6 relative">
-          {/* Alerta de Erro se houver */}
-          {errorMessage && (
-            <div className="bg-red-950/40 border border-red-800/60 text-red-300 text-xs px-4 py-2.5 rounded-xl flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-              <span className="flex-1">{errorMessage}</span>
-              <button
-                onClick={() => setErrorMessage(null)}
-                className="text-red-400 hover:text-white text-xs underline cursor-pointer"
-              >
-                Fechar
-              </button>
-            </div>
-          )}
-
-          {/* Se a visualização de letras estiver aberta, renderiza a tela de letras com todos os estados */}
-          {showLyrics ? (
-            <div className="h-full flex flex-col max-w-4xl mx-auto overflow-hidden relative">
-              {/* Header das Letras */}
-              <div className="flex items-center justify-between pb-4 border-b border-[#1f232e] mb-4 shrink-0">
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-12 h-12 rounded-xl bg-[#171a24] border border-[#232733] overflow-hidden shrink-0">
-                    {currentTrack?.artwork_url ? (
-                      <img
-                        src={currentTrack.artwork_url}
-                        alt={currentTrack.title}
-                        referrerPolicy="no-referrer"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <Music className="w-6 h-6 text-[#5e6479] m-auto" />
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <h2 className="text-base font-bold text-white truncate">
-                      {currentTrack?.title || "Nenhuma faixa em reprodução"}
-                    </h2>
-                    <p className="text-xs text-[#8c91a4] truncate">
-                      {currentTrack?.artist || "TetPlayer"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {lyricsData?.synced ? (
-                    <span className="flex items-center gap-1.5 text-xs bg-red-950/70 text-red-300 border border-red-800/60 px-3 py-1 rounded-full font-medium shadow-sm">
-                      <Sparkles className="w-3.5 h-3.5 text-red-400 animate-pulse" />
-                      Letra Sincronizada ({lyricsData.source})
-                    </span>
-                  ) : lyricsData?.plain ? (
-                    <span className="text-xs bg-[#1a1d28] text-[#8c91a4] border border-[#232733] px-3 py-1 rounded-full font-medium">
-                      Letra Estática ({lyricsData.source})
-                    </span>
-                  ) : null}
-
-                  <button
-                    onClick={() => setShowLyrics(false)}
-                    className="p-1.5 rounded-lg text-[#8c91a4] hover:text-white hover:bg-[#1f232e] transition-colors cursor-pointer"
-                    title="Fechar Letras [L]"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Corpo das Letras com todos os 4 estados de UI (Loading, Empty, Error, Success) */}
-              <div
-                ref={lyricsContainerRef}
-                onScroll={handleLyricsContainerScroll}
-                className="flex-1 overflow-y-auto px-4 py-6 space-y-4 text-center custom-scrollbar"
-              >
-                {isLoadingLyrics ? (
-                  <div className="h-64 flex flex-col items-center justify-center gap-3 text-[#71778c]">
-                    <Loader2 className="w-8 h-8 animate-spin text-red-500" />
-                    <p className="text-sm font-medium">Buscando letra sincronizada...</p>
-                  </div>
-                ) : lyricsError || (!lyricsData?.synced && !lyricsData?.plain) ? (
-                  <div className="h-64 flex flex-col items-center justify-center gap-3 text-[#71778c]">
-                    <div className="w-14 h-14 rounded-2xl bg-[#141722] border border-[#212638] flex items-center justify-center">
-                      <Mic2 className="w-7 h-7 text-[#4e556e]" />
-                    </div>
-                    <p className="text-sm font-semibold text-white">Nenhuma letra encontrada</p>
-                    <p className="text-xs text-[#71778c] max-w-sm">
-                      Não encontramos a letra desta música no LRCLIB ou no YouTube Music.
-                    </p>
-                    <button
-                      onClick={() => setShowLyrics(false)}
-                      className="mt-2 text-xs bg-[#1a1d28] hover:bg-[#232738] text-white px-3 py-1.5 rounded-lg transition-colors cursor-pointer border border-[#2b3145]"
-                    >
-                      Voltar para a Biblioteca
-                    </button>
-                  </div>
-                ) : parsedLyrics.length > 0 ? (
-                  <div className="py-20 space-y-4">
-                    {parsedLyrics.map((line, idx) => {
-                      const isActive = idx === activeLyricIndex;
-                      const isPast = idx < activeLyricIndex;
-                      return (
-                        <div
-                          key={`${line.time}-${idx}`}
-                          ref={isActive ? activeLyricRef : null}
-                          onClick={() => handleSeekTo(line.time)}
-                          className={`py-2 px-4 rounded-xl transition-all duration-300 cursor-pointer select-none ${
-                            isActive
-                              ? "text-2xl md:text-3xl font-bold text-white scale-[1.03] drop-shadow-[0_0_16px_rgba(255,255,255,0.45)]"
-                              : isPast
-                              ? "text-lg md:text-xl text-[#51576d] hover:text-[#9ea5bc] font-medium opacity-60"
-                              : "text-lg md:text-xl text-[#787f95] hover:text-white font-medium opacity-85"
-                          }`}
-                        >
-                          {line.text}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : lyricsData?.plain ? (
-                  <div className="py-8 max-w-2xl mx-auto whitespace-pre-line text-base text-[#c4c8d8] leading-relaxed font-sans">
-                    {lyricsData.plain}
-                  </div>
-                ) : null}
-              </div>
-
-              {/* Botão Flutuante de Sincronização ao Rolar Manualmente */}
-              {isUserScrolledAway && parsedLyrics.length > 0 && activeLyricIndex !== -1 && (
-                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20">
-                  <button
-                    onClick={handleRecenterLyrics}
-                    className="flex items-center gap-2 px-4 py-2 rounded-full bg-red-600/95 hover:bg-red-500 text-white text-xs font-semibold shadow-xl shadow-red-950/70 border border-red-400/30 backdrop-blur-md transition-all active:scale-95 cursor-pointer animate-pulse"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-red-200" />
-                    <span>Sincronizar com o áudio</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <>
-              {/* ===================================================== */}
-              {/* ABA: BIBLIOTECA (Página Inicial com Playlists)       */}
-              {/* ===================================================== */}
+          {/* ABA: BIBLIOTECA (Página Inicial com Playlists) */}
           {activeTab === "library" && (
             <>
               {selectedPlaylist ? (
@@ -1644,7 +1638,11 @@ export default function App() {
                 <div className="space-y-6">
                   {/* Botão Voltar */}
                   <button
-                    onClick={() => setSelectedPlaylist(null)}
+                    onClick={() => {
+                      playlistScrollPosRef.current = 0;
+                      if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
+                      setSelectedPlaylist(null);
+                    }}
                     className="flex items-center gap-2 text-xs font-semibold text-[#8c91a4] hover:text-white transition-colors cursor-pointer"
                   >
                     <ArrowLeft className="w-4 h-4" />
@@ -2015,15 +2013,136 @@ export default function App() {
               </div>
             </div>
           )}
-            </>
-          )}
         </main>
-      </div>
 
-      {/* ======================================================= */}
-      {/* PLAYER INFERIOR PERSISTENTE (Footer Playback Bar)        */}
-      {/* ======================================================= */}
-      <footer className="fixed bottom-0 left-0 right-0 h-20 border-t border-[#1f232e] bg-[#0e1017]/95 backdrop-blur-md px-6 flex items-center justify-between gap-6 z-40">
+        {/* Visualização de Letras Sincronizadas (Scroll Isolado e Independente) */}
+        {showLyrics && (
+          <div className="flex-1 overflow-hidden p-6 flex flex-col max-w-4xl mx-auto w-full relative">
+            {/* Header das Letras */}
+            <div className="flex items-center justify-between pb-4 border-b border-[#1f232e] mb-4 shrink-0">
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-12 h-12 rounded-xl bg-[#171a24] border border-[#232733] overflow-hidden shrink-0">
+                  {currentTrack?.artwork_url ? (
+                    <img
+                      src={currentTrack.artwork_url}
+                      alt={currentTrack.title}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Music className="w-6 h-6 text-[#5e6479] m-auto" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-base font-bold text-white truncate">
+                    {currentTrack?.title || "Nenhuma faixa em reprodução"}
+                  </h2>
+                  <p className="text-xs text-[#8c91a4] truncate">
+                    {currentTrack?.artist || "TetPlayer"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {lyricsData?.synced ? (
+                  <span className="flex items-center gap-1.5 text-xs bg-red-950/70 text-red-300 border border-red-800/60 px-3 py-1 rounded-full font-medium shadow-sm">
+                    <Sparkles className="w-3.5 h-3.5 text-red-400 animate-pulse" />
+                    Letra Sincronizada ({lyricsData.source})
+                  </span>
+                ) : lyricsData?.plain ? (
+                  <span className="text-xs bg-[#1a1d28] text-[#8c91a4] border border-[#232733] px-3 py-1 rounded-full font-medium">
+                    Letra Estática ({lyricsData.source})
+                  </span>
+                ) : null}
+
+                <button
+                  onClick={handleCloseLyrics}
+                  className="p-1.5 rounded-lg text-[#8c91a4] hover:text-white hover:bg-[#1f232e] transition-colors cursor-pointer"
+                  title="Fechar Letras [L]"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Corpo das Letras com todos os 4 estados de UI (Loading, Empty, Error, Success) */}
+            <div
+              ref={lyricsContainerRef}
+              onScroll={handleLyricsContainerScroll}
+              className="flex-1 overflow-y-auto px-4 py-6 space-y-4 text-center custom-scrollbar"
+            >
+              {isLoadingLyrics ? (
+                <div className="h-64 flex flex-col items-center justify-center gap-3 text-[#71778c]">
+                  <Loader2 className="w-8 h-8 animate-spin text-red-500" />
+                  <p className="text-sm font-medium">Buscando letra sincronizada...</p>
+                </div>
+              ) : lyricsError || (!lyricsData?.synced && !lyricsData?.plain) ? (
+                <div className="h-64 flex flex-col items-center justify-center gap-3 text-[#71778c]">
+                  <div className="w-14 h-14 rounded-2xl bg-[#141722] border border-[#212638] flex items-center justify-center">
+                    <Mic2 className="w-7 h-7 text-[#4e556e]" />
+                  </div>
+                  <p className="text-sm font-semibold text-white">Nenhuma letra encontrada</p>
+                  <p className="text-xs text-[#71778c] max-w-sm">
+                    Não encontramos a letra desta música no LRCLIB ou no YouTube Music.
+                  </p>
+                  <button
+                    onClick={handleCloseLyrics}
+                    className="mt-2 text-xs bg-[#1a1d28] hover:bg-[#232738] text-white px-3 py-1.5 rounded-lg transition-colors cursor-pointer border border-[#2b3145]"
+                  >
+                    Voltar para a Biblioteca
+                  </button>
+                </div>
+              ) : parsedLyrics.length > 0 ? (
+                <div className="py-20 space-y-4">
+                  {parsedLyrics.map((line, idx) => {
+                    const isActive = idx === activeLyricIndex;
+                    const isPast = idx < activeLyricIndex;
+                    return (
+                      <div
+                        key={`${line.time}-${idx}`}
+                        ref={isActive ? activeLyricRef : null}
+                        onClick={() => handleSeekTo(line.time)}
+                        className={`py-2 px-4 rounded-xl transition-all duration-300 cursor-pointer select-none ${
+                          isActive
+                            ? "text-2xl md:text-3xl font-bold text-white scale-[1.03] drop-shadow-[0_0_16px_rgba(255,255,255,0.45)]"
+                            : isPast
+                            ? "text-lg md:text-xl text-[#51576d] hover:text-[#9ea5bc] font-medium opacity-60"
+                            : "text-lg md:text-xl text-[#787f95] hover:text-white font-medium opacity-85"
+                        }`}
+                      >
+                        {line.text}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : lyricsData?.plain ? (
+                <div className="py-8 max-w-2xl mx-auto whitespace-pre-line text-base text-[#c4c8d8] leading-relaxed font-sans">
+                  {lyricsData.plain}
+                </div>
+              ) : null}
+            </div>
+
+            {/* Botão Flutuante de Sincronização ao Rolar Manualmente */}
+            {isUserScrolledAway && parsedLyrics.length > 0 && activeLyricIndex !== -1 && (
+              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20">
+                <button
+                  onClick={handleRecenterLyrics}
+                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-red-600/95 hover:bg-red-500 text-white text-xs font-semibold shadow-xl shadow-red-950/70 border border-red-400/30 backdrop-blur-md transition-all active:scale-95 cursor-pointer animate-pulse"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-red-200" />
+                  <span>Sincronizar com o áudio</span>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+
+    {/* ======================================================= */}
+    {/* PLAYER INFERIOR PERSISTENTE (Footer Playback Bar)        */}
+    {/* ======================================================= */}
+    <footer className="h-20 shrink-0 border-t border-[#1f232e] bg-[#0e1017]/95 backdrop-blur-md px-6 flex items-center justify-between gap-6 z-40">
         {/* Faixa Atual */}
         <div className="flex items-center gap-3.5 w-1/4 min-w-[200px]">
           <div className="w-12 h-12 rounded-lg bg-[#171a24] border border-[#232733] overflow-hidden shrink-0 flex items-center justify-center">
@@ -2175,7 +2294,7 @@ export default function App() {
         <div className="flex items-center justify-end gap-3.5 w-1/4 min-w-[200px]">
           {/* Botão Letras */}
           <button
-            onClick={() => setShowLyrics((prev) => !prev)}
+            onClick={toggleShowLyrics}
             disabled={!currentTrack}
             aria-label="Exibir letras sincronizadas"
             aria-pressed={showLyrics}
