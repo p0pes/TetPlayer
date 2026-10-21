@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   Play,
@@ -21,6 +21,10 @@ import {
   Square,
   Copy,
   X,
+  Pin,
+  ChevronUp,
+  ChevronDown,
+  GripVertical,
 } from "lucide-react";
 
 interface AuthSession {
@@ -102,6 +106,155 @@ export default function App() {
 
   // Window state & controls
   const [isMaximized, setIsMaximized] = useState(false);
+
+  // Pinning & Recently Listened State
+  const [pinnedPlaylistIds, setPinnedPlaylistIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("tetplayer_pinned_playlists");
+      return saved ? JSON.parse(saved) : ["VLLM"];
+    } catch {
+      return ["VLLM"];
+    }
+  });
+
+  const [playlistHistory, setPlaylistHistory] = useState<Record<string, number>>(() => {
+    try {
+      const saved = localStorage.getItem("tetplayer_playlist_history");
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const [draggedPinnedId, setDraggedPinnedId] = useState<string | null>(null);
+  const [dragOverPinnedId, setDragOverPinnedId] = useState<string | null>(null);
+
+  // Mark playlist as listened to in history
+  function markPlaylistListened(playlistId?: string) {
+    if (!playlistId) return;
+    setPlaylistHistory((prev) => {
+      const updated = { ...prev, [playlistId]: Date.now() };
+      try {
+        localStorage.setItem("tetplayer_playlist_history", JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+  }
+
+  // Toggle pinning on a playlist
+  function togglePinPlaylist(playlistId: string, e?: React.MouseEvent) {
+    if (e) e.stopPropagation();
+    setPinnedPlaylistIds((prev) => {
+      let updated: string[];
+      if (prev.includes(playlistId)) {
+        updated = prev.filter((id) => id !== playlistId);
+      } else {
+        updated = [...prev, playlistId];
+      }
+      try {
+        localStorage.setItem("tetplayer_pinned_playlists", JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+  }
+
+  // Move pinned playlist up or down with arrows
+  function movePinnedPlaylist(playlistId: string, direction: "up" | "down", e?: React.MouseEvent) {
+    if (e) e.stopPropagation();
+    setPinnedPlaylistIds((prev) => {
+      const idx = prev.indexOf(playlistId);
+      if (idx === -1) return prev;
+      const targetIdx = direction === "up" ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= prev.length) return prev;
+      const next = [...prev];
+      const [item] = next.splice(idx, 1);
+      next.splice(targetIdx, 0, item);
+      try {
+        localStorage.setItem("tetplayer_pinned_playlists", JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }
+
+  // Drag and Drop reordering for pinned playlists
+  function handlePinnedDragStart(e: React.DragEvent, id: string) {
+    e.dataTransfer.setData("text/plain", id);
+    e.dataTransfer.effectAllowed = "move";
+    setDraggedPinnedId(id);
+  }
+
+  function handlePinnedDragOver(e: React.DragEvent, id: string) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragOverPinnedId !== id) {
+      setDragOverPinnedId(id);
+    }
+  }
+
+  function handlePinnedDrop(e: React.DragEvent, targetId: string) {
+    e.preventDefault();
+    const sourceId = draggedPinnedId || e.dataTransfer.getData("text/plain");
+    setDraggedPinnedId(null);
+    setDragOverPinnedId(null);
+
+    if (!sourceId || sourceId === targetId) return;
+
+    setPinnedPlaylistIds((prev) => {
+      const sourceIndex = prev.indexOf(sourceId);
+      const targetIndex = prev.indexOf(targetId);
+      if (sourceIndex === -1 || targetIndex === -1) return prev;
+      const next = [...prev];
+      const [item] = next.splice(sourceIndex, 1);
+      next.splice(targetIndex, 0, item);
+      try {
+        localStorage.setItem("tetplayer_pinned_playlists", JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }
+
+  function handlePinnedDragEnd() {
+    setDraggedPinnedId(null);
+    setDragOverPinnedId(null);
+  }
+
+  // Pinned playlists always stay on top in user-defined order
+  const pinnedPlaylists = useMemo(() => {
+    const map = new Map(playlists.map((p) => [p.id, p]));
+    const list: Playlist[] = [];
+    for (const id of pinnedPlaylistIds) {
+      const pl = map.get(id);
+      if (pl) list.push(pl);
+    }
+    return list;
+  }, [playlists, pinnedPlaylistIds]);
+
+  // Non-pinned playlists ordered by most recently listened (highest timestamp first)
+  const unpinnedPlaylists = useMemo(() => {
+    const pinnedSet = new Set(pinnedPlaylistIds);
+    const list = playlists.filter((p) => !pinnedSet.has(p.id));
+    return list.sort((a, b) => {
+      const timeA = playlistHistory[a.id] || 0;
+      const timeB = playlistHistory[b.id] || 0;
+      if (timeB !== timeA) {
+        return timeB - timeA; // Most recent first
+      }
+      return 0; // Maintain original order if unplayed
+    });
+  }, [playlists, pinnedPlaylistIds, playlistHistory]);
+
+  // Combined sorted playlists: pinned always above, then recently listened
+  const sortedPlaylists = useMemo(() => {
+    return [...pinnedPlaylists, ...unpinnedPlaylists];
+  }, [pinnedPlaylists, unpinnedPlaylists]);
 
   useEffect(() => {
     checkMaximizedState();
@@ -316,12 +469,17 @@ export default function App() {
     }
   }
 
-  function playTrackWithQueue(track: Track, queue: Track[], index: number) {
+  function playTrackWithQueue(track: Track, queue: Track[], index: number, playlistId?: string) {
     setLoadingTrackId(track.id);
     setCurrentTrack(track);
     setActiveQueue(queue);
     setCurrentQueueIndex(index);
     setErrorMessage(null);
+
+    const activePlId = playlistId || selectedPlaylist?.id;
+    if (activePlId) {
+      markPlaylistListened(activePlId);
+    }
 
     if (ytPlayerRef.current && typeof ytPlayerRef.current.loadVideoById === "function") {
       ytPlayerRef.current.loadVideoById(track.id);
@@ -466,12 +624,19 @@ export default function App() {
             </button>
           </nav>
 
-          {/* Seção de Playlists do Usuário com Scroll Suave */}
+          {/* Seção de Playlists do Usuário com Scroll Suave e Reordenação */}
           <div className="flex-1 flex flex-col min-h-0 pt-2 border-t border-[#1f232e]">
             <div className="flex items-center justify-between px-2 mb-2">
-              <p className="text-[11px] font-bold text-[#555a6d] uppercase tracking-wider">
-                Suas Playlists
-              </p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-[11px] font-bold text-[#555a6d] uppercase tracking-wider">
+                  Suas Playlists
+                </p>
+                {pinnedPlaylists.length > 0 && (
+                  <span className="text-[10px] bg-red-950/60 text-red-400 border border-red-900/40 px-1.5 py-0.2 rounded-full font-mono">
+                    {pinnedPlaylists.length} fixada{pinnedPlaylists.length > 1 ? "s" : ""}
+                  </span>
+                )}
+              </div>
               <button
                 onClick={loadPlaylists}
                 title="Recarregar playlists"
@@ -487,34 +652,129 @@ export default function App() {
                   <Loader2 className="w-3.5 h-3.5 animate-spin text-red-500" />
                   Carregando playlists...
                 </div>
-              ) : playlists.length === 0 ? (
+              ) : sortedPlaylists.length === 0 ? (
                 <div className="px-3 py-2 text-xs text-[#555a6d]">
                   Nenhuma playlist encontrada.
                 </div>
               ) : (
-                playlists.map((pl) => {
-                  const isSelected = selectedPlaylist?.id === pl.id;
-                  const isLiked = pl.id === "VLLM";
+                <>
+                  {/* 1. PLAYLISTS FIXADAS (sempre no topo, arrastáveis e reordenáveis) */}
+                  {pinnedPlaylists.map((pl, idx) => {
+                    const isSelected = selectedPlaylist?.id === pl.id;
+                    const isLiked = pl.id === "VLLM";
+                    const isDragging = draggedPinnedId === pl.id;
+                    const isDragOver = dragOverPinnedId === pl.id;
 
-                  return (
-                    <div
-                      key={pl.id}
-                      onClick={() => handleSelectPlaylist(pl)}
-                      className={`px-3 py-2 rounded-lg text-xs transition-colors cursor-pointer flex items-center gap-2 truncate ${
-                        isSelected
-                          ? "bg-[#1f2331] text-red-400 font-semibold"
-                          : "text-[#9da3b7] hover:bg-[#1a1d28] hover:text-white"
-                      }`}
-                    >
-                      {isLiked ? (
-                        <Flame className="w-3.5 h-3.5 text-red-500 shrink-0" />
-                      ) : (
-                        <ListMusic className="w-3.5 h-3.5 text-[#5e6479] shrink-0" />
-                      )}
-                      <span className="truncate">{pl.title}</span>
+                    return (
+                      <div
+                        key={`pinned-${pl.id}`}
+                        draggable
+                        onDragStart={(e) => handlePinnedDragStart(e, pl.id)}
+                        onDragOver={(e) => handlePinnedDragOver(e, pl.id)}
+                        onDrop={(e) => handlePinnedDrop(e, pl.id)}
+                        onDragEnd={handlePinnedDragEnd}
+                        onClick={() => handleSelectPlaylist(pl)}
+                        title={`${pl.title} (Fixada - Arraste para reordenar)`}
+                        className={`group relative px-2.5 py-2 rounded-lg text-xs transition-all cursor-pointer flex items-center justify-between gap-1.5 ${
+                          isSelected
+                            ? "bg-[#1f2331] text-red-400 font-semibold"
+                            : "text-[#9da3b7] hover:bg-[#1a1d28] hover:text-white"
+                        } ${isDragging ? "opacity-40" : ""} ${
+                          isDragOver ? "border-t-2 border-red-500 bg-[#251d28]" : ""
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <GripVertical className="w-3.5 h-3.5 text-[#444a5e] group-hover:text-[#8c91a4] shrink-0 cursor-grab active:cursor-grabbing" />
+                          {isLiked ? (
+                            <Flame className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                          ) : (
+                            <ListMusic className="w-3.5 h-3.5 text-[#5e6479] shrink-0" />
+                          )}
+                          <span className="truncate flex-1">{pl.title}</span>
+                        </div>
+
+                        {/* Ações da Playlist Fixada */}
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          <div className="hidden group-hover:flex items-center gap-0.5">
+                            {idx > 0 && (
+                              <button
+                                onClick={(e) => movePinnedPlaylist(pl.id, "up", e)}
+                                title="Mover para cima"
+                                className="p-0.5 rounded text-[#71778c] hover:text-white hover:bg-[#282d3d]"
+                              >
+                                <ChevronUp className="w-3 h-3" />
+                              </button>
+                            )}
+                            {idx < pinnedPlaylists.length - 1 && (
+                              <button
+                                onClick={(e) => movePinnedPlaylist(pl.id, "down", e)}
+                                title="Mover para baixo"
+                                className="p-0.5 rounded text-[#71778c] hover:text-white hover:bg-[#282d3d]"
+                              >
+                                <ChevronDown className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+
+                          <button
+                            onClick={(e) => togglePinPlaylist(pl.id, e)}
+                            title="Desafixar playlist"
+                            className="p-1 rounded text-red-400 hover:text-red-300 hover:bg-red-950/60 transition-colors"
+                          >
+                            <Pin className="w-3 h-3 fill-current rotate-45" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Divisor Visual se houver fixadas e não fixadas */}
+                  {pinnedPlaylists.length > 0 && unpinnedPlaylists.length > 0 && (
+                    <div className="pt-2 pb-1 px-2 flex items-center justify-between border-t border-[#1a1d27] my-1">
+                      <span className="text-[10px] font-semibold text-[#484e62] uppercase tracking-wider">
+                        Ouvidas Recentes
+                      </span>
                     </div>
-                  );
-                })
+                  )}
+
+                  {/* 2. PLAYLISTS NÃO FIXADAS (em ordem de ouvida recente) */}
+                  {unpinnedPlaylists.map((pl) => {
+                    const isSelected = selectedPlaylist?.id === pl.id;
+                    const isLiked = pl.id === "VLLM";
+
+                    return (
+                      <div
+                        key={`unpinned-${pl.id}`}
+                        onClick={() => handleSelectPlaylist(pl)}
+                        className={`group px-2.5 py-2 rounded-lg text-xs transition-colors cursor-pointer flex items-center justify-between gap-1.5 ${
+                          isSelected
+                            ? "bg-[#1f2331] text-red-400 font-semibold"
+                            : "text-[#9da3b7] hover:bg-[#1a1d28] hover:text-white"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          {isLiked ? (
+                            <Flame className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                          ) : (
+                            <ListMusic className="w-3.5 h-3.5 text-[#5e6479] shrink-0" />
+                          )}
+                          <span className="truncate flex-1">{pl.title}</span>
+                        </div>
+
+                        {/* Botão Fixar no Hover */}
+                        <div className="flex items-center shrink-0">
+                          <button
+                            onClick={(e) => togglePinPlaylist(pl.id, e)}
+                            title="Fixar playlist no topo"
+                            className="opacity-0 group-hover:opacity-100 p-1 rounded text-[#555a6d] hover:text-red-400 hover:bg-[#232838] transition-all"
+                          >
+                            <Pin className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
               )}
             </div>
           </div>
@@ -690,7 +950,8 @@ export default function App() {
                         <button
                           onClick={() => {
                             if (playlistTracks.length > 0) {
-                              playTrackWithQueue(playlistTracks[0], playlistTracks, 0);
+                              markPlaylistListened(selectedPlaylist.id);
+                              playTrackWithQueue(playlistTracks[0], playlistTracks, 0, selectedPlaylist.id);
                             }
                           }}
                           disabled={playlistTracks.length === 0}
@@ -723,7 +984,7 @@ export default function App() {
                         return (
                           <div
                             key={`${track.id}-${idx}`}
-                            onClick={() => playTrackWithQueue(track, playlistTracks, idx)}
+                            onClick={() => playTrackWithQueue(track, playlistTracks, idx, selectedPlaylist.id)}
                             className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer group ${
                               isCurrent
                                 ? "bg-[#1c202d] border-red-500/50"
@@ -822,14 +1083,15 @@ export default function App() {
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                      {playlists.map((pl) => {
+                      {sortedPlaylists.map((pl) => {
                         const isLiked = pl.id === "VLLM";
+                        const isPinned = pinnedPlaylistIds.includes(pl.id);
 
                         return (
                           <div
                             key={pl.id}
                             onClick={() => handleSelectPlaylist(pl)}
-                            className="bg-[#12141c] hover:bg-[#171a24] p-4 rounded-2xl border border-[#1f232e] hover:border-[#2f3549] transition-all group cursor-pointer flex flex-col justify-between"
+                            className="bg-[#12141c] hover:bg-[#171a24] p-4 rounded-2xl border border-[#1f232e] hover:border-[#2f3549] transition-all group cursor-pointer flex flex-col justify-between relative"
                           >
                             <div className="relative w-full aspect-square rounded-xl overflow-hidden mb-3.5 shadow-lg flex items-center justify-center bg-gradient-to-br from-indigo-700 via-purple-800 to-pink-700">
                               {pl.artwork_url ? (
@@ -848,15 +1110,35 @@ export default function App() {
                                 <ListMusic className="w-12 h-12 text-white/50" />
                               )}
 
+                              {/* Botão de Fixar / Desafixar no Card */}
+                              <button
+                                onClick={(e) => togglePinPlaylist(pl.id, e)}
+                                title={isPinned ? "Desafixar playlist" : "Fixar playlist no topo"}
+                                className={`absolute top-2.5 right-2.5 w-7 h-7 rounded-full flex items-center justify-center shadow-lg transition-all ${
+                                  isPinned
+                                    ? "bg-red-600 text-white"
+                                    : "bg-black/60 text-white/70 hover:text-white opacity-0 group-hover:opacity-100 hover:bg-black/80"
+                                }`}
+                              >
+                                <Pin className={`w-3.5 h-3.5 ${isPinned ? "fill-current rotate-45" : ""}`} />
+                              </button>
+
                               <div className="absolute bottom-2.5 right-2.5 w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center shadow-xl opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0">
                                 <Play className="w-4 h-4 fill-current ml-0.5" />
                               </div>
                             </div>
 
                             <div>
-                              <h4 className="text-sm font-semibold text-white truncate group-hover:text-red-400 transition-colors">
-                                {pl.title}
-                              </h4>
+                              <div className="flex items-center gap-1.5">
+                                {isPinned && (
+                                  <span className="text-[10px] text-red-400 font-bold uppercase tracking-wider shrink-0 bg-red-950/80 px-1.5 py-0.2 rounded border border-red-800/40">
+                                    Fixada
+                                  </span>
+                                )}
+                                <h4 className="text-sm font-semibold text-white truncate group-hover:text-red-400 transition-colors">
+                                  {pl.title}
+                                </h4>
+                              </div>
                               <p className="text-xs text-[#787f98] truncate mt-0.5">
                                 {pl.subtitle || "Playlist do YouTube Music"}
                               </p>
