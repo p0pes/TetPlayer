@@ -4,7 +4,10 @@ pub mod ytm;
 use auth::{find_youtube_session, AuthSession};
 use std::sync::Mutex;
 use tauri::State;
-use ytm::{get_audio_stream, get_home_recommendations, search_music, StreamInfo, Track};
+use ytm::{
+    get_home_recommendations, get_playlist_tracks as fetch_playlist_tracks,
+    get_user_playlists as fetch_user_playlists, search_music, Playlist, Track,
+};
 
 pub struct AppState {
     pub session: Mutex<AuthSession>,
@@ -36,9 +39,18 @@ async fn get_quick_tracks(state: State<'_, AppState>) -> Result<Vec<Track>, Stri
 }
 
 #[tauri::command]
-async fn get_track_stream(state: State<'_, AppState>, video_id: String) -> Result<StreamInfo, String> {
+async fn get_user_playlists(state: State<'_, AppState>) -> Result<Vec<Playlist>, String> {
     let session = { state.session.lock().unwrap().clone() };
-    get_audio_stream(&session, &video_id).await
+    fetch_user_playlists(&session).await
+}
+
+#[tauri::command]
+async fn get_playlist_tracks(
+    state: State<'_, AppState>,
+    playlist_id: String,
+) -> Result<Vec<Track>, String> {
+    let session = { state.session.lock().unwrap().clone() };
+    fetch_playlist_tracks(&session, &playlist_id).await
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -55,7 +67,8 @@ pub fn run() {
             refresh_auth,
             search_tracks,
             get_quick_tracks,
-            get_track_stream
+            get_user_playlists,
+            get_playlist_tracks
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

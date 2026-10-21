@@ -3,15 +3,20 @@ import { invoke } from "@tauri-apps/api/core";
 import {
   Play,
   Pause,
+  SkipForward,
+  SkipBack,
   Search,
   Volume2,
   VolumeX,
   Music,
+  Library,
+  Flame,
   CheckCircle2,
   AlertCircle,
   RefreshCw,
   Loader2,
-  Radio,
+  ArrowLeft,
+  ListMusic,
 } from "lucide-react";
 
 interface AuthSession {
@@ -30,6 +35,14 @@ interface Track {
   artwork_url?: string;
 }
 
+interface Playlist {
+  id: string;
+  title: string;
+  subtitle?: string;
+  artwork_url?: string;
+  track_count?: string;
+}
+
 declare global {
   interface Window {
     onYouTubeIframeAPIReady?: () => void;
@@ -46,15 +59,32 @@ function formatTime(seconds: number): string {
 }
 
 export default function App() {
+  // Navigation: 'library' (default home) or 'search'
+  const [activeTab, setActiveTab] = useState<"library" | "search">("library");
+
+  // Auth state
   const [auth, setAuth] = useState<AuthSession | null>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(false);
+
+  // Playlists & Library state
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false);
+  const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
+  const [playlistTracks, setPlaylistTracks] = useState<Track[]>([]);
+  const [isLoadingPlaylistTracks, setIsLoadingPlaylistTracks] = useState(false);
+
+  // Search state
   const [searchQuery, setSearchQuery] = useState("");
-  const [tracks, setTracks] = useState<Track[]>([]);
-  const [isLoadingTracks, setIsLoadingTracks] = useState(false);
+  const [searchResults, setSearchResults] = useState<Track[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Error state
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Playback state
+  // Playback state & Queue
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
+  const [activeQueue, setActiveQueue] = useState<Track[]>([]);
+  const [currentQueueIndex, setCurrentQueueIndex] = useState<number>(-1);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -66,13 +96,18 @@ export default function App() {
   const ytPlayerRef = useRef<any>(null);
   const [isPlayerReady, setIsPlayerReady] = useState(false);
 
-  // Inicializa o player embutido do YouTube e autenticação
+  // Refs for access inside callbacks
+  const activeQueueRef = useRef<Track[]>([]);
+  const currentQueueIndexRef = useRef<number>(-1);
+  activeQueueRef.current = activeQueue;
+  currentQueueIndexRef.current = currentQueueIndex;
+
   useEffect(() => {
     loadAuthStatus();
-    loadInitialTracks();
+    loadPlaylists();
     initYouTubePlayer();
 
-    // Timer para sincronizar o tempo de reprodução
+    // Sincronizador de timeline
     const interval = setInterval(() => {
       if (ytPlayerRef.current && isPlayerReady) {
         try {
@@ -128,28 +163,30 @@ export default function App() {
         onReady: () => {
           setIsPlayerReady(true);
           ytPlayerRef.current.setVolume(volume * 100);
+          ytPlayerRef.current.setPlaybackRate(1.0);
         },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onStateChange: (event: any) => {
-          // 1 = PLAYING, 2 = PAUSED, 0 = ENDED, 3 = BUFFERING
-          if (event.data === 1) {
+          if (event.data === 1) { // PLAYING
             setIsPlaying(true);
             setLoadingTrackId(null);
+            ytPlayerRef.current.setPlaybackRate(1.0);
             const dur = ytPlayerRef.current.getDuration();
             if (dur) setDuration(dur);
-          } else if (event.data === 2) {
+          } else if (event.data === 2) { // PAUSED
             setIsPlaying(false);
-          } else if (event.data === 0) {
+          } else if (event.data === 0) { // ENDED -> Autoplay next
             setIsPlaying(false);
-            setCurrentTime(0);
+            handleNextTrack();
           }
         },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onError: (err: any) => {
           console.error("YouTube Player Error:", err);
-          setErrorMessage("Não foi possível reproduzir esta faixa. Tente outra música.");
+          setErrorMessage("Não foi possível reproduzir esta faixa. Avançando para a próxima...");
           setLoadingTrackId(null);
           setIsPlaying(false);
+          handleNextTrack();
         },
       },
     });
@@ -172,6 +209,7 @@ export default function App() {
     try {
       const res = await invoke<AuthSession>("refresh_auth");
       setAuth(res);
+      await loadPlaylists();
     } catch (err) {
       setErrorMessage(`Erro ao recarregar cookies: ${String(err)}`);
     } finally {
@@ -179,16 +217,34 @@ export default function App() {
     }
   }
 
-  async function loadInitialTracks() {
-    setIsLoadingTracks(true);
-    setErrorMessage(null);
+  async function loadPlaylists() {
+    setIsLoadingPlaylists(true);
     try {
-      const res = await invoke<Track[]>("get_quick_tracks");
-      setTracks(res);
+      const res = await invoke<Playlist[]>("get_user_playlists");
+      setPlaylists(res);
     } catch (err) {
-      setErrorMessage(`Erro ao carregar faixas iniciais: ${String(err)}`);
+      console.error("Erro ao carregar playlists:", err);
     } finally {
-      setIsLoadingTracks(false);
+      setIsLoadingPlaylists(false);
+    }
+  }
+
+  async function handleSelectPlaylist(playlist: Playlist) {
+    setSelectedPlaylist(playlist);
+    setActiveTab("library");
+    setIsLoadingPlaylistTracks(true);
+    setPlaylistTracks([]);
+    setErrorMessage(null);
+
+    try {
+      const tracks = await invoke<Track[]>("get_playlist_tracks", {
+        playlistId: playlist.id,
+      });
+      setPlaylistTracks(tracks);
+    } catch (err) {
+      setErrorMessage(`Erro ao carregar músicas da playlist: ${String(err)}`);
+    } finally {
+      setIsLoadingPlaylistTracks(false);
     }
   }
 
@@ -196,36 +252,71 @@ export default function App() {
     if (e) e.preventDefault();
     if (!searchQuery.trim()) return;
 
-    setIsLoadingTracks(true);
+    setIsSearching(true);
+    setActiveTab("search");
     setErrorMessage(null);
     try {
       const res = await invoke<Track[]>("search_tracks", { query: searchQuery });
-      setTracks(res);
+      setSearchResults(res);
     } catch (err) {
-      setErrorMessage(`Erro ao buscar: ${String(err)}`);
+      setErrorMessage(`Erro na busca: ${String(err)}`);
     } finally {
-      setIsLoadingTracks(false);
+      setIsSearching(false);
     }
   }
 
-  function handlePlayTrack(track: Track) {
+  function playTrackWithQueue(track: Track, queue: Track[], index: number) {
     setLoadingTrackId(track.id);
     setCurrentTrack(track);
+    setActiveQueue(queue);
+    setCurrentQueueIndex(index);
     setErrorMessage(null);
 
     if (ytPlayerRef.current && typeof ytPlayerRef.current.loadVideoById === "function") {
       ytPlayerRef.current.loadVideoById(track.id);
+      ytPlayerRef.current.setPlaybackRate(1.0);
       ytPlayerRef.current.playVideo();
       setIsPlaying(true);
     } else {
-      // Se o iframe ainda estiver inicializando, tenta novamente em 300ms
       setTimeout(() => {
         if (ytPlayerRef.current && typeof ytPlayerRef.current.loadVideoById === "function") {
           ytPlayerRef.current.loadVideoById(track.id);
+          ytPlayerRef.current.setPlaybackRate(1.0);
           ytPlayerRef.current.playVideo();
           setIsPlaying(true);
         }
       }, 500);
+    }
+  }
+
+  function handleNextTrack() {
+    const queue = activeQueueRef.current;
+    const currentIndex = currentQueueIndexRef.current;
+    if (queue.length === 0 || currentIndex === -1) return;
+
+    const nextIndex = currentIndex + 1;
+    if (nextIndex < queue.length) {
+      playTrackWithQueue(queue[nextIndex], queue, nextIndex);
+    }
+  }
+
+  function handlePrevTrack() {
+    const queue = activeQueueRef.current;
+    const currentIndex = currentQueueIndexRef.current;
+    if (queue.length === 0 || currentIndex === -1) return;
+
+    // Se passou de 3 segundos, reinicia a música atual
+    if (currentTime > 3) {
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === "function") {
+        ytPlayerRef.current.seekTo(0, true);
+        setCurrentTime(0);
+      }
+      return;
+    }
+
+    const prevIndex = currentIndex - 1;
+    if (prevIndex >= 0) {
+      playTrackWithQueue(queue[prevIndex], queue, prevIndex);
     }
   }
 
@@ -271,179 +362,518 @@ export default function App() {
   }
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-[#0b0c10] text-[#e0e2ec] select-none">
+    <div className="flex h-screen w-screen bg-[#0b0c10] text-[#e0e2ec] select-none overflow-hidden">
       {/* Hidden YouTube Iframe Player */}
       <div className="fixed -top-[9999px] -left-[9999px] pointer-events-none opacity-0">
         <div id="yt-player-frame" />
       </div>
 
-      {/* Top Header */}
-      <header className="h-14 border-b border-[#1f232e] bg-[#0e1017] px-6 flex items-center justify-between gap-4 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-3 h-3 rounded-full bg-red-600 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
-          <h1 className="font-bold text-lg text-white tracking-tight flex items-center gap-2">
-            TetPlayer <span className="text-xs bg-red-950 text-red-400 border border-red-800/50 px-2 py-0.5 rounded-full font-normal">PC Alpha</span>
-          </h1>
+      {/* ======================================================= */}
+      {/* SIDEBAR LATERAL (Design System Oficial do Mockup)       */}
+      {/* ======================================================= */}
+      <aside className="w-64 bg-[#0f1118] border-r border-[#1f232e] p-4 flex flex-col justify-between shrink-0 h-full">
+        <div className="space-y-6 flex-1 flex flex-col min-h-0">
+          {/* Logo TetPlayer */}
+          <div className="flex items-center gap-2.5 px-2 pt-1">
+            <div className="w-3.5 h-3.5 rounded-full bg-red-600 shadow-[0_0_10px_rgba(239,68,68,0.9)] animate-pulse" />
+            <h1 className="font-bold text-lg text-white tracking-tight flex items-center gap-2">
+              TetPlayer <span className="text-[10px] bg-red-950 text-red-400 border border-red-800/60 px-2 py-0.5 rounded-full font-medium">Desktop</span>
+            </h1>
+          </div>
+
+          {/* Navegação Principal: Biblioteca como Página Inicial + Buscar */}
+          <nav className="space-y-1">
+            <button
+              onClick={() => {
+                setActiveTab("library");
+                setSelectedPlaylist(null);
+              }}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold text-sm transition-all cursor-pointer ${
+                activeTab === "library"
+                  ? "bg-red-600 text-white shadow-lg shadow-red-950/50"
+                  : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
+              }`}
+            >
+              <Library className="w-4 h-4" />
+              Biblioteca
+            </button>
+
+            <button
+              onClick={() => setActiveTab("search")}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-medium text-sm transition-all cursor-pointer ${
+                activeTab === "search"
+                  ? "bg-red-600 text-white shadow-lg shadow-red-950/50"
+                  : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
+              }`}
+            >
+              <Search className="w-4 h-4" />
+              Buscar
+            </button>
+          </nav>
+
+          {/* Seção de Playlists do Usuário com Scroll Suave */}
+          <div className="flex-1 flex flex-col min-h-0 pt-2 border-t border-[#1f232e]">
+            <div className="flex items-center justify-between px-2 mb-2">
+              <p className="text-[11px] font-bold text-[#555a6d] uppercase tracking-wider">
+                Suas Playlists
+              </p>
+              <button
+                onClick={loadPlaylists}
+                title="Recarregar playlists"
+                className="text-[#555a6d] hover:text-white transition-colors"
+              >
+                <RefreshCw className={`w-3 h-3 ${isLoadingPlaylists ? "animate-spin text-red-500" : ""}`} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+              {isLoadingPlaylists && playlists.length === 0 ? (
+                <div className="flex items-center gap-2 px-3 py-2 text-xs text-[#555a6d]">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-red-500" />
+                  Carregando playlists...
+                </div>
+              ) : playlists.length === 0 ? (
+                <div className="px-3 py-2 text-xs text-[#555a6d]">
+                  Nenhuma playlist encontrada.
+                </div>
+              ) : (
+                playlists.map((pl) => {
+                  const isSelected = selectedPlaylist?.id === pl.id;
+                  const isLiked = pl.id === "VLLM";
+
+                  return (
+                    <div
+                      key={pl.id}
+                      onClick={() => handleSelectPlaylist(pl)}
+                      className={`px-3 py-2 rounded-lg text-xs transition-colors cursor-pointer flex items-center gap-2 truncate ${
+                        isSelected
+                          ? "bg-[#1f2331] text-red-400 font-semibold"
+                          : "text-[#9da3b7] hover:bg-[#1a1d28] hover:text-white"
+                      }`}
+                    >
+                      {isLiked ? (
+                        <Flame className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                      ) : (
+                        <ListMusic className="w-3.5 h-3.5 text-[#5e6479] shrink-0" />
+                      )}
+                      <span className="truncate">{pl.title}</span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Auth Status Badge */}
-        <div className="flex items-center gap-3">
-          {auth?.is_authenticated ? (
-            <div className="flex items-center gap-2 bg-[#121f1a] border border-emerald-800/60 text-emerald-400 text-xs px-3 py-1 rounded-full">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Conectado: {auth.browser} ({auth.profile})</span>
+        {/* Card da Conta / Perfil no Rodapé da Sidebar */}
+        <div className="pt-3 border-t border-[#1f232e]">
+          <div className="bg-[#171a24] p-2.5 rounded-xl border border-[#232836] flex items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-red-600 to-amber-500 flex items-center justify-center font-bold text-xs text-white shrink-0">
+                P
+              </div>
+              <div className="overflow-hidden min-w-0">
+                <p className="text-xs font-semibold text-white truncate">
+                  {auth?.is_authenticated ? auth.browser : "Modo Visitante"}
+                </p>
+                <p className="text-[10px] text-emerald-400 font-mono truncate">
+                  {auth?.is_authenticated ? "Premium Ativo" : "Sem login"}
+                </p>
+              </div>
             </div>
-          ) : (
-            <div className="flex items-center gap-2 bg-[#221818] border border-amber-800/60 text-amber-300 text-xs px-3 py-1 rounded-full">
-              <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
-              <span>Modo Visitante (Sem cookies YT)</span>
+
+            <button
+              onClick={handleRefreshAuth}
+              disabled={isCheckingAuth}
+              title="Recarregar sessão de cookies"
+              className="p-1 rounded-lg hover:bg-[#232836] text-[#8c91a4] hover:text-white transition-colors cursor-pointer shrink-0"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isCheckingAuth ? "animate-spin text-red-400" : ""}`} />
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* ======================================================= */}
+      {/* ÁREA PRINCIPAL (Header superior + Conteúdo dinâmico)    */}
+      {/* ======================================================= */}
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        {/* Barra Superior */}
+        <header className="h-14 border-b border-[#1f232e] bg-[#0e1017] px-6 flex items-center justify-between gap-4 shrink-0">
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-[#8c91a4]">
+              {activeTab === "library"
+                ? selectedPlaylist
+                  ? `Biblioteca > ${selectedPlaylist.title}`
+                  : "Biblioteca de Playlists"
+                : "Busca de Músicas"}
+            </span>
+          </div>
+
+          {/* Status Pills */}
+          <div className="flex items-center gap-3">
+            {auth?.is_authenticated ? (
+              <span className="inline-flex items-center gap-1.5 bg-emerald-950/80 text-emerald-400 border border-emerald-800/50 px-2.5 py-0.5 rounded-full text-xs">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Sincronizado: {auth.browser}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 bg-amber-950/80 text-amber-300 border border-amber-800/50 px-2.5 py-0.5 rounded-full text-xs">
+                <AlertCircle className="w-3.5 h-3.5" />
+                Modo Anônimo
+              </span>
+            )}
+          </div>
+        </header>
+
+        {/* Conteúdo Dinâmico */}
+        <main className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* Alerta de Erro se houver */}
+          {errorMessage && (
+            <div className="bg-red-950/40 border border-red-800/60 text-red-300 text-xs px-4 py-2.5 rounded-xl flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+              <span className="flex-1">{errorMessage}</span>
+              <button
+                onClick={() => setErrorMessage(null)}
+                className="text-red-400 hover:text-white text-xs underline cursor-pointer"
+              >
+                Fechar
+              </button>
             </div>
           )}
 
-          <button
-            onClick={handleRefreshAuth}
-            disabled={isCheckingAuth}
-            title="Recarregar cookies do navegador"
-            className="p-1.5 rounded-lg bg-[#171a24] border border-[#232733] text-[#8c91a4] hover:text-white hover:bg-[#1f2331] transition-colors cursor-pointer"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isCheckingAuth ? "animate-spin text-red-400" : ""}`} />
-          </button>
-        </div>
-      </header>
+          {/* ===================================================== */}
+          {/* ABA: BIBLIOTECA (Página Inicial com Playlists)       */}
+          {/* ===================================================== */}
+          {activeTab === "library" && (
+            <>
+              {selectedPlaylist ? (
+                /* Detalhes da Playlist Selecionada */
+                <div className="space-y-6">
+                  {/* Botão Voltar */}
+                  <button
+                    onClick={() => setSelectedPlaylist(null)}
+                    className="flex items-center gap-2 text-xs font-semibold text-[#8c91a4] hover:text-white transition-colors cursor-pointer"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    Voltar para todas as playlists
+                  </button>
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col p-6 overflow-hidden max-w-5xl w-full mx-auto space-y-5">
-        {/* Search Bar */}
-        <form onSubmit={handleSearch} className="flex gap-2">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#5e6479]" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Digite o nome da música, artista ou álbum..."
-              className="w-full bg-[#12141c] border border-[#232733] rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-[#5e6479] focus:outline-none focus:border-red-500 transition-colors"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={isLoadingTracks}
-            className="bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-red-950/40 flex items-center gap-2 transition-all cursor-pointer"
-          >
-            {isLoadingTracks ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-            Buscar
-          </button>
-        </form>
-
-        {/* Error Alert */}
-        {errorMessage && (
-          <div className="bg-red-950/40 border border-red-800/60 text-red-300 text-xs px-4 py-2.5 rounded-xl flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-            <span className="flex-1">{errorMessage}</span>
-            <button onClick={() => setErrorMessage(null)} className="text-red-400 hover:text-white text-xs underline cursor-pointer">
-              Fechar
-            </button>
-          </div>
-        )}
-
-        {/* Tracks List Header */}
-        <div className="flex items-center justify-between pt-1">
-          <h2 className="text-sm font-bold text-white flex items-center gap-2">
-            <Radio className="w-4 h-4 text-red-500" />
-            {searchQuery ? `Resultados para "${searchQuery}"` : "Músicas Sugeridas"}
-          </h2>
-          <span className="text-xs text-[#71778c]">{tracks.length} faixas</span>
-        </div>
-
-        {/* Tracks Scrollable Container */}
-        <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-          {isLoadingTracks ? (
-            <div className="h-48 flex flex-col items-center justify-center gap-2 text-[#71778c]">
-              <Loader2 className="w-6 h-6 animate-spin text-red-500" />
-              <p className="text-xs">Buscando no YouTube Music...</p>
-            </div>
-          ) : tracks.length === 0 ? (
-            <div className="h-48 flex flex-col items-center justify-center gap-2 text-[#71778c] border border-dashed border-[#1f232e] rounded-xl">
-              <Music className="w-8 h-8 text-[#343a4e]" />
-              <p className="text-xs">Nenhuma música encontrada. Faça uma busca acima!</p>
-            </div>
-          ) : (
-            tracks.map((track) => {
-              const isCurrent = currentTrack?.id === track.id;
-              const isLoadingThis = loadingTrackId === track.id;
-
-              return (
-                <div
-                  key={track.id}
-                  onClick={() => handlePlayTrack(track)}
-                  className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer group ${
-                    isCurrent
-                      ? "bg-[#1c202d] border-red-500/50"
-                      : "bg-[#12141c] border-[#1f232e] hover:bg-[#171a24] hover:border-[#2b3040]"
-                  }`}
-                >
-                  <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                    {/* Artwork */}
-                    <div className="w-12 h-12 rounded-lg bg-[#1a1d28] overflow-hidden shrink-0 flex items-center justify-center relative">
-                      {track.artwork_url ? (
+                  {/* Header da Playlist */}
+                  <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 bg-gradient-to-r from-red-950/40 via-[#1c1826] to-[#12141c] p-6 rounded-2xl border border-red-900/30">
+                    <div className="w-36 h-36 rounded-xl bg-gradient-to-br from-indigo-600 via-purple-700 to-pink-600 overflow-hidden shrink-0 shadow-2xl flex items-center justify-center">
+                      {selectedPlaylist.artwork_url ? (
                         <img
-                          src={track.artwork_url}
-                          alt={track.title}
+                          src={selectedPlaylist.artwork_url}
+                          alt={selectedPlaylist.title}
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <Music className="w-5 h-5 text-[#5e6479]" />
-                      )}
-                      {isLoadingThis && (
-                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                          <Loader2 className="w-5 h-5 animate-spin text-red-500" />
-                        </div>
+                        <Music className="w-14 h-14 text-white/50" />
                       )}
                     </div>
 
-                    {/* Metadata */}
-                    <div className="min-w-0 flex-1">
-                      <p className={`text-sm font-semibold truncate ${isCurrent ? "text-red-400" : "text-white"}`}>
-                        {track.title}
+                    <div className="flex-1 space-y-2 text-center sm:text-left">
+                      <span className="text-[11px] font-bold text-red-400 uppercase tracking-wider bg-red-950/80 px-2.5 py-1 rounded-md border border-red-800/40">
+                        Playlist
+                      </span>
+                      <h2 className="text-2xl font-extrabold text-white">
+                        {selectedPlaylist.title}
+                      </h2>
+                      {selectedPlaylist.subtitle && (
+                        <p className="text-xs text-[#8c91a4]">
+                          {selectedPlaylist.subtitle}
+                        </p>
+                      )}
+                      <p className="text-xs text-[#71778c]">
+                        {playlistTracks.length} músicas carregadas
                       </p>
-                      <p className="text-xs text-[#8c91a4] truncate">
-                        {track.artist} {track.album ? `• ${track.album}` : ""}
-                      </p>
+
+                      <div className="pt-2">
+                        <button
+                          onClick={() => {
+                            if (playlistTracks.length > 0) {
+                              playTrackWithQueue(playlistTracks[0], playlistTracks, 0);
+                            }
+                          }}
+                          disabled={playlistTracks.length === 0}
+                          className="bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-xs font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-red-950/50 flex items-center gap-2 transition-all cursor-pointer"
+                        >
+                          <Play className="w-4 h-4 fill-current ml-0.5" />
+                          Tocar Playlist
+                        </button>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Actions / Duration */}
-                  <div className="flex items-center gap-4 shrink-0 pl-3">
-                    {track.duration && (
-                      <span className="text-xs text-[#71778c] font-mono">{track.duration}</span>
+                  {/* Lista de Faixas da Playlist */}
+                  <div className="space-y-2">
+                    {isLoadingPlaylistTracks ? (
+                      <div className="h-48 flex flex-col items-center justify-center gap-2 text-[#71778c]">
+                        <Loader2 className="w-6 h-6 animate-spin text-red-500" />
+                        <p className="text-xs">Carregando músicas da playlist...</p>
+                      </div>
+                    ) : playlistTracks.length === 0 ? (
+                      <div className="h-32 flex flex-col items-center justify-center gap-2 text-[#71778c] border border-dashed border-[#1f232e] rounded-xl">
+                        <Music className="w-6 h-6 text-[#343a4e]" />
+                        <p className="text-xs">Nenhuma faixa encontrada nesta playlist.</p>
+                      </div>
+                    ) : (
+                      playlistTracks.map((track, idx) => {
+                        const isCurrent = currentTrack?.id === track.id;
+                        const isLoadingThis = loadingTrackId === track.id;
+
+                        return (
+                          <div
+                            key={`${track.id}-${idx}`}
+                            onClick={() => playTrackWithQueue(track, playlistTracks, idx)}
+                            className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer group ${
+                              isCurrent
+                                ? "bg-[#1c202d] border-red-500/50"
+                                : "bg-[#12141c] border-[#1f232e] hover:bg-[#171a24] hover:border-[#2b3040]"
+                            }`}
+                          >
+                            <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                              <span className="w-6 text-center text-xs font-mono text-[#5e6479] shrink-0">
+                                {idx + 1}
+                              </span>
+
+                              {/* Artwork */}
+                              <div className="w-11 h-11 rounded-lg bg-[#1a1d28] overflow-hidden shrink-0 flex items-center justify-center relative">
+                                {track.artwork_url ? (
+                                  <img
+                                    src={track.artwork_url}
+                                    alt={track.title}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <Music className="w-4 h-4 text-[#5e6479]" />
+                                )}
+                                {isLoadingThis && (
+                                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                                    <Loader2 className="w-4 h-4 animate-spin text-red-500" />
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Info */}
+                              <div className="min-w-0 flex-1">
+                                <p className={`text-sm font-semibold truncate ${isCurrent ? "text-red-400" : "text-white"}`}>
+                                  {track.title}
+                                </p>
+                                <p className="text-xs text-[#8c91a4] truncate">
+                                  {track.artist} {track.album ? `• ${track.album}` : ""}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Duration & Play Button */}
+                            <div className="flex items-center gap-4 shrink-0 pl-3">
+                              {track.duration && (
+                                <span className="text-xs text-[#71778c] font-mono">{track.duration}</span>
+                              )}
+                              <button
+                                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                                  isCurrent && isPlaying
+                                    ? "bg-red-600 text-white"
+                                    : "bg-[#1a1d28] text-white group-hover:bg-red-600"
+                                }`}
+                              >
+                                {isLoadingThis ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : isCurrent && isPlaying ? (
+                                  <Pause className="w-3.5 h-3.5 fill-current" />
+                                ) : (
+                                  <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
                     )}
-                    <button
-                      className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
-                        isCurrent && isPlaying
-                          ? "bg-red-600 text-white"
-                          : "bg-[#1a1d28] text-white group-hover:bg-red-600"
-                      }`}
-                    >
-                      {isLoadingThis ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : isCurrent && isPlaying ? (
-                        <Pause className="w-4 h-4 fill-current" />
-                      ) : (
-                        <Play className="w-4 h-4 fill-current ml-0.5" />
-                      )}
-                    </button>
                   </div>
                 </div>
-              );
-            })
-          )}
-        </div>
-      </main>
+              ) : (
+                /* Grid Geral de Playlists (Home Oficial da Biblioteca) */
+                <div className="space-y-6">
+                  <div>
+                    <h2 className="text-xl font-extrabold text-white">Sua Biblioteca</h2>
+                    <p className="text-xs text-[#8c91a4] mt-1">
+                      Playlists sincronizadas com a sua conta do YouTube Music
+                    </p>
+                  </div>
 
-      {/* Bottom Playback Bar */}
-      <footer className="h-20 border-t border-[#1f232e] bg-[#0e1017] px-6 flex items-center justify-between gap-6 shrink-0">
-        {/* Current Track Info */}
-        <div className="flex items-center gap-3 w-1/4 min-w-[200px]">
+                  {isLoadingPlaylists && playlists.length === 0 ? (
+                    <div className="h-64 flex flex-col items-center justify-center gap-2 text-[#71778c]">
+                      <Loader2 className="w-7 h-7 animate-spin text-red-500" />
+                      <p className="text-xs">Carregando suas playlists...</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                      {playlists.map((pl) => {
+                        const isLiked = pl.id === "VLLM";
+
+                        return (
+                          <div
+                            key={pl.id}
+                            onClick={() => handleSelectPlaylist(pl)}
+                            className="bg-[#12141c] hover:bg-[#171a24] p-4 rounded-2xl border border-[#1f232e] hover:border-[#2f3549] transition-all group cursor-pointer flex flex-col justify-between"
+                          >
+                            <div className="relative w-full aspect-square rounded-xl overflow-hidden mb-3.5 shadow-lg flex items-center justify-center bg-gradient-to-br from-indigo-700 via-purple-800 to-pink-700">
+                              {pl.artwork_url ? (
+                                <img
+                                  src={pl.artwork_url}
+                                  alt={pl.title}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                />
+                              ) : isLiked ? (
+                                <Flame className="w-14 h-14 text-red-400" />
+                              ) : (
+                                <ListMusic className="w-12 h-12 text-white/50" />
+                              )}
+
+                              <div className="absolute bottom-2.5 right-2.5 w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center shadow-xl opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0">
+                                <Play className="w-4 h-4 fill-current ml-0.5" />
+                              </div>
+                            </div>
+
+                            <div>
+                              <h4 className="text-sm font-semibold text-white truncate group-hover:text-red-400 transition-colors">
+                                {pl.title}
+                              </h4>
+                              <p className="text-xs text-[#787f98] truncate mt-0.5">
+                                {pl.subtitle || "Playlist do YouTube Music"}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ===================================================== */}
+          {/* ABA: BUSCA                                            */}
+          {/* ===================================================== */}
+          {activeTab === "search" && (
+            <div className="space-y-6">
+              {/* Campo de Busca */}
+              <form onSubmit={handleSearch} className="flex gap-2 max-w-2xl">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#5e6479]" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Pesquisar músicas, artistas ou álbuns..."
+                    className="w-full bg-[#12141c] border border-[#232733] rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-[#5e6479] focus:outline-none focus:border-red-500 transition-colors"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={isSearching}
+                  className="bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-red-950/40 flex items-center gap-2 transition-all cursor-pointer"
+                >
+                  {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                  Buscar
+                </button>
+              </form>
+
+              {/* Resultados da Busca */}
+              <div className="space-y-2">
+                {isSearching ? (
+                  <div className="h-48 flex flex-col items-center justify-center gap-2 text-[#71778c]">
+                    <Loader2 className="w-6 h-6 animate-spin text-red-500" />
+                    <p className="text-xs">Buscando no YouTube Music...</p>
+                  </div>
+                ) : searchResults.length === 0 ? (
+                  <div className="h-48 flex flex-col items-center justify-center gap-2 text-[#71778c] border border-dashed border-[#1f232e] rounded-xl">
+                    <Music className="w-8 h-8 text-[#343a4e]" />
+                    <p className="text-xs">Digite algo acima para pesquisar qualquer faixa no YouTube Music.</p>
+                  </div>
+                ) : (
+                  searchResults.map((track, idx) => {
+                    const isCurrent = currentTrack?.id === track.id;
+                    const isLoadingThis = loadingTrackId === track.id;
+
+                    return (
+                      <div
+                        key={`${track.id}-${idx}`}
+                        onClick={() => playTrackWithQueue(track, searchResults, idx)}
+                        className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer group ${
+                          isCurrent
+                            ? "bg-[#1c202d] border-red-500/50"
+                            : "bg-[#12141c] border-[#1f232e] hover:bg-[#171a24] hover:border-[#2b3040]"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                          <div className="w-11 h-11 rounded-lg bg-[#1a1d28] overflow-hidden shrink-0 flex items-center justify-center relative">
+                            {track.artwork_url ? (
+                              <img
+                                src={track.artwork_url}
+                                alt={track.title}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <Music className="w-4 h-4 text-[#5e6479]" />
+                            )}
+                            {isLoadingThis && (
+                              <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                                <Loader2 className="w-4 h-4 animate-spin text-red-500" />
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <p className={`text-sm font-semibold truncate ${isCurrent ? "text-red-400" : "text-white"}`}>
+                              {track.title}
+                            </p>
+                            <p className="text-xs text-[#8c91a4] truncate">
+                              {track.artist} {track.album ? `• ${track.album}` : ""}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-4 shrink-0 pl-3">
+                          {track.duration && (
+                            <span className="text-xs text-[#71778c] font-mono">{track.duration}</span>
+                          )}
+                          <button
+                            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                              isCurrent && isPlaying
+                                ? "bg-red-600 text-white"
+                                : "bg-[#1a1d28] text-white group-hover:bg-red-600"
+                            }`}
+                          >
+                            {isLoadingThis ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : isCurrent && isPlaying ? (
+                              <Pause className="w-3.5 h-3.5 fill-current" />
+                            ) : (
+                              <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+        </main>
+      </div>
+
+      {/* ======================================================= */}
+      {/* PLAYER INFERIOR PERSISTENTE (Footer Playback Bar)        */}
+      {/* ======================================================= */}
+      <footer className="fixed bottom-0 left-0 right-0 h-20 border-t border-[#1f232e] bg-[#0e1017] px-6 flex items-center justify-between gap-6 z-40">
+        {/* Faixa Atual */}
+        <div className="flex items-center gap-3.5 w-1/4 min-w-[200px]">
           <div className="w-12 h-12 rounded-lg bg-[#171a24] border border-[#232733] overflow-hidden shrink-0 flex items-center justify-center">
             {currentTrack?.artwork_url ? (
               <img
@@ -460,14 +890,22 @@ export default function App() {
               {currentTrack?.title || "Nenhuma faixa selecionada"}
             </p>
             <p className="text-[11px] text-[#8c91a4] truncate">
-              {currentTrack?.artist || "Escolha uma música para tocar"}
+              {currentTrack?.artist || "Escolha uma playlist para tocar"}
             </p>
           </div>
         </div>
 
-        {/* Center Controls & Timeline */}
+        {/* Controles Centrais (Prev, Play/Pause, Next) e Scrubber */}
         <div className="flex-1 max-w-xl flex flex-col items-center gap-1.5">
           <div className="flex items-center gap-4">
+            <button
+              onClick={handlePrevTrack}
+              disabled={activeQueue.length === 0}
+              className="text-[#8c91a4] hover:text-white disabled:opacity-30 transition-colors cursor-pointer"
+            >
+              <SkipBack className="w-4 h-4 fill-current" />
+            </button>
+
             <button
               onClick={togglePlayPause}
               disabled={!currentTrack}
@@ -479,9 +917,17 @@ export default function App() {
                 <Play className="w-4 h-4 fill-current ml-0.5" />
               )}
             </button>
+
+            <button
+              onClick={handleNextTrack}
+              disabled={activeQueue.length === 0}
+              className="text-[#8c91a4] hover:text-white disabled:opacity-30 transition-colors cursor-pointer"
+            >
+              <SkipForward className="w-4 h-4 fill-current" />
+            </button>
           </div>
 
-          {/* Timeline Scrubber */}
+          {/* Scrubber Timeline */}
           <div className="w-full flex items-center gap-3 text-[10px] text-[#71778c] font-mono">
             <span>{formatTime(currentTime)}</span>
             <input
@@ -497,14 +943,17 @@ export default function App() {
           </div>
         </div>
 
-        {/* Volume & Stream Quality Info */}
+        {/* Volume & Status */}
         <div className="flex items-center justify-end gap-4 w-1/4 min-w-[180px]">
           <span className="hidden sm:inline-block text-[10px] font-mono px-2 py-0.5 rounded bg-[#171a24] text-emerald-400 border border-emerald-900/40">
             {isPlaying ? "Reproduzindo" : "Pausado"}
           </span>
 
           <div className="flex items-center gap-2">
-            <button onClick={toggleMute} className="text-[#8c91a4] hover:text-white transition-colors cursor-pointer">
+            <button
+              onClick={toggleMute}
+              className="text-[#8c91a4] hover:text-white transition-colors cursor-pointer"
+            >
               {isMuted || volume === 0 ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
             </button>
             <input

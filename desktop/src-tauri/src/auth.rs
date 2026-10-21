@@ -177,8 +177,8 @@ pub fn extract_firefox_session() -> Option<AuthSession> {
             }
         };
 
-        let mut stmt = match conn.prepare(
-            "SELECT name, value FROM moz_cookies WHERE host LIKE '%.youtube.com' OR host LIKE '%.google.com'",
+        let mut stmt_google = match conn.prepare(
+            "SELECT name, value FROM moz_cookies WHERE host LIKE '%.google.com'",
         ) {
             Ok(s) => s,
             Err(_) => {
@@ -187,16 +187,29 @@ pub fn extract_firefox_session() -> Option<AuthSession> {
             }
         };
 
-        let rows = stmt.query_map([], |row| {
+        let mut cookies = HashMap::new();
+        if let Ok(mapped) = stmt_google.query_map([], |row| {
             let name: String = row.get(0)?;
             let value: String = row.get(1)?;
             Ok((name, value))
-        });
-
-        let mut cookies = HashMap::new();
-        if let Ok(mapped) = rows {
+        }) {
             for r in mapped.flatten() {
                 cookies.insert(r.0, r.1);
+            }
+        }
+
+        // YouTube cookies têm precedência sobre os do Google geral
+        if let Ok(mut stmt_yt) = conn.prepare(
+            "SELECT name, value FROM moz_cookies WHERE host LIKE '%.youtube.com'",
+        ) {
+            if let Ok(mapped) = stmt_yt.query_map([], |row| {
+                let name: String = row.get(0)?;
+                let value: String = row.get(1)?;
+                Ok((name, value))
+            }) {
+                for r in mapped.flatten() {
+                    cookies.insert(r.0, r.1);
+                }
             }
         }
 

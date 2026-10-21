@@ -15,6 +15,15 @@ pub struct Track {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Playlist {
+    pub id: String,
+    pub title: String,
+    pub subtitle: Option<String>,
+    pub artwork_url: Option<String>,
+    pub track_count: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StreamInfo {
     pub video_id: String,
     pub title: String,
@@ -41,7 +50,7 @@ fn build_headers(session: &AuthSession, client_name: &str) -> HeaderMap {
     let user_agent = if client_name == "ANDROID_MUSIC" {
         "com.google.android.apps.youtube.music/6.20.51 (Linux; U; Android 13; pt_BR; Pixel 7)"
     } else {
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0"
     };
     headers.insert(USER_AGENT, HeaderValue::from_str(user_agent).unwrap());
 
@@ -95,7 +104,6 @@ pub async fn search_music(session: &AuthSession, query: &str) -> Result<Vec<Trac
     let mut tracks = Vec::new();
     extract_tracks_from_value(&json_val, &mut tracks);
 
-    // Remove duplicatas mantendo a ordem
     let mut seen = std::collections::HashSet::new();
     tracks.retain(|t| seen.insert(t.id.clone()));
 
@@ -138,7 +146,6 @@ pub async fn get_home_recommendations(session: &AuthSession) -> Result<Vec<Track
     let mut seen = std::collections::HashSet::new();
     tracks.retain(|t| seen.insert(t.id.clone()));
 
-    // Se a home vier vazia (ex: sem autenticação), busca uma lista padrão popular
     if tracks.is_empty() {
         return search_music(session, "top hits").await;
     }
@@ -146,23 +153,69 @@ pub async fn get_home_recommendations(session: &AuthSession) -> Result<Vec<Track
     Ok(tracks)
 }
 
-pub async fn get_audio_stream(session: &AuthSession, video_id: &str) -> Result<StreamInfo, String> {
+pub async fn get_user_playlists(session: &AuthSession) -> Result<Vec<Playlist>, String> {
     let client = reqwest::Client::new();
-    let url = "https://music.youtube.com/youtubei/v1/player?prettyPrint=false";
+    let url = "https://music.youtube.com/youtubei/v1/browse?prettyPrint=false";
+    let headers = build_headers(session, "WEB_REMIX");
 
-    // Primeiro tenta com ANDROID_MUSIC (costuma entregar stream URLs diretas sem cipher)
-    let headers = build_headers(session, "ANDROID_MUSIC");
+    let mut playlists = Vec::new();
+
+    // 1. Sempre adiciona o item fixo de Músicas Curtidas
+    playlists.push(Playlist {
+        id: "VLLM".to_string(),
+        title: "🔥 Músicas Curtidas".to_string(),
+        subtitle: Some("Sua coleção automática do YouTube Music".to_string()),
+        artwork_url: None,
+        track_count: None,
+    });
+
+    // 2. Busca na Home as playlists do usuário (carrossel 'Ouvir de novo' ou playlists)
     let payload = json!({
         "context": {
             "client": {
-                "clientName": "ANDROID_MUSIC",
-                "clientVersion": "6.20.51",
-                "androidSdkVersion": 33,
+                "clientName": "WEB_REMIX",
+                "clientVersion": "1.20240401.01.00",
                 "hl": "pt",
                 "gl": "BR"
             }
         },
-        "videoId": video_id
+        "browseId": "FEmusic_home"
+    });
+
+    if let Ok(resp) = client.post(url).headers(headers.clone()).json(&payload).send().await {
+        if let Ok(json_val) = resp.json::<Value>().await {
+            extract_playlists_from_value(&json_val, &mut playlists);
+        }
+    }
+
+    // Deduplica mantendo a ordem
+    let mut seen = std::collections::HashSet::new();
+    playlists.retain(|p| seen.insert(p.id.clone()));
+
+    Ok(playlists)
+}
+
+pub async fn get_playlist_tracks(session: &AuthSession, playlist_id: &str) -> Result<Vec<Track>, String> {
+    let client = reqwest::Client::new();
+    let url = "https://music.youtube.com/youtubei/v1/browse?prettyPrint=false";
+    let headers = build_headers(session, "WEB_REMIX");
+
+    let browse_id = if playlist_id.starts_with("VL") || playlist_id.starts_with("FE") {
+        playlist_id.to_string()
+    } else {
+        format!("VL{playlist_id}")
+    };
+
+    let payload = json!({
+        "context": {
+            "client": {
+                "clientName": "WEB_REMIX",
+                "clientVersion": "1.20240401.01.00",
+                "hl": "pt",
+                "gl": "BR"
+            }
+        },
+        "browseId": browse_id
     });
 
     let resp = client
@@ -171,77 +224,88 @@ pub async fn get_audio_stream(session: &AuthSession, video_id: &str) -> Result<S
         .json(&payload)
         .send()
         .await
-        .map_err(|e| format!("Erro na chamada do player: {e}"))?;
+        .map_err(|e| format!("Erro ao carregar faixas da playlist: {e}"))?;
 
     let json_val: Value = resp
         .json()
         .await
-        .map_err(|e| format!("Erro ao parsear resposta do player: {e}"))?;
+        .map_err(|e| format!("Erro ao parsear resposta da playlist: {e}"))?;
 
-    let video_details = &json_val["videoDetails"];
-    let title = video_details["title"].as_str().unwrap_or("Desconhecido").to_string();
-    let artist = video_details["author"].as_str().unwrap_or("Artista Desconhecido").to_string();
-    let duration_seconds = video_details["lengthSeconds"]
-        .as_str()
-        .and_then(|s| s.parse::<u64>().ok());
+    let mut tracks = Vec::new();
+    extract_tracks_from_value(&json_val, &mut tracks);
 
-    let artwork_url = video_details["thumbnail"]["thumbnails"]
+    let mut seen = std::collections::HashSet::new();
+    tracks.retain(|t| seen.insert(t.id.clone()));
+
+    Ok(tracks)
+}
+
+fn extract_playlists_from_value(val: &Value, playlists: &mut Vec<Playlist>) {
+    match val {
+        Value::Object(map) => {
+            if let Some(item) = map.get("musicTwoRowItemRenderer") {
+                if let Some(pl) = parse_playlist_two_row(item) {
+                    playlists.push(pl);
+                }
+            }
+
+            for v in map.values() {
+                extract_playlists_from_value(v, playlists);
+            }
+        }
+        Value::Array(arr) => {
+            for v in arr {
+                extract_playlists_from_value(v, playlists);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn parse_playlist_two_row(item: &Value) -> Option<Playlist> {
+    let nav = &item["navigationEndpoint"];
+    let browse_id = nav["browseEndpoint"]["browseId"].as_str()
+        .or_else(|| nav["watchEndpoint"]["playlistId"].as_str())?;
+
+    // Considera apenas se for uma playlist (VL...)
+    if !browse_id.starts_with("VL") && !browse_id.starts_with("PL") && !browse_id.starts_with("RD") {
+        return None;
+    }
+
+    let title = item["title"]["runs"]
+        .as_array()
+        .and_then(|r| r.first())
+        .and_then(|t| t["text"].as_str())
+        .unwrap_or("Playlist")
+        .to_string();
+
+    let subtitle = item["subtitle"]["runs"]
+        .as_array()
+        .map(|runs| {
+            runs.iter()
+                .filter_map(|r| r["text"].as_str())
+                .collect::<Vec<_>>()
+                .join(" ")
+        });
+
+    let artwork_url = item["thumbnailRenderer"]["musicThumbnailRenderer"]["thumbnail"]["thumbnails"]
         .as_array()
         .and_then(|arr| arr.last())
         .and_then(|t| t["url"].as_str())
         .map(|s| s.to_string());
 
-    let adaptive_formats = json_val["streamingData"]["adaptiveFormats"]
-        .as_array()
-        .ok_or_else(|| {
-            let playability = &json_val["playabilityStatus"]["status"];
-            format!("Streams de áudio não disponíveis. Status: {playability}")
-        })?;
-
-    // Filtra apenas formatos de áudio com URL direta
-    let mut audio_formats: Vec<&Value> = adaptive_formats
-        .iter()
-        .filter(|f| {
-            let mime = f["mimeType"].as_str().unwrap_or("");
-            mime.starts_with("audio/") && f["url"].as_str().is_some()
-        })
-        .collect();
-
-    // Ordena pelo maior bitrate
-    audio_formats.sort_by(|a, b| {
-        let bit_a = a["bitrate"].as_u64().unwrap_or(0);
-        let bit_b = b["bitrate"].as_u64().unwrap_or(0);
-        bit_b.cmp(&bit_a)
-    });
-
-    let chosen = audio_formats
-        .first()
-        .ok_or_else(|| "Nenhum stream de áudio com URL direta encontrado para esta música".to_string())?;
-
-    let stream_url = chosen["url"]
-        .as_str()
-        .ok_or_else(|| "URL do stream vazia".to_string())?
-        .to_string();
-
-    let bitrate = chosen["bitrate"].as_u64();
-    let mime_type = chosen["mimeType"].as_str().map(|s| s.to_string());
-
-    Ok(StreamInfo {
-        video_id: video_id.to_string(),
+    Some(Playlist {
+        id: browse_id.to_string(),
         title,
-        artist,
+        subtitle,
         artwork_url,
-        stream_url,
-        duration_seconds,
-        bitrate,
-        mime_type,
+        track_count: None,
     })
 }
 
 fn extract_tracks_from_value(val: &Value, tracks: &mut Vec<Track>) {
     match val {
         Value::Object(map) => {
-            // musicResponsiveListItemRenderer é o item padrão de música no YouTube Music
             if let Some(item) = map.get("musicResponsiveListItemRenderer") {
                 if let Some(track) = parse_responsive_item(item) {
                     tracks.push(track);
@@ -266,7 +330,6 @@ fn extract_tracks_from_value(val: &Value, tracks: &mut Vec<Track>) {
 }
 
 fn parse_responsive_item(item: &Value) -> Option<Track> {
-    // Extrai o videoId
     let video_id = item["playlistItemData"]["videoId"]
         .as_str()
         .or_else(|| {
@@ -285,7 +348,6 @@ fn parse_responsive_item(item: &Value) -> Option<Track> {
         return None;
     }
 
-    // Coluna 1: Título
     let title = flex_columns[0]["musicResponsiveListItemFlexColumnRenderer"]["text"]["runs"]
         .as_array()
         .and_then(|runs| runs.first())
@@ -293,7 +355,6 @@ fn parse_responsive_item(item: &Value) -> Option<Track> {
         .unwrap_or("Música")
         .to_string();
 
-    // Coluna 2: Artista / Duração
     let mut artist = "Artista".to_string();
     let mut album = None;
     let mut duration = None;
@@ -315,7 +376,6 @@ fn parse_responsive_item(item: &Value) -> Option<Track> {
         }
     }
 
-    // Thumbnail / Artwork
     let artwork_url = item["thumbnail"]["musicThumbnailRenderer"]["thumbnail"]["thumbnails"]
         .as_array()
         .and_then(|arr| arr.last())
