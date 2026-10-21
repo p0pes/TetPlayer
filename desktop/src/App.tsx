@@ -134,8 +134,21 @@ export default function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(0.8);
-  const [isMuted, setIsMuted] = useState(false);
+  const [volume, setVolume] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem("tetplayer_volume");
+      return saved !== null && !isNaN(parseFloat(saved)) ? parseFloat(saved) : 0.8;
+    } catch {
+      return 0.8;
+    }
+  });
+  const [isMuted, setIsMuted] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("tetplayer_muted") === "true";
+    } catch {
+      return false;
+    }
+  });
   const [loadingTrackId, setLoadingTrackId] = useState<string | null>(null);
 
   // Shuffle & Repeat state
@@ -163,6 +176,7 @@ export default function App() {
   const [isLoadingLyrics, setIsLoadingLyrics] = useState(false);
   const [lyricsError, setLyricsError] = useState<string | null>(null);
   const [activeLyricIndex, setActiveLyricIndex] = useState<number>(-1);
+  const [isUserScrolledAway, setIsUserScrolledAway] = useState(false);
   const lyricsCacheRef = useRef<Record<string, LyricsData>>({});
   const lyricsContainerRef = useRef<HTMLDivElement>(null);
   const activeLyricRef = useRef<HTMLDivElement>(null);
@@ -496,7 +510,12 @@ export default function App() {
       events: {
         onReady: () => {
           setIsPlayerReady(true);
-          ytPlayerRef.current.setVolume(volume * 100);
+          ytPlayerRef.current.setVolume(volumeRef.current * 100);
+          if (isMutedRef.current) {
+            ytPlayerRef.current.mute();
+          } else {
+            ytPlayerRef.current.unMute();
+          }
           ytPlayerRef.current.setPlaybackRate(1.0);
         },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -895,6 +914,12 @@ export default function App() {
           e.preventDefault();
           setVolume((prev) => {
             const next = Math.min(1, Math.round((prev + 0.05) * 100) / 100);
+            try {
+              localStorage.setItem("tetplayer_volume", String(next));
+              localStorage.setItem("tetplayer_muted", "false");
+            } catch {
+              // ignore
+            }
             if (ytPlayerRef.current) {
               ytPlayerRef.current.unMute();
               ytPlayerRef.current.setVolume(next * 100);
@@ -907,6 +932,11 @@ export default function App() {
           e.preventDefault();
           setVolume((prev) => {
             const next = Math.max(0, Math.round((prev - 0.05) * 100) / 100);
+            try {
+              localStorage.setItem("tetplayer_volume", String(next));
+            } catch {
+              // ignore
+            }
             if (ytPlayerRef.current) {
               ytPlayerRef.current.setVolume(next * 100);
             }
@@ -1017,18 +1047,39 @@ export default function App() {
         behavior: "smooth",
         block: "center",
       });
+      setIsUserScrolledAway(false);
     }
   }, [activeLyricIndex, showLyrics]);
 
   function handleLyricsContainerScroll() {
     userScrollingLyricsRef.current = true;
+    setIsUserScrolledAway(true);
     if (userScrollTimeoutRef.current) window.clearTimeout(userScrollTimeoutRef.current);
     userScrollTimeoutRef.current = window.setTimeout(() => {
       userScrollingLyricsRef.current = false;
-    }, 2500);
+      setIsUserScrolledAway(false);
+      if (activeLyricRef.current) {
+        activeLyricRef.current.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      }
+    }, 4500);
   }
 
-  // Fundo Dinâmico Aurora Sutil (Paleta suave + Amostragem via Canvas)
+  function handleRecenterLyrics() {
+    userScrollingLyricsRef.current = false;
+    setIsUserScrolledAway(false);
+    if (userScrollTimeoutRef.current) window.clearTimeout(userScrollTimeoutRef.current);
+    if (activeLyricRef.current) {
+      activeLyricRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }
+  }
+
+  // Fundo Dinâmico Aurora Sutil (Paleta suave + Amostragem via Canvas com Fallback Robusto)
   useEffect(() => {
     if (!currentTrack) return;
 
@@ -1052,7 +1103,9 @@ export default function App() {
       `https://i.ytimg.com/vi/${currentTrack.id}/hqdefault.jpg`;
     const img = new Image();
     img.crossOrigin = "anonymous";
-    img.src = imgUrl;
+    img.onerror = () => {
+      // Mantém silenciosamente a paleta determinística
+    };
     img.onload = () => {
       try {
         const canvas = document.createElement("canvas");
@@ -1063,23 +1116,30 @@ export default function App() {
         ctx.drawImage(img, 0, 0, 10, 10);
         const data = ctx.getImageData(0, 0, 10, 10).data;
 
-        const r1 = data[0], g1 = data[1], b1 = data[2];
-        const r2 = data[48 * 4], g2 = data[48 * 4 + 1], b2 = data[48 * 4 + 2];
-        const r3 = data[96 * 4], g3 = data[96 * 4 + 1], b3 = data[96 * 4 + 2];
+        const r1 = data[0] || 0, g1 = data[1] || 0, b1 = data[2] || 0;
+        const r2 = data[48 * 4] || 0, g2 = data[48 * 4 + 1] || 0, b2 = data[48 * 4 + 2] || 0;
+        const r3 = data[96 * 4] || 0, g3 = data[96 * 4 + 1] || 0, b3 = data[96 * 4 + 2] || 0;
 
         root.style.setProperty("--aurora-1", `rgba(${r1}, ${g1}, ${b1}, 0.14)`);
         root.style.setProperty("--aurora-2", `rgba(${r2}, ${g2}, ${b2}, 0.10)`);
         root.style.setProperty("--aurora-3", `rgba(${r3}, ${g3}, ${b3}, 0.08)`);
       } catch {
-        // mantém fallback determinístico
+        // Fallback resiliente contra DOMException (tainted canvas)
       }
     };
+    img.src = imgUrl;
   }, [currentTrack?.id]);
 
   function handleVolumeChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = parseFloat(e.target.value);
     setVolume(val);
     setIsMuted(false);
+    try {
+      localStorage.setItem("tetplayer_volume", String(val));
+      localStorage.setItem("tetplayer_muted", "false");
+    } catch {
+      // ignore
+    }
     if (ytPlayerRef.current && typeof ytPlayerRef.current.setVolume === "function") {
       ytPlayerRef.current.unMute();
       ytPlayerRef.current.setVolume(val * 100);
@@ -1092,9 +1152,19 @@ export default function App() {
       ytPlayerRef.current.unMute();
       ytPlayerRef.current.setVolume(volume * 100);
       setIsMuted(false);
+      try {
+        localStorage.setItem("tetplayer_muted", "false");
+      } catch {
+        // ignore
+      }
     } else {
       ytPlayerRef.current.mute();
       setIsMuted(true);
+      try {
+        localStorage.setItem("tetplayer_muted", "true");
+      } catch {
+        // ignore
+      }
     }
   }
 
@@ -1444,7 +1514,7 @@ export default function App() {
 
           {/* Se a visualização de letras estiver aberta, renderiza a tela de letras com todos os estados */}
           {showLyrics ? (
-            <div className="h-full flex flex-col max-w-4xl mx-auto overflow-hidden">
+            <div className="h-full flex flex-col max-w-4xl mx-auto overflow-hidden relative">
               {/* Header das Letras */}
               <div className="flex items-center justify-between pb-4 border-b border-[#1f232e] mb-4 shrink-0">
                 <div className="flex items-center gap-3.5 min-w-0">
@@ -1548,6 +1618,19 @@ export default function App() {
                   </div>
                 ) : null}
               </div>
+
+              {/* Botão Flutuante de Sincronização ao Rolar Manualmente */}
+              {isUserScrolledAway && parsedLyrics.length > 0 && activeLyricIndex !== -1 && (
+                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20">
+                  <button
+                    onClick={handleRecenterLyrics}
+                    className="flex items-center gap-2 px-4 py-2 rounded-full bg-red-600/95 hover:bg-red-500 text-white text-xs font-semibold shadow-xl shadow-red-950/70 border border-red-400/30 backdrop-blur-md transition-all active:scale-95 cursor-pointer animate-pulse"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-red-200" />
+                    <span>Sincronizar com o áudio</span>
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <>
@@ -1984,6 +2067,8 @@ export default function App() {
             {/* Modo Aleatório (Shuffle) */}
             <button
               onClick={toggleShuffle}
+              aria-label="Modo aleatório"
+              aria-pressed={isShuffle}
               title={`Modo Aleatório [S] (${isShuffle ? "Ativado" : "Desativado"})`}
               className={`p-2 rounded-lg transition-all cursor-pointer relative ${
                 isShuffle
@@ -2001,6 +2086,7 @@ export default function App() {
             <button
               onClick={handlePrevTrack}
               disabled={activeQueue.length === 0}
+              aria-label="Faixa anterior"
               title="Faixa Anterior [Media / J]"
               className="text-[#8c91a4] hover:text-white disabled:opacity-30 p-2 rounded-lg hover:bg-[#1a1d28] transition-colors cursor-pointer"
             >
@@ -2011,6 +2097,7 @@ export default function App() {
             <button
               onClick={togglePlayPause}
               disabled={!currentTrack}
+              aria-label={isPlaying ? "Pausar música" : "Reproduzir música"}
               title="Reproduzir / Pausar [Espaço / Media]"
               className="w-10 h-10 rounded-full bg-white hover:scale-105 active:scale-95 disabled:opacity-40 text-black flex items-center justify-center shadow-lg shadow-white/10 transition-transform cursor-pointer"
             >
@@ -2025,6 +2112,7 @@ export default function App() {
             <button
               onClick={handleNextTrack}
               disabled={activeQueue.length === 0}
+              aria-label="Próxima faixa"
               title="Próxima Faixa [Media / K]"
               className="text-[#8c91a4] hover:text-white disabled:opacity-30 p-2 rounded-lg hover:bg-[#1a1d28] transition-colors cursor-pointer"
             >
@@ -2034,6 +2122,14 @@ export default function App() {
             {/* Modo Repetição (Repeat: off / all / one) */}
             <button
               onClick={cycleRepeatMode}
+              aria-label={`Modo de repetição: ${
+                repeatMode === "off"
+                  ? "desativada"
+                  : repeatMode === "all"
+                  ? "toda a fila"
+                  : "música atual"
+              }`}
+              aria-pressed={repeatMode !== "off"}
               title={`Repetição [R]: ${
                 repeatMode === "off"
                   ? "Desativada"
@@ -2068,6 +2164,7 @@ export default function App() {
               value={currentTime}
               onChange={handleSeek}
               disabled={!currentTrack}
+              aria-label="Posição da música na linha do tempo"
               className="flex-1 h-1 bg-[#232733] rounded-full accent-red-500 cursor-pointer disabled:cursor-not-allowed"
             />
             <span>{formatTime(duration)}</span>
@@ -2080,6 +2177,8 @@ export default function App() {
           <button
             onClick={() => setShowLyrics((prev) => !prev)}
             disabled={!currentTrack}
+            aria-label="Exibir letras sincronizadas"
+            aria-pressed={showLyrics}
             title="Letras Sincronizadas [L]"
             className={`p-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-medium disabled:opacity-30 ${
               showLyrics
@@ -2098,6 +2197,7 @@ export default function App() {
           <div className="flex items-center gap-2">
             <button
               onClick={toggleMute}
+              aria-label={isMuted ? "Desativar mudo" : "Ativar mudo"}
               title="Mudo [M]"
               className="text-[#8c91a4] hover:text-white transition-colors cursor-pointer"
             >
@@ -2110,6 +2210,7 @@ export default function App() {
               step={0.01}
               value={isMuted ? 0 : volume}
               onChange={handleVolumeChange}
+              aria-label="Volume de reprodução"
               className="w-20 h-1 bg-[#232733] rounded-full accent-red-500 cursor-pointer"
             />
           </div>
