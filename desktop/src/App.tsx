@@ -499,7 +499,7 @@ export default function App() {
     loadPlaylists();
     initYouTubePlayer();
 
-    // Sincronizador de timeline (atualização a cada 350ms para fluidez de letras)
+    // Sincronizador de timeline em alta frequência (80ms para resposta imediata das letras)
     const interval = setInterval(() => {
       if (ytPlayerRef.current && isPlayerReady) {
         try {
@@ -518,7 +518,7 @@ export default function App() {
           // ignore
         }
       }
-    }, 350);
+    }, 80);
 
     return () => clearInterval(interval);
   }, [isPlayerReady]);
@@ -1089,13 +1089,16 @@ export default function App() {
     }
   }, [currentTime, parsedLyrics]);
 
-  // Autoscroll Suave da Linha Ativa
+  // Autoscroll Suave e Otimizado da Linha Ativa (Isolado no container de letras)
   useEffect(() => {
     if (!showLyrics || activeLyricIndex === -1 || userScrollingLyricsRef.current) return;
-    if (activeLyricRef.current) {
-      activeLyricRef.current.scrollIntoView({
+    if (activeLyricRef.current && lyricsContainerRef.current) {
+      const container = lyricsContainerRef.current;
+      const activeEl = activeLyricRef.current;
+      const targetScroll = activeEl.offsetTop - container.clientHeight / 2 + activeEl.clientHeight / 2;
+      container.scrollTo({
+        top: Math.max(0, targetScroll),
         behavior: "smooth",
-        block: "center",
       });
       setIsUserScrolledAway(false);
     }
@@ -1108,10 +1111,13 @@ export default function App() {
     userScrollTimeoutRef.current = window.setTimeout(() => {
       userScrollingLyricsRef.current = false;
       setIsUserScrolledAway(false);
-      if (activeLyricRef.current) {
-        activeLyricRef.current.scrollIntoView({
+      if (activeLyricRef.current && lyricsContainerRef.current) {
+        const container = lyricsContainerRef.current;
+        const activeEl = activeLyricRef.current;
+        const targetScroll = activeEl.offsetTop - container.clientHeight / 2 + activeEl.clientHeight / 2;
+        container.scrollTo({
+          top: Math.max(0, targetScroll),
           behavior: "smooth",
-          block: "center",
         });
       }
     }, 4500);
@@ -1121,10 +1127,13 @@ export default function App() {
     userScrollingLyricsRef.current = false;
     setIsUserScrolledAway(false);
     if (userScrollTimeoutRef.current) window.clearTimeout(userScrollTimeoutRef.current);
-    if (activeLyricRef.current) {
-      activeLyricRef.current.scrollIntoView({
+    if (activeLyricRef.current && lyricsContainerRef.current) {
+      const container = lyricsContainerRef.current;
+      const activeEl = activeLyricRef.current;
+      const targetScroll = activeEl.offsetTop - container.clientHeight / 2 + activeEl.clientHeight / 2;
+      container.scrollTo({
+        top: Math.max(0, targetScroll),
         behavior: "smooth",
-        block: "center",
       });
     }
   }
@@ -2102,12 +2111,12 @@ export default function App() {
                         key={`${line.time}-${idx}`}
                         ref={isActive ? activeLyricRef : null}
                         onClick={() => handleSeekTo(line.time)}
-                        className={`py-2 px-4 rounded-xl transition-all duration-300 cursor-pointer select-none ${
+                        className={`py-2 px-4 rounded-xl transition-[transform,opacity,color] duration-200 ease-out will-change-transform cursor-pointer select-none ${
                           isActive
-                            ? "text-2xl md:text-3xl font-bold text-white scale-[1.03] drop-shadow-[0_0_16px_rgba(255,255,255,0.45)]"
+                            ? "text-2xl md:text-3xl font-bold text-white scale-[1.03] [text-shadow:0_0_20px_rgba(255,255,255,0.4)]"
                             : isPast
-                            ? "text-lg md:text-xl text-[#51576d] hover:text-[#9ea5bc] font-medium opacity-60"
-                            : "text-lg md:text-xl text-[#787f95] hover:text-white font-medium opacity-85"
+                            ? "text-lg md:text-xl text-[#51576d] hover:text-[#9ea5bc] font-medium opacity-60 scale-100"
+                            : "text-lg md:text-xl text-[#787f95] hover:text-white font-medium opacity-85 scale-100"
                         }`}
                       >
                         {line.text}
