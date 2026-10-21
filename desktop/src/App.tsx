@@ -126,9 +126,6 @@ export default function App() {
     }
   });
 
-  const [draggedPinnedId, setDraggedPinnedId] = useState<string | null>(null);
-  const [dragOverPinnedId, setDragOverPinnedId] = useState<string | null>(null);
-
   // Mark playlist as listened to in history
   function markPlaylistListened(playlistId?: string) {
     if (!playlistId) return;
@@ -182,48 +179,91 @@ export default function App() {
     });
   }
 
-  // Drag and Drop reordering for pinned playlists
-  function handlePinnedDragStart(e: React.DragEvent, id: string) {
-    e.dataTransfer.setData("text/plain", id);
-    e.dataTransfer.effectAllowed = "move";
-    setDraggedPinnedId(id);
+  // Pointer-based drag and drop reordering for pinned playlists
+  const [activeDragPinnedId, setActiveDragPinnedId] = useState<string | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const isDraggingRef = useRef(false);
+  const dragStartYRef = useRef(0);
+  const dragSourceIdRef = useRef<string | null>(null);
+  const dragOverIndexRef = useRef<number | null>(null);
+  dragOverIndexRef.current = dragOverIndex;
+
+  function handleGripPointerDown(e: React.PointerEvent, id: string, index: number) {
+    if (e.button !== 0) return; // Only left mouse button
+    e.preventDefault();
+    e.stopPropagation();
+
+    dragSourceIdRef.current = id;
+    dragStartYRef.current = e.clientY;
+    isDraggingRef.current = false;
+    dragOverIndexRef.current = index;
+
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+
+    setActiveDragPinnedId(id);
+    setDragOverIndex(index);
   }
 
-  function handlePinnedDragOver(e: React.DragEvent, id: string) {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    if (dragOverPinnedId !== id) {
-      setDragOverPinnedId(id);
+  function handleGripPointerMove(e: React.PointerEvent) {
+    if (!dragSourceIdRef.current) return;
+
+    if (Math.abs(e.clientY - dragStartYRef.current) > 3) {
+      isDraggingRef.current = true;
+    }
+
+    if (!isDraggingRef.current) return;
+
+    // Detect target pinned row under the pointer
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const pinnedRow = el?.closest("[data-pinned-index]");
+    if (pinnedRow) {
+      const idxAttr = pinnedRow.getAttribute("data-pinned-index");
+      if (idxAttr !== null) {
+        const targetIdx = parseInt(idxAttr, 10);
+        if (!isNaN(targetIdx) && targetIdx !== dragOverIndexRef.current) {
+          dragOverIndexRef.current = targetIdx;
+          setDragOverIndex(targetIdx);
+        }
+      }
     }
   }
 
-  function handlePinnedDrop(e: React.DragEvent, targetId: string) {
-    e.preventDefault();
-    const sourceId = draggedPinnedId || e.dataTransfer.getData("text/plain");
-    setDraggedPinnedId(null);
-    setDragOverPinnedId(null);
+  function handleGripPointerUp(e: React.PointerEvent) {
+    const sourceId = dragSourceIdRef.current;
+    const targetIdx = dragOverIndexRef.current;
+    const wasDragging = isDraggingRef.current;
 
-    if (!sourceId || sourceId === targetId) return;
+    dragSourceIdRef.current = null;
+    isDraggingRef.current = false;
+    dragOverIndexRef.current = null;
+    setActiveDragPinnedId(null);
+    setDragOverIndex(null);
 
-    setPinnedPlaylistIds((prev) => {
-      const sourceIndex = prev.indexOf(sourceId);
-      const targetIndex = prev.indexOf(targetId);
-      if (sourceIndex === -1 || targetIndex === -1) return prev;
-      const next = [...prev];
-      const [item] = next.splice(sourceIndex, 1);
-      next.splice(targetIndex, 0, item);
-      try {
-        localStorage.setItem("tetplayer_pinned_playlists", JSON.stringify(next));
-      } catch {
-        // ignore
-      }
-      return next;
-    });
-  }
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
 
-  function handlePinnedDragEnd() {
-    setDraggedPinnedId(null);
-    setDragOverPinnedId(null);
+    if (wasDragging && sourceId && targetIdx !== null && targetIdx >= 0) {
+      setPinnedPlaylistIds((prev) => {
+        const sourceIdx = prev.indexOf(sourceId);
+        if (sourceIdx === -1 || sourceIdx === targetIdx) return prev;
+        const next = [...prev];
+        const [item] = next.splice(sourceIdx, 1);
+        next.splice(targetIdx, 0, item);
+        try {
+          localStorage.setItem("tetplayer_pinned_playlists", JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+    }
   }
 
   // Pinned playlists always stay on top in user-defined order
@@ -662,64 +702,74 @@ export default function App() {
                   {pinnedPlaylists.map((pl, idx) => {
                     const isSelected = selectedPlaylist?.id === pl.id;
                     const isLiked = pl.id === "VLLM";
-                    const isDragging = draggedPinnedId === pl.id;
-                    const isDragOver = dragOverPinnedId === pl.id;
+                    const isBeingDragged = activeDragPinnedId === pl.id;
+                    const isTargetOfDrop = dragOverIndex === idx && activeDragPinnedId !== null && !isBeingDragged;
 
                     return (
                       <div
                         key={`pinned-${pl.id}`}
-                        draggable
-                        onDragStart={(e) => handlePinnedDragStart(e, pl.id)}
-                        onDragOver={(e) => handlePinnedDragOver(e, pl.id)}
-                        onDrop={(e) => handlePinnedDrop(e, pl.id)}
-                        onDragEnd={handlePinnedDragEnd}
-                        onClick={() => handleSelectPlaylist(pl)}
-                        title={`${pl.title} (Fixada - Arraste para reordenar)`}
-                        className={`group relative px-2.5 py-2 rounded-lg text-xs transition-all cursor-pointer flex items-center justify-between gap-1.5 ${
+                        data-pinned-index={idx}
+                        className={`group relative px-2.5 py-2 rounded-lg text-xs transition-all flex items-center justify-between gap-1.5 select-none ${
                           isSelected
                             ? "bg-[#1f2331] text-red-400 font-semibold"
                             : "text-[#9da3b7] hover:bg-[#1a1d28] hover:text-white"
-                        } ${isDragging ? "opacity-40" : ""} ${
-                          isDragOver ? "border-t-2 border-red-500 bg-[#251d28]" : ""
+                        } ${isBeingDragged ? "opacity-40 scale-[0.98] ring-1 ring-red-500/50 bg-[#221722]" : ""} ${
+                          isTargetOfDrop ? "border-t-2 border-red-500 bg-[#281c25] shadow-[0_-2px_8px_rgba(239,68,68,0.4)]" : ""
                         }`}
                       >
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <GripVertical className="w-3.5 h-3.5 text-[#444a5e] group-hover:text-[#8c91a4] shrink-0 cursor-grab active:cursor-grabbing" />
+                        {/* Grip Handle para Arrastar (Pointer Events nativos) */}
+                        <div
+                          onPointerDown={(e) => handleGripPointerDown(e, pl.id, idx)}
+                          onPointerMove={handleGripPointerMove}
+                          onPointerUp={handleGripPointerUp}
+                          title="Clique e arraste para reordenar"
+                          className="p-1 -ml-1 rounded hover:bg-[#252b3b] text-[#555a6d] hover:text-white cursor-grab active:cursor-grabbing transition-colors shrink-0 touch-none flex items-center justify-center"
+                        >
+                          <GripVertical className="w-3.5 h-3.5 pointer-events-none" />
+                        </div>
+
+                        {/* Conteúdo da Playlist (Click para Selecionar) */}
+                        <div
+                          onClick={() => handleSelectPlaylist(pl)}
+                          className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer"
+                        >
                           {isLiked ? (
-                            <Flame className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                            <Flame className="w-3.5 h-3.5 text-red-500 shrink-0 pointer-events-none" />
                           ) : (
-                            <ListMusic className="w-3.5 h-3.5 text-[#5e6479] shrink-0" />
+                            <ListMusic className="w-3.5 h-3.5 text-[#5e6479] shrink-0 pointer-events-none" />
                           )}
-                          <span className="truncate flex-1">{pl.title}</span>
+                          <span className="truncate flex-1 pointer-events-none">{pl.title}</span>
                         </div>
 
                         {/* Ações da Playlist Fixada */}
                         <div className="flex items-center gap-0.5 shrink-0">
-                          <div className="hidden group-hover:flex items-center gap-0.5">
+                          {/* Botões Rápidos de Mover (Up / Down) */}
+                          <div className="flex items-center gap-0.5">
                             {idx > 0 && (
                               <button
                                 onClick={(e) => movePinnedPlaylist(pl.id, "up", e)}
                                 title="Mover para cima"
-                                className="p-0.5 rounded text-[#71778c] hover:text-white hover:bg-[#282d3d]"
+                                className="p-0.5 rounded text-[#71778c] hover:text-white hover:bg-[#282d3d] transition-colors cursor-pointer"
                               >
-                                <ChevronUp className="w-3 h-3" />
+                                <ChevronUp className="w-3.5 h-3.5" />
                               </button>
                             )}
                             {idx < pinnedPlaylists.length - 1 && (
                               <button
                                 onClick={(e) => movePinnedPlaylist(pl.id, "down", e)}
                                 title="Mover para baixo"
-                                className="p-0.5 rounded text-[#71778c] hover:text-white hover:bg-[#282d3d]"
+                                className="p-0.5 rounded text-[#71778c] hover:text-white hover:bg-[#282d3d] transition-colors cursor-pointer"
                               >
-                                <ChevronDown className="w-3 h-3" />
+                                <ChevronDown className="w-3.5 h-3.5" />
                               </button>
                             )}
                           </div>
 
+                          {/* Botão de Desafixar */}
                           <button
                             onClick={(e) => togglePinPlaylist(pl.id, e)}
                             title="Desafixar playlist"
-                            className="p-1 rounded text-red-400 hover:text-red-300 hover:bg-red-950/60 transition-colors"
+                            className="p-1 rounded text-red-400 hover:text-red-300 hover:bg-red-950/60 transition-colors cursor-pointer"
                           >
                             <Pin className="w-3 h-3 fill-current rotate-45" />
                           </button>
