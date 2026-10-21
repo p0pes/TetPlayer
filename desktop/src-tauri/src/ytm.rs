@@ -35,6 +35,13 @@ pub struct StreamInfo {
     pub mime_type: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LyricsData {
+    pub synced: Option<String>,
+    pub plain: Option<String>,
+    pub source: String,
+}
+
 fn build_headers(session: &AuthSession, client_name: &str) -> HeaderMap {
     let mut headers = HeaderMap::new();
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
@@ -459,4 +466,260 @@ fn parse_two_row_item(item: &Value) -> Option<Track> {
         duration_seconds: None,
         artwork_url,
     })
+}
+
+fn clean_track_title(raw: &str) -> String {
+    let mut cleaned = raw.to_string();
+    let garbage = [
+        "(Official Music Video)",
+        "(Official Video)",
+        "(Official Audio)",
+        "(Official Visualizer)",
+        "(Music Video)",
+        "(Official)",
+        "(Audio)",
+        "(Visualizer)",
+        "(Clip)",
+        "(Lyric Video)",
+        "(Lyrics)",
+        "[Official Music Video]",
+        "[Official Video]",
+        "[Official Audio]",
+        "[Music Video]",
+        "[Official]",
+        "[MV]",
+        "[HD]",
+        "[HQ]",
+        "[4K]",
+    ];
+    for g in garbage {
+        cleaned = cleaned.replace(g, "");
+    }
+    if let Some(pos) = cleaned.find(" - Official") {
+        cleaned.truncate(pos);
+    }
+    cleaned.trim().to_string()
+}
+
+pub async fn fetch_lyrics(
+    session: &AuthSession,
+    track_title: &str,
+    artist_name: &str,
+    video_id: &str,
+) -> Result<LyricsData, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(6))
+        .build()
+        .map_err(|e| format!("Falha ao construir client HTTP: {e}"))?;
+
+    let cleaned_title = clean_track_title(track_title);
+
+    // 1. Try LRCLIB exact get
+    let lrclib_res = client
+        .get("https://lrclib.net/api/get")
+        .query(&[
+            ("track_name", cleaned_title.as_str()),
+            ("artist_name", artist_name),
+        ])
+        .header(
+            USER_AGENT,
+            "TetPlayer/1.0 (https://github.com/p0pes/TetPlayer)",
+        )
+        .send()
+        .await;
+
+    if let Ok(resp) = lrclib_res {
+        if resp.status().is_success() {
+            if let Ok(data) = resp.json::<Value>().await {
+                let synced = data["syncedLyrics"].as_str().map(|s| s.to_string());
+                let plain = data["plainLyrics"].as_str().map(|s| s.to_string());
+                if synced.is_some() || plain.is_some() {
+                    return Ok(LyricsData {
+                        synced,
+                        plain,
+                        source: "LRCLIB".to_string(),
+                    });
+                }
+            }
+        }
+    }
+
+    // 2. Try LRCLIB search query
+    let query_param = format!("{} {}", cleaned_title, artist_name);
+    let search_res = client
+        .get("https://lrclib.net/api/search")
+        .query(&[("q", query_param.as_str())])
+        .header(
+            USER_AGENT,
+            "TetPlayer/1.0 (https://github.com/p0pes/TetPlayer)",
+        )
+        .send()
+        .await;
+
+    if let Ok(resp) = search_res {
+        if resp.status().is_success() {
+            if let Ok(data) = resp.json::<Value>().await {
+                if let Some(arr) = data.as_array() {
+                    for item in arr {
+                        let synced = item["syncedLyrics"].as_str().map(|s| s.to_string());
+                        let plain = item["plainLyrics"].as_str().map(|s| s.to_string());
+                        if synced.is_some() || plain.is_some() {
+                            return Ok(LyricsData {
+                                synced,
+                                plain,
+                                source: "LRCLIB".to_string(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Fallback to YouTube Music lyrics
+    if !video_id.is_empty() {
+        if let Ok(Some(plain_lyrics)) = fetch_ytm_lyrics(session, video_id).await {
+            return Ok(LyricsData {
+                synced: None,
+                plain: Some(plain_lyrics),
+                source: "YouTube Music".to_string(),
+            });
+        }
+    }
+
+    Ok(LyricsData {
+        synced: None,
+        plain: None,
+        source: "Nenhuma".to_string(),
+    })
+}
+
+async fn fetch_ytm_lyrics(session: &AuthSession, video_id: &str) -> Result<Option<String>, String> {
+    let client = reqwest::Client::new();
+    let url = "https://music.youtube.com/youtubei/v1/next?prettyPrint=false";
+    let headers = build_headers(session, "WEB_REMIX");
+
+    let payload = json!({
+        "context": {
+            "client": {
+                "clientName": "WEB_REMIX",
+                "clientVersion": "1.20240401.01.00",
+                "hl": "pt",
+                "gl": "BR"
+            }
+        },
+        "videoId": video_id
+    });
+
+    let resp = client
+        .post(url)
+        .headers(headers)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("Erro ao buscar dados do player para letras: {e}"))?;
+
+    let json_val: Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("Erro ao decodificar JSON de next: {e}"))?;
+
+    fn find_lyrics_browse_id(v: &Value) -> Option<String> {
+        if let Some(title) = v.get("title").and_then(|t| t.as_str()) {
+            if title == "Letra" || title == "Lyrics" {
+                if let Some(browse_id) = v
+                    .get("endpoint")
+                    .and_then(|ep| ep.get("browseEndpoint"))
+                    .and_then(|b| b.get("browseId"))
+                    .and_then(|id| id.as_str())
+                {
+                    return Some(browse_id.to_string());
+                }
+            }
+        }
+        if let Some(obj) = v.as_object() {
+            for (_, val) in obj {
+                if let Some(id) = find_lyrics_browse_id(val) {
+                    return Some(id);
+                }
+            }
+        } else if let Some(arr) = v.as_array() {
+            for item in arr {
+                if let Some(id) = find_lyrics_browse_id(item) {
+                    return Some(id);
+                }
+            }
+        }
+        None
+    }
+
+    let browse_id = match find_lyrics_browse_id(&json_val) {
+        Some(id) => id,
+        None => return Ok(None),
+    };
+
+    let browse_url = "https://music.youtube.com/youtubei/v1/browse?prettyPrint=false";
+    let headers2 = build_headers(session, "WEB_REMIX");
+    let browse_payload = json!({
+        "context": {
+            "client": {
+                "clientName": "WEB_REMIX",
+                "clientVersion": "1.20240401.01.00",
+                "hl": "pt",
+                "gl": "BR"
+            }
+        },
+        "browseId": browse_id
+    });
+
+    let resp_br = client
+        .post(browse_url)
+        .headers(headers2)
+        .json(&browse_payload)
+        .send()
+        .await
+        .map_err(|e| format!("Erro ao buscar letra no YTM: {e}"))?;
+
+    let br_json: Value = resp_br
+        .json()
+        .await
+        .map_err(|e| format!("Erro ao decodificar JSON de browse da letra: {e}"))?;
+
+    fn extract_shelf_lyrics(v: &Value) -> Option<String> {
+        if let Some(shelf) = v.get("musicDescriptionShelfRenderer") {
+            if let Some(runs) = shelf
+                .get("description")
+                .and_then(|d| d.get("runs"))
+                .and_then(|r| r.as_array())
+            {
+                let parts: Vec<String> = runs
+                    .iter()
+                    .filter_map(|r| {
+                        r.get("text")
+                            .and_then(|t| t.as_str())
+                            .map(|s| s.to_string())
+                    })
+                    .collect();
+                if !parts.is_empty() {
+                    return Some(parts.join("\n"));
+                }
+            }
+        }
+        if let Some(obj) = v.as_object() {
+            for (_, val) in obj {
+                if let Some(txt) = extract_shelf_lyrics(val) {
+                    return Some(txt);
+                }
+            }
+        } else if let Some(arr) = v.as_array() {
+            for item in arr {
+                if let Some(txt) = extract_shelf_lyrics(item) {
+                    return Some(txt);
+                }
+            }
+        }
+        None
+    }
+
+    Ok(extract_shelf_lyrics(&br_json))
 }

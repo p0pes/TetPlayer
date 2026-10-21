@@ -5,8 +5,8 @@ use auth::{find_youtube_session, AuthSession};
 use std::sync::Mutex;
 use tauri::State;
 use ytm::{
-    get_home_recommendations, get_playlist_tracks as fetch_playlist_tracks,
-    get_user_playlists as fetch_user_playlists, search_music, Playlist, Track,
+    fetch_lyrics, get_home_recommendations, get_playlist_tracks as fetch_playlist_tracks,
+    get_user_playlists as fetch_user_playlists, search_music, LyricsData, Playlist, Track,
 };
 
 pub struct AppState {
@@ -51,6 +51,17 @@ async fn get_playlist_tracks(
 ) -> Result<Vec<Track>, String> {
     let session = { state.session.lock().unwrap().clone() };
     fetch_playlist_tracks(&session, &playlist_id).await
+}
+
+#[tauri::command]
+async fn get_track_lyrics(
+    state: State<'_, AppState>,
+    title: String,
+    artist: String,
+    video_id: String,
+) -> Result<LyricsData, String> {
+    let session = { state.session.lock().unwrap().clone() };
+    fetch_lyrics(&session, &title, &artist, &video_id).await
 }
 
 #[tauri::command]
@@ -99,6 +110,7 @@ pub fn run() {
             get_quick_tracks,
             get_user_playlists,
             get_playlist_tracks,
+            get_track_lyrics,
             minimize_window,
             toggle_maximize_window,
             close_window,

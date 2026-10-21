@@ -25,6 +25,11 @@ import {
   ChevronUp,
   ChevronDown,
   GripVertical,
+  Shuffle,
+  Repeat,
+  Repeat1,
+  Mic2,
+  Sparkles,
 } from "lucide-react";
 
 interface AuthSession {
@@ -51,6 +56,17 @@ interface Playlist {
   track_count?: string;
 }
 
+interface LyricsData {
+  synced?: string | null;
+  plain?: string | null;
+  source: string;
+}
+
+interface LyricLine {
+  time: number;
+  text: string;
+}
+
 declare global {
   interface Window {
     onYouTubeIframeAPIReady?: () => void;
@@ -64,6 +80,28 @@ function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+}
+
+function parseLrc(lrcText: string): LyricLine[] {
+  const lines = lrcText.split("\n");
+  const result: LyricLine[] = [];
+  const regex = /\[(\d{2}):(\d{2})(?:\.(\d{2,3}))?\](.*)/;
+
+  for (const line of lines) {
+    const match = regex.exec(line.trim());
+    if (match) {
+      const minutes = parseInt(match[1], 10);
+      const seconds = parseInt(match[2], 10);
+      const millis = match[3] ? parseInt(match[3].padEnd(3, "0"), 10) : 0;
+      const time = minutes * 60 + seconds + millis / 1000;
+      const text = match[4].trim();
+      if (text) {
+        result.push({ time, text });
+      }
+    }
+  }
+
+  return result.sort((a, b) => a.time - b.time);
 }
 
 export default function App() {
@@ -99,6 +137,37 @@ export default function App() {
   const [volume, setVolume] = useState(0.8);
   const [isMuted, setIsMuted] = useState(false);
   const [loadingTrackId, setLoadingTrackId] = useState<string | null>(null);
+
+  // Shuffle & Repeat state
+  const [isShuffle, setIsShuffle] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("tetplayer_shuffle") === "true";
+    } catch {
+      return false;
+    }
+  });
+  const [repeatMode, setRepeatMode] = useState<"off" | "all" | "one">(() => {
+    try {
+      const saved = localStorage.getItem("tetplayer_repeat");
+      return saved === "all" || saved === "one" ? saved : "off";
+    } catch {
+      return "off";
+    }
+  });
+  const originalQueueRef = useRef<Track[]>([]);
+
+  // Lyrics state
+  const [showLyrics, setShowLyrics] = useState(false);
+  const [lyricsData, setLyricsData] = useState<LyricsData | null>(null);
+  const [parsedLyrics, setParsedLyrics] = useState<LyricLine[]>([]);
+  const [isLoadingLyrics, setIsLoadingLyrics] = useState(false);
+  const [lyricsError, setLyricsError] = useState<string | null>(null);
+  const [activeLyricIndex, setActiveLyricIndex] = useState<number>(-1);
+  const lyricsCacheRef = useRef<Record<string, LyricsData>>({});
+  const lyricsContainerRef = useRef<HTMLDivElement>(null);
+  const activeLyricRef = useRef<HTMLDivElement>(null);
+  const userScrollingLyricsRef = useRef(false);
+  const userScrollTimeoutRef = useRef<number | null>(null);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ytPlayerRef = useRef<any>(null);
@@ -340,18 +409,35 @@ export default function App() {
     }
   }
 
-  // Refs for access inside callbacks
+  // Refs for access inside callbacks without stale closures
   const activeQueueRef = useRef<Track[]>([]);
   const currentQueueIndexRef = useRef<number>(-1);
+  const currentTimeRef = useRef(0);
+  const durationRef = useRef(0);
+  const volumeRef = useRef(volume);
+  const isMutedRef = useRef(isMuted);
+  const isPlayingRef = useRef(isPlaying);
+  const currentTrackRef = useRef<Track | null>(null);
+  const repeatModeRef = useRef(repeatMode);
+  const isShuffleRef = useRef(isShuffle);
+
   activeQueueRef.current = activeQueue;
   currentQueueIndexRef.current = currentQueueIndex;
+  currentTimeRef.current = currentTime;
+  durationRef.current = duration;
+  volumeRef.current = volume;
+  isMutedRef.current = isMuted;
+  isPlayingRef.current = isPlaying;
+  currentTrackRef.current = currentTrack;
+  repeatModeRef.current = repeatMode;
+  isShuffleRef.current = isShuffle;
 
   useEffect(() => {
     loadAuthStatus();
     loadPlaylists();
     initYouTubePlayer();
 
-    // Sincronizador de timeline
+    // Sincronizador de timeline (atualização a cada 350ms para fluidez de letras)
     const interval = setInterval(() => {
       if (ytPlayerRef.current && isPlayerReady) {
         try {
@@ -359,14 +445,18 @@ export default function App() {
           if (state === 1) { // PLAYING
             const curr = ytPlayerRef.current.getCurrentTime();
             const dur = ytPlayerRef.current.getDuration();
-            setCurrentTime(curr || 0);
-            if (dur && dur > 0) setDuration(dur);
+            if (typeof curr === "number" && !isNaN(curr)) {
+              setCurrentTime(curr);
+            }
+            if (typeof dur === "number" && dur > 0 && !isNaN(dur)) {
+              setDuration(dur);
+            }
           }
         } catch {
           // ignore
         }
       }
-    }, 500);
+    }, 350);
 
     return () => clearInterval(interval);
   }, [isPlayerReady]);
@@ -509,16 +599,82 @@ export default function App() {
     }
   }
 
+  // Modo Aleatório (Shuffle)
+  function toggleShuffle() {
+    setIsShuffle((prev) => {
+      const nextState = !prev;
+      try {
+        localStorage.setItem("tetplayer_shuffle", String(nextState));
+      } catch {
+        // ignore
+      }
+
+      if (nextState) {
+        // Ativando shuffle: preserva fila original
+        originalQueueRef.current = [...activeQueueRef.current];
+        if (activeQueueRef.current.length > 1 && currentTrackRef.current) {
+          const current = currentTrackRef.current;
+          const others = activeQueueRef.current.filter((t) => t.id !== current.id);
+          for (let i = others.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [others[i], others[j]] = [others[j], others[i]];
+          }
+          const shuffled = [current, ...others];
+          setActiveQueue(shuffled);
+          setCurrentQueueIndex(0);
+        }
+      } else {
+        // Desativando shuffle: restaura fila original
+        if (originalQueueRef.current.length > 0) {
+          const original = [...originalQueueRef.current];
+          const currId = currentTrackRef.current?.id;
+          const newIdx = currId ? original.findIndex((t) => t.id === currId) : -1;
+          setActiveQueue(original);
+          setCurrentQueueIndex(newIdx !== -1 ? newIdx : 0);
+        }
+      }
+      return nextState;
+    });
+  }
+
+  // Alternar Repetição (off -> all -> one -> off)
+  function cycleRepeatMode() {
+    setRepeatMode((prev) => {
+      const nextMode = prev === "off" ? "all" : prev === "all" ? "one" : "off";
+      try {
+        localStorage.setItem("tetplayer_repeat", nextMode);
+      } catch {
+        // ignore
+      }
+      return nextMode;
+    });
+  }
+
   function playTrackWithQueue(track: Track, queue: Track[], index: number, playlistId?: string) {
     setLoadingTrackId(track.id);
     setCurrentTrack(track);
-    setActiveQueue(queue);
-    setCurrentQueueIndex(index);
     setErrorMessage(null);
 
     const activePlId = playlistId || selectedPlaylist?.id;
     if (activePlId) {
       markPlaylistListened(activePlId);
+    }
+
+    originalQueueRef.current = queue;
+
+    if (isShuffleRef.current) {
+      // Se shuffle estiver ativo, coloca a faixa escolhida como 0 e embaralha o restante
+      const others = queue.filter((t) => t.id !== track.id);
+      for (let i = others.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [others[i], others[j]] = [others[j], others[i]];
+      }
+      const shuffled = [track, ...others];
+      setActiveQueue(shuffled);
+      setCurrentQueueIndex(0);
+    } else {
+      setActiveQueue(queue);
+      setCurrentQueueIndex(index);
     }
 
     if (ytPlayerRef.current && typeof ytPlayerRef.current.loadVideoById === "function") {
@@ -541,21 +697,38 @@ export default function App() {
   function handleNextTrack() {
     const queue = activeQueueRef.current;
     const currentIndex = currentQueueIndexRef.current;
+    const repeat = repeatModeRef.current;
+
     if (queue.length === 0 || currentIndex === -1) return;
+
+    if (repeat === "one") {
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === "function") {
+        ytPlayerRef.current.seekTo(0, true);
+        ytPlayerRef.current.playVideo();
+        setIsPlaying(true);
+      }
+      return;
+    }
 
     const nextIndex = currentIndex + 1;
     if (nextIndex < queue.length) {
       playTrackWithQueue(queue[nextIndex], queue, nextIndex);
+    } else if (repeat === "all" && queue.length > 0) {
+      playTrackWithQueue(queue[0], queue, 0);
+    } else {
+      setIsPlaying(false);
     }
   }
 
   function handlePrevTrack() {
     const queue = activeQueueRef.current;
     const currentIndex = currentQueueIndexRef.current;
+    const repeat = repeatModeRef.current;
+
     if (queue.length === 0 || currentIndex === -1) return;
 
     // Se passou de 3 segundos, reinicia a música atual
-    if (currentTime > 3) {
+    if (currentTimeRef.current > 3) {
       if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === "function") {
         ytPlayerRef.current.seekTo(0, true);
         setCurrentTime(0);
@@ -566,12 +739,15 @@ export default function App() {
     const prevIndex = currentIndex - 1;
     if (prevIndex >= 0) {
       playTrackWithQueue(queue[prevIndex], queue, prevIndex);
+    } else if (repeat === "all" && queue.length > 0) {
+      const lastIndex = queue.length - 1;
+      playTrackWithQueue(queue[lastIndex], queue, lastIndex);
     }
   }
 
   function togglePlayPause() {
-    if (!ytPlayerRef.current || !currentTrack) return;
-    if (isPlaying) {
+    if (!ytPlayerRef.current || !currentTrackRef.current) return;
+    if (isPlayingRef.current) {
       ytPlayerRef.current.pauseVideo();
       setIsPlaying(false);
     } else {
@@ -580,13 +756,325 @@ export default function App() {
     }
   }
 
-  function handleSeek(e: React.ChangeEvent<HTMLInputElement>) {
-    const time = parseFloat(e.target.value);
-    setCurrentTime(time);
+  function handleSeekTo(seconds: number) {
+    const clamped = Math.max(0, Math.min(seconds, durationRef.current || 99999));
+    setCurrentTime(clamped);
     if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === "function") {
-      ytPlayerRef.current.seekTo(time, true);
+      ytPlayerRef.current.seekTo(clamped, true);
     }
   }
+
+  function handleSeek(e: React.ChangeEvent<HTMLInputElement>) {
+    const time = parseFloat(e.target.value);
+    handleSeekTo(time);
+  }
+
+  // Integração com SMTC do Windows (System Media Transport Controls)
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+
+    if (currentTrack) {
+      const artUrl =
+        currentTrack.artwork_url ||
+        `https://i.ytimg.com/vi/${currentTrack.id}/hqdefault.jpg`;
+
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: currentTrack.title,
+        artist: currentTrack.artist,
+        album: currentTrack.album || "TetPlayer",
+        artwork: [
+          { src: artUrl, sizes: "96x96", type: "image/jpeg" },
+          { src: artUrl, sizes: "128x128", type: "image/jpeg" },
+          { src: artUrl, sizes: "192x192", type: "image/jpeg" },
+          { src: artUrl, sizes: "256x256", type: "image/jpeg" },
+          { src: artUrl, sizes: "384x384", type: "image/jpeg" },
+          { src: artUrl, sizes: "512x512", type: "image/jpeg" },
+        ],
+      });
+    }
+
+    try {
+      navigator.mediaSession.setActionHandler("play", () => {
+        if (ytPlayerRef.current && typeof ytPlayerRef.current.playVideo === "function") {
+          ytPlayerRef.current.playVideo();
+          setIsPlaying(true);
+        }
+      });
+      navigator.mediaSession.setActionHandler("pause", () => {
+        if (ytPlayerRef.current && typeof ytPlayerRef.current.pauseVideo === "function") {
+          ytPlayerRef.current.pauseVideo();
+          setIsPlaying(false);
+        }
+      });
+      navigator.mediaSession.setActionHandler("previoustrack", () => {
+        handlePrevTrack();
+      });
+      navigator.mediaSession.setActionHandler("nexttrack", () => {
+        handleNextTrack();
+      });
+      navigator.mediaSession.setActionHandler("seekto", (details) => {
+        if (details.seekTime !== undefined && details.seekTime !== null) {
+          handleSeekTo(details.seekTime);
+        }
+      });
+      navigator.mediaSession.setActionHandler("seekbackward", (details) => {
+        const offset = details.seekOffset || 5;
+        handleSeekTo(currentTimeRef.current - offset);
+      });
+      navigator.mediaSession.setActionHandler("seekforward", (details) => {
+        const offset = details.seekOffset || 5;
+        handleSeekTo(currentTimeRef.current + offset);
+      });
+    } catch (err) {
+      console.warn("Erro ao configurar handlers de MediaSession:", err);
+    }
+  }, [currentTrack?.id]);
+
+  // Sincronizar estado de reprodução no SMTC
+  useEffect(() => {
+    if ("mediaSession" in navigator) {
+      navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
+    }
+  }, [isPlaying]);
+
+  // Sincronizar barra de progresso no SMTC
+  useEffect(() => {
+    if (
+      "mediaSession" in navigator &&
+      "setPositionState" in navigator.mediaSession &&
+      duration > 0
+    ) {
+      try {
+        navigator.mediaSession.setPositionState({
+          duration: Math.max(duration, 0),
+          playbackRate: 1.0,
+          position: Math.min(Math.max(currentTime, 0), duration),
+        });
+      } catch {
+        // ignore
+      }
+    }
+  }, [currentTime, duration]);
+
+  // Teclas Multimídia & Atalhos Globais de Teclado
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      switch (e.code) {
+        case "Space":
+        case "MediaPlayPause":
+          e.preventDefault();
+          togglePlayPause();
+          break;
+        case "MediaTrackNext":
+          e.preventDefault();
+          handleNextTrack();
+          break;
+        case "MediaTrackPrevious":
+          e.preventDefault();
+          handlePrevTrack();
+          break;
+        case "ArrowLeft":
+          e.preventDefault();
+          handleSeekTo(currentTimeRef.current - 5);
+          break;
+        case "ArrowRight":
+          e.preventDefault();
+          handleSeekTo(currentTimeRef.current + 5);
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          setVolume((prev) => {
+            const next = Math.min(1, Math.round((prev + 0.05) * 100) / 100);
+            if (ytPlayerRef.current) {
+              ytPlayerRef.current.unMute();
+              ytPlayerRef.current.setVolume(next * 100);
+            }
+            setIsMuted(false);
+            return next;
+          });
+          break;
+        case "ArrowDown":
+          e.preventDefault();
+          setVolume((prev) => {
+            const next = Math.max(0, Math.round((prev - 0.05) * 100) / 100);
+            if (ytPlayerRef.current) {
+              ytPlayerRef.current.setVolume(next * 100);
+            }
+            return next;
+          });
+          break;
+        case "KeyM":
+          toggleMute();
+          break;
+        case "KeyL":
+          setShowLyrics((prev) => !prev);
+          break;
+        case "KeyS":
+          toggleShuffle();
+          break;
+        case "KeyR":
+          cycleRepeatMode();
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Carregamento de Letras Sincronizadas
+  useEffect(() => {
+    if (!currentTrack) {
+      setLyricsData(null);
+      setParsedLyrics([]);
+      setLyricsError(null);
+      return;
+    }
+
+    const trackId = currentTrack.id;
+    if (lyricsCacheRef.current[trackId]) {
+      const cached = lyricsCacheRef.current[trackId];
+      setLyricsData(cached);
+      if (cached.synced) {
+        setParsedLyrics(parseLrc(cached.synced));
+      } else {
+        setParsedLyrics([]);
+      }
+      setLyricsError(null);
+      return;
+    }
+
+    let isMounted = true;
+    setIsLoadingLyrics(true);
+    setLyricsError(null);
+
+    invoke<LyricsData>("get_track_lyrics", {
+      title: currentTrack.title,
+      artist: currentTrack.artist,
+      videoId: currentTrack.id,
+    })
+      .then((data) => {
+        if (!isMounted) return;
+        lyricsCacheRef.current[trackId] = data;
+        setLyricsData(data);
+        if (data.synced) {
+          const parsed = parseLrc(data.synced);
+          setParsedLyrics(parsed);
+        } else {
+          setParsedLyrics([]);
+        }
+      })
+      .catch((err) => {
+        if (!isMounted) return;
+        console.error("Erro ao carregar letra:", err);
+        setLyricsError("Não foi possível carregar a letra desta música.");
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingLyrics(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentTrack?.id]);
+
+  // Sincronização da Linha Ativa das Letras
+  useEffect(() => {
+    if (parsedLyrics.length === 0) {
+      setActiveLyricIndex(-1);
+      return;
+    }
+
+    let activeIdx = -1;
+    for (let i = 0; i < parsedLyrics.length; i++) {
+      if (currentTime >= parsedLyrics[i].time) {
+        activeIdx = i;
+      } else {
+        break;
+      }
+    }
+
+    if (activeIdx !== activeLyricIndex) {
+      setActiveLyricIndex(activeIdx);
+    }
+  }, [currentTime, parsedLyrics]);
+
+  // Autoscroll Suave da Linha Ativa
+  useEffect(() => {
+    if (!showLyrics || activeLyricIndex === -1 || userScrollingLyricsRef.current) return;
+    if (activeLyricRef.current) {
+      activeLyricRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }
+  }, [activeLyricIndex, showLyrics]);
+
+  function handleLyricsContainerScroll() {
+    userScrollingLyricsRef.current = true;
+    if (userScrollTimeoutRef.current) window.clearTimeout(userScrollTimeoutRef.current);
+    userScrollTimeoutRef.current = window.setTimeout(() => {
+      userScrollingLyricsRef.current = false;
+    }, 2500);
+  }
+
+  // Fundo Dinâmico Aurora Sutil (Paleta suave + Amostragem via Canvas)
+  useEffect(() => {
+    if (!currentTrack) return;
+
+    let hash = 0;
+    const str = currentTrack.id + currentTrack.artist;
+    for (let i = 0; i < str.length; i++) {
+      hash = (hash << 5) - hash + str.charCodeAt(i);
+      hash |= 0;
+    }
+    const hue1 = Math.abs(hash) % 360;
+    const hue2 = (hue1 + 60) % 360;
+    const hue3 = (hue1 + 180) % 360;
+
+    const root = document.documentElement;
+    root.style.setProperty("--aurora-1", `hsla(${hue1}, 70%, 45%, 0.12)`);
+    root.style.setProperty("--aurora-2", `hsla(${hue2}, 65%, 40%, 0.10)`);
+    root.style.setProperty("--aurora-3", `hsla(${hue3}, 60%, 35%, 0.08)`);
+
+    const imgUrl =
+      currentTrack.artwork_url ||
+      `https://i.ytimg.com/vi/${currentTrack.id}/hqdefault.jpg`;
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = imgUrl;
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = 10;
+        canvas.height = 10;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        ctx.drawImage(img, 0, 0, 10, 10);
+        const data = ctx.getImageData(0, 0, 10, 10).data;
+
+        const r1 = data[0], g1 = data[1], b1 = data[2];
+        const r2 = data[48 * 4], g2 = data[48 * 4 + 1], b2 = data[48 * 4 + 2];
+        const r3 = data[96 * 4], g3 = data[96 * 4 + 1], b3 = data[96 * 4 + 2];
+
+        root.style.setProperty("--aurora-1", `rgba(${r1}, ${g1}, ${b1}, 0.14)`);
+        root.style.setProperty("--aurora-2", `rgba(${r2}, ${g2}, ${b2}, 0.10)`);
+        root.style.setProperty("--aurora-3", `rgba(${r3}, ${g3}, ${b3}, 0.08)`);
+      } catch {
+        // mantém fallback determinístico
+      }
+    };
+  }, [currentTrack?.id]);
 
   function handleVolumeChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = parseFloat(e.target.value);
@@ -611,7 +1099,14 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen w-screen bg-[#0b0c10] text-[#e0e2ec] select-none overflow-hidden">
+    <div className="flex h-screen w-screen bg-[#0b0c10] text-[#e0e2ec] select-none overflow-hidden relative">
+      {/* Fundo Dinâmico Aurora Sutil (Otimizado por GPU) */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <div className="absolute -top-[18%] -left-[10%] w-[55vw] h-[55vw] rounded-full aurora-blob-1 blur-[110px]" />
+        <div className="absolute top-[18%] -right-[15%] w-[50vw] h-[50vw] rounded-full aurora-blob-2 blur-[120px]" />
+        <div className="absolute -bottom-[18%] left-[25%] w-[45vw] h-[45vw] rounded-full aurora-blob-3 blur-[110px]" />
+      </div>
+
       {/* Hidden YouTube Iframe Player */}
       <div className="fixed -top-[9999px] -left-[9999px] pointer-events-none opacity-0">
         <div id="yt-player-frame" />
@@ -620,7 +1115,7 @@ export default function App() {
       {/* ======================================================= */}
       {/* SIDEBAR LATERAL (Design System Oficial do Mockup)       */}
       {/* ======================================================= */}
-      <aside className="w-64 bg-[#0f1118] border-r border-[#1f232e] p-4 flex flex-col justify-between shrink-0 h-full">
+      <aside className="w-64 bg-[#0f1118]/90 backdrop-blur-md border-r border-[#1f232e] p-4 flex flex-col justify-between shrink-0 h-full z-10">
         <div className="space-y-6 flex-1 flex flex-col min-h-0">
           {/* Logo TetPlayer com suporte a arrastar janela */}
           <div
@@ -871,7 +1366,9 @@ export default function App() {
         >
           <div className="flex items-center gap-3" data-tauri-drag-region>
             <span className="text-xs text-[#8c91a4] pointer-events-none">
-              {activeTab === "library"
+              {showLyrics
+                ? `Letras Sincronizadas > ${currentTrack?.title || "Música Atual"}`
+                : activeTab === "library"
                 ? selectedPlaylist
                   ? `Biblioteca > ${selectedPlaylist.title}`
                   : "Biblioteca de Playlists"
@@ -930,7 +1427,7 @@ export default function App() {
         </header>
 
         {/* Conteúdo Dinâmico */}
-        <main className="flex-1 overflow-y-auto p-6 space-y-6">
+        <main className="flex-1 overflow-y-auto p-6 space-y-6 relative">
           {/* Alerta de Erro se houver */}
           {errorMessage && (
             <div className="bg-red-950/40 border border-red-800/60 text-red-300 text-xs px-4 py-2.5 rounded-xl flex items-center gap-2">
@@ -945,9 +1442,118 @@ export default function App() {
             </div>
           )}
 
-          {/* ===================================================== */}
-          {/* ABA: BIBLIOTECA (Página Inicial com Playlists)       */}
-          {/* ===================================================== */}
+          {/* Se a visualização de letras estiver aberta, renderiza a tela de letras com todos os estados */}
+          {showLyrics ? (
+            <div className="h-full flex flex-col max-w-4xl mx-auto overflow-hidden">
+              {/* Header das Letras */}
+              <div className="flex items-center justify-between pb-4 border-b border-[#1f232e] mb-4 shrink-0">
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="w-12 h-12 rounded-xl bg-[#171a24] border border-[#232733] overflow-hidden shrink-0">
+                    {currentTrack?.artwork_url ? (
+                      <img
+                        src={currentTrack.artwork_url}
+                        alt={currentTrack.title}
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <Music className="w-6 h-6 text-[#5e6479] m-auto" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="text-base font-bold text-white truncate">
+                      {currentTrack?.title || "Nenhuma faixa em reprodução"}
+                    </h2>
+                    <p className="text-xs text-[#8c91a4] truncate">
+                      {currentTrack?.artist || "TetPlayer"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {lyricsData?.synced ? (
+                    <span className="flex items-center gap-1.5 text-xs bg-red-950/70 text-red-300 border border-red-800/60 px-3 py-1 rounded-full font-medium shadow-sm">
+                      <Sparkles className="w-3.5 h-3.5 text-red-400 animate-pulse" />
+                      Letra Sincronizada ({lyricsData.source})
+                    </span>
+                  ) : lyricsData?.plain ? (
+                    <span className="text-xs bg-[#1a1d28] text-[#8c91a4] border border-[#232733] px-3 py-1 rounded-full font-medium">
+                      Letra Estática ({lyricsData.source})
+                    </span>
+                  ) : null}
+
+                  <button
+                    onClick={() => setShowLyrics(false)}
+                    className="p-1.5 rounded-lg text-[#8c91a4] hover:text-white hover:bg-[#1f232e] transition-colors cursor-pointer"
+                    title="Fechar Letras [L]"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Corpo das Letras com todos os 4 estados de UI (Loading, Empty, Error, Success) */}
+              <div
+                ref={lyricsContainerRef}
+                onScroll={handleLyricsContainerScroll}
+                className="flex-1 overflow-y-auto px-4 py-6 space-y-4 text-center custom-scrollbar"
+              >
+                {isLoadingLyrics ? (
+                  <div className="h-64 flex flex-col items-center justify-center gap-3 text-[#71778c]">
+                    <Loader2 className="w-8 h-8 animate-spin text-red-500" />
+                    <p className="text-sm font-medium">Buscando letra sincronizada...</p>
+                  </div>
+                ) : lyricsError || (!lyricsData?.synced && !lyricsData?.plain) ? (
+                  <div className="h-64 flex flex-col items-center justify-center gap-3 text-[#71778c]">
+                    <div className="w-14 h-14 rounded-2xl bg-[#141722] border border-[#212638] flex items-center justify-center">
+                      <Mic2 className="w-7 h-7 text-[#4e556e]" />
+                    </div>
+                    <p className="text-sm font-semibold text-white">Nenhuma letra encontrada</p>
+                    <p className="text-xs text-[#71778c] max-w-sm">
+                      Não encontramos a letra desta música no LRCLIB ou no YouTube Music.
+                    </p>
+                    <button
+                      onClick={() => setShowLyrics(false)}
+                      className="mt-2 text-xs bg-[#1a1d28] hover:bg-[#232738] text-white px-3 py-1.5 rounded-lg transition-colors cursor-pointer border border-[#2b3145]"
+                    >
+                      Voltar para a Biblioteca
+                    </button>
+                  </div>
+                ) : parsedLyrics.length > 0 ? (
+                  <div className="py-20 space-y-4">
+                    {parsedLyrics.map((line, idx) => {
+                      const isActive = idx === activeLyricIndex;
+                      const isPast = idx < activeLyricIndex;
+                      return (
+                        <div
+                          key={`${line.time}-${idx}`}
+                          ref={isActive ? activeLyricRef : null}
+                          onClick={() => handleSeekTo(line.time)}
+                          className={`py-2 px-4 rounded-xl transition-all duration-300 cursor-pointer select-none ${
+                            isActive
+                              ? "text-2xl md:text-3xl font-bold text-white scale-[1.03] drop-shadow-[0_0_16px_rgba(255,255,255,0.45)]"
+                              : isPast
+                              ? "text-lg md:text-xl text-[#51576d] hover:text-[#9ea5bc] font-medium opacity-60"
+                              : "text-lg md:text-xl text-[#787f95] hover:text-white font-medium opacity-85"
+                          }`}
+                        >
+                          {line.text}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : lyricsData?.plain ? (
+                  <div className="py-8 max-w-2xl mx-auto whitespace-pre-line text-base text-[#c4c8d8] leading-relaxed font-sans">
+                    {lyricsData.plain}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* ===================================================== */}
+              {/* ABA: BIBLIOTECA (Página Inicial com Playlists)       */}
+              {/* ===================================================== */}
           {activeTab === "library" && (
             <>
               {selectedPlaylist ? (
@@ -1326,13 +1932,15 @@ export default function App() {
               </div>
             </div>
           )}
+            </>
+          )}
         </main>
       </div>
 
       {/* ======================================================= */}
       {/* PLAYER INFERIOR PERSISTENTE (Footer Playback Bar)        */}
       {/* ======================================================= */}
-      <footer className="fixed bottom-0 left-0 right-0 h-20 border-t border-[#1f232e] bg-[#0e1017] px-6 flex items-center justify-between gap-6 z-40">
+      <footer className="fixed bottom-0 left-0 right-0 h-20 border-t border-[#1f232e] bg-[#0e1017]/95 backdrop-blur-md px-6 flex items-center justify-between gap-6 z-40">
         {/* Faixa Atual */}
         <div className="flex items-center gap-3.5 w-1/4 min-w-[200px]">
           <div className="w-12 h-12 rounded-lg bg-[#171a24] border border-[#232733] overflow-hidden shrink-0 flex items-center justify-center">
@@ -1370,21 +1978,41 @@ export default function App() {
           </div>
         </div>
 
-        {/* Controles Centrais (Prev, Play/Pause, Next) e Scrubber */}
+        {/* Controles Centrais (Shuffle, Prev, Play/Pause, Next, Repeat) e Scrubber */}
         <div className="flex-1 max-w-xl flex flex-col items-center gap-1.5">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            {/* Modo Aleatório (Shuffle) */}
+            <button
+              onClick={toggleShuffle}
+              title={`Modo Aleatório [S] (${isShuffle ? "Ativado" : "Desativado"})`}
+              className={`p-2 rounded-lg transition-all cursor-pointer relative ${
+                isShuffle
+                  ? "text-red-400 bg-red-950/40 border border-red-800/50 shadow-[0_0_10px_rgba(239,68,68,0.25)]"
+                  : "text-[#71778c] hover:text-white hover:bg-[#1a1d28]"
+              }`}
+            >
+              <Shuffle className="w-4 h-4" />
+              {isShuffle && (
+                <span className="w-1 h-1 rounded-full bg-red-400 absolute bottom-1 left-1/2 -translate-x-1/2" />
+              )}
+            </button>
+
+            {/* Faixa Anterior */}
             <button
               onClick={handlePrevTrack}
               disabled={activeQueue.length === 0}
-              className="text-[#8c91a4] hover:text-white disabled:opacity-30 transition-colors cursor-pointer"
+              title="Faixa Anterior [Media / J]"
+              className="text-[#8c91a4] hover:text-white disabled:opacity-30 p-2 rounded-lg hover:bg-[#1a1d28] transition-colors cursor-pointer"
             >
               <SkipBack className="w-4 h-4 fill-current" />
             </button>
 
+            {/* Play / Pause */}
             <button
               onClick={togglePlayPause}
               disabled={!currentTrack}
-              className="w-9 h-9 rounded-full bg-white hover:scale-105 active:scale-95 disabled:opacity-40 text-black flex items-center justify-center shadow-lg transition-transform cursor-pointer"
+              title="Reproduzir / Pausar [Espaço / Media]"
+              className="w-10 h-10 rounded-full bg-white hover:scale-105 active:scale-95 disabled:opacity-40 text-black flex items-center justify-center shadow-lg shadow-white/10 transition-transform cursor-pointer"
             >
               {isPlaying ? (
                 <Pause className="w-4 h-4 fill-current" />
@@ -1393,12 +2021,40 @@ export default function App() {
               )}
             </button>
 
+            {/* Próxima Faixa */}
             <button
               onClick={handleNextTrack}
               disabled={activeQueue.length === 0}
-              className="text-[#8c91a4] hover:text-white disabled:opacity-30 transition-colors cursor-pointer"
+              title="Próxima Faixa [Media / K]"
+              className="text-[#8c91a4] hover:text-white disabled:opacity-30 p-2 rounded-lg hover:bg-[#1a1d28] transition-colors cursor-pointer"
             >
               <SkipForward className="w-4 h-4 fill-current" />
+            </button>
+
+            {/* Modo Repetição (Repeat: off / all / one) */}
+            <button
+              onClick={cycleRepeatMode}
+              title={`Repetição [R]: ${
+                repeatMode === "off"
+                  ? "Desativada"
+                  : repeatMode === "all"
+                  ? "Repetir Toda a Fila"
+                  : "Repetir Música Atual"
+              }`}
+              className={`p-2 rounded-lg transition-all cursor-pointer relative ${
+                repeatMode !== "off"
+                  ? "text-red-400 bg-red-950/40 border border-red-800/50 shadow-[0_0_10px_rgba(239,68,68,0.25)]"
+                  : "text-[#71778c] hover:text-white hover:bg-[#1a1d28]"
+              }`}
+            >
+              {repeatMode === "one" ? (
+                <Repeat1 className="w-4 h-4" />
+              ) : (
+                <Repeat className="w-4 h-4" />
+              )}
+              {repeatMode !== "off" && (
+                <span className="w-1 h-1 rounded-full bg-red-400 absolute bottom-1 left-1/2 -translate-x-1/2" />
+              )}
             </button>
           </div>
 
@@ -1418,8 +2074,23 @@ export default function App() {
           </div>
         </div>
 
-        {/* Volume & Status */}
-        <div className="flex items-center justify-end gap-4 w-1/4 min-w-[180px]">
+        {/* Volume, Letras & Status */}
+        <div className="flex items-center justify-end gap-3.5 w-1/4 min-w-[200px]">
+          {/* Botão Letras */}
+          <button
+            onClick={() => setShowLyrics((prev) => !prev)}
+            disabled={!currentTrack}
+            title="Letras Sincronizadas [L]"
+            className={`p-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-medium disabled:opacity-30 ${
+              showLyrics
+                ? "bg-red-600 text-white shadow-lg shadow-red-950/50 border border-red-500"
+                : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
+            }`}
+          >
+            <Mic2 className="w-4 h-4" />
+            <span className="hidden md:inline">Letras</span>
+          </button>
+
           <span className="hidden sm:inline-block text-[10px] font-mono px-2 py-0.5 rounded bg-[#171a24] text-emerald-400 border border-emerald-900/40">
             {isPlaying ? "Reproduzindo" : "Pausado"}
           </span>
@@ -1427,6 +2098,7 @@ export default function App() {
           <div className="flex items-center gap-2">
             <button
               onClick={toggleMute}
+              title="Mudo [M]"
               className="text-[#8c91a4] hover:text-white transition-colors cursor-pointer"
             >
               {isMuted || volume === 0 ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}

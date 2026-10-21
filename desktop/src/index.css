@@ -1,18 +1,70 @@
 @import "tailwindcss";
 
 @layer base {
+  :root {
+    --aurora-1: rgba(220, 38, 38, 0.12); /* Subtle red glow */
+    --aurora-2: rgba(79, 70, 229, 0.10); /* Subtle indigo glow */
+    --aurora-3: rgba(13, 148, 136, 0.08); /* Subtle cyan/teal glow */
+  }
+
   body {
     @apply bg-[#0b0c10] text-[#e0e2ec] font-sans antialiased overflow-hidden select-none;
   }
 }
 
-/* Custom scrollbar */
+/* Subtle Aurora Ambient Glow (GPU-Accelerated) */
+@keyframes aurora-float-1 {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(8%, 10%, 0) scale(1.15);
+  }
+}
+
+@keyframes aurora-float-2 {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1.1);
+  }
+  50% {
+    transform: translate3d(-10%, -6%, 0) scale(0.95);
+  }
+}
+
+@keyframes aurora-float-3 {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(0.95);
+  }
+  50% {
+    transform: translate3d(6%, -8%, 0) scale(1.1);
+  }
+}
+
+.aurora-blob-1 {
+  background: radial-gradient(circle, var(--aurora-1) 0%, transparent 68%);
+  animation: aurora-float-1 24s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+.aurora-blob-2 {
+  background: radial-gradient(circle, var(--aurora-2) 0%, transparent 68%);
+  animation: aurora-float-2 30s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+.aurora-blob-3 {
+  background: radial-gradient(circle, var(--aurora-3) 0%, transparent 68%);
+  animation: aurora-float-3 28s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+/* Custom scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #12141c;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: #232733;
