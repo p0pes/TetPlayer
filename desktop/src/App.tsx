@@ -566,6 +566,10 @@ export default function App() {
                         <img
                           src={selectedPlaylist.artwork_url}
                           alt={selectedPlaylist.title}
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = "none";
+                          }}
                           className="w-full h-full object-cover"
                         />
                       ) : (
@@ -644,6 +648,20 @@ export default function App() {
                                   <img
                                     src={track.artwork_url}
                                     alt={track.title}
+                                    referrerPolicy="no-referrer"
+                                    onError={(e) => {
+                                      const img = e.target as HTMLImageElement;
+                                      if (track.id && !img.src.includes("hqdefault.jpg")) {
+                                        img.src = `https://i.ytimg.com/vi/${track.id}/hqdefault.jpg`;
+                                      }
+                                    }}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : track.id ? (
+                                  <img
+                                    src={`https://i.ytimg.com/vi/${track.id}/hqdefault.jpg`}
+                                    alt={track.title}
+                                    referrerPolicy="no-referrer"
                                     className="w-full h-full object-cover"
                                   />
                                 ) : (
@@ -725,6 +743,10 @@ export default function App() {
                                 <img
                                   src={pl.artwork_url}
                                   alt={pl.title}
+                                  referrerPolicy="no-referrer"
+                                  onError={(e) => {
+                                    (e.target as HTMLElement).style.display = "none";
+                                  }}
                                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                 />
                               ) : isLiked ? (
@@ -816,6 +838,20 @@ export default function App() {
                               <img
                                 src={track.artwork_url}
                                 alt={track.title}
+                                referrerPolicy="no-referrer"
+                                onError={(e) => {
+                                  const img = e.target as HTMLImageElement;
+                                  if (track.id && !img.src.includes("hqdefault.jpg")) {
+                                    img.src = `https://i.ytimg.com/vi/${track.id}/hqdefault.jpg`;
+                                  }
+                                }}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : track.id ? (
+                              <img
+                                src={`https://i.ytimg.com/vi/${track.id}/hqdefault.jpg`}
+                                alt={track.title}
+                                referrerPolicy="no-referrer"
                                 className="w-full h-full object-cover"
                               />
                             ) : (
@@ -879,6 +915,20 @@ export default function App() {
               <img
                 src={currentTrack.artwork_url}
                 alt={currentTrack.title}
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  const img = e.target as HTMLImageElement;
+                  if (currentTrack?.id && !img.src.includes("hqdefault.jpg")) {
+                    img.src = `https://i.ytimg.com/vi/${currentTrack.id}/hqdefault.jpg`;
+                  }
+                }}
+                className="w-full h-full object-cover"
+              />
+            ) : currentTrack?.id ? (
+              <img
+                src={`https://i.ytimg.com/vi/${currentTrack.id}/hqdefault.jpg`}
+                alt={currentTrack.title}
+                referrerPolicy="no-referrer"
                 className="w-full h-full object-cover"
               />
             ) : (

@@ -165,11 +165,11 @@ pub async fn get_user_playlists(session: &AuthSession) -> Result<Vec<Playlist>, 
         id: "VLLM".to_string(),
         title: "🔥 Músicas Curtidas".to_string(),
         subtitle: Some("Sua coleção automática do YouTube Music".to_string()),
-        artwork_url: None,
+        artwork_url: Some("https://www.gstatic.com/youtube/media/ytm/images/pbg/liked-songs-600.png".to_string()),
         track_count: None,
     });
 
-    // 2. Busca na Home as playlists do usuário (carrossel 'Ouvir de novo' ou playlists)
+    // 2. Busca na Biblioteca (FEmusic_liked_playlists) apenas as playlists criadas pelo usuário
     let payload = json!({
         "context": {
             "client": {
@@ -179,12 +179,12 @@ pub async fn get_user_playlists(session: &AuthSession) -> Result<Vec<Playlist>, 
                 "gl": "BR"
             }
         },
-        "browseId": "FEmusic_home"
+        "browseId": "FEmusic_liked_playlists"
     });
 
     if let Ok(resp) = client.post(url).headers(headers.clone()).json(&payload).send().await {
         if let Ok(json_val) = resp.json::<Value>().await {
-            extract_playlists_from_value(&json_val, &mut playlists);
+            extract_user_playlists_from_value(&json_val, &mut playlists);
         }
     }
 
@@ -240,35 +240,76 @@ pub async fn get_playlist_tracks(session: &AuthSession, playlist_id: &str) -> Re
     Ok(tracks)
 }
 
-fn extract_playlists_from_value(val: &Value, playlists: &mut Vec<Playlist>) {
+fn extract_thumbnail_from_renderer(renderer: &Value) -> Option<String> {
+    let thumbs = renderer.get("musicThumbnailRenderer")
+        .or_else(|| renderer.get("croppedSquareThumbnailRenderer"))
+        .and_then(|r| r.get("thumbnail"))
+        .and_then(|t| t.get("thumbnails"))
+        .or_else(|| renderer.get("thumbnail").and_then(|t| t.get("thumbnails")))
+        .and_then(|t| t.as_array());
+
+    if let Some(arr) = thumbs {
+        if let Some(last_thumb) = arr.last() {
+            if let Some(url) = last_thumb.get("url").and_then(|u| u.as_str()) {
+                let clean_url = if url.starts_with("//") {
+                    format!("https:{}", url)
+                } else {
+                    url.to_string()
+                };
+                return Some(clean_url);
+            }
+        }
+    }
+    None
+}
+
+fn extract_user_playlists_from_value(val: &Value, playlists: &mut Vec<Playlist>) {
     match val {
         Value::Object(map) => {
             if let Some(item) = map.get("musicTwoRowItemRenderer") {
-                if let Some(pl) = parse_playlist_two_row(item) {
+                if let Some(pl) = parse_user_playlist_two_row(item) {
                     playlists.push(pl);
                 }
             }
 
             for v in map.values() {
-                extract_playlists_from_value(v, playlists);
+                extract_user_playlists_from_value(v, playlists);
             }
         }
         Value::Array(arr) => {
             for v in arr {
-                extract_playlists_from_value(v, playlists);
+                extract_user_playlists_from_value(v, playlists);
             }
         }
         _ => {}
     }
 }
 
-fn parse_playlist_two_row(item: &Value) -> Option<Playlist> {
+fn parse_user_playlist_two_row(item: &Value) -> Option<Playlist> {
     let nav = &item["navigationEndpoint"];
     let browse_id = nav["browseEndpoint"]["browseId"].as_str()
         .or_else(|| nav["watchEndpoint"]["playlistId"].as_str())?;
 
-    // Considera apenas se for uma playlist (VL...)
-    if !browse_id.starts_with("VL") && !browse_id.starts_with("PL") && !browse_id.starts_with("RD") {
+    // Ignora itens sem ID, ou especiais (ex: botão 'Nova playlist' que não tem browseId, ou podcasts)
+    if browse_id.is_empty() || browse_id == "VLLM" || browse_id == "LM" || browse_id == "VLSE" {
+        return None;
+    }
+
+    // Apenas IDs de playlist (VLPL... ou PL...)
+    if !browse_id.starts_with("VLPL") && !browse_id.starts_with("PL") {
+        return None;
+    }
+
+    // Filtro rigoroso: apenas playlists criadas pelo próprio usuário (contém deletePlaylistEndpoint ou musicPlaylistEditHeaderRenderer)
+    let raw_str = item.to_string();
+    let is_created_by_user = raw_str.contains("deletePlaylistEndpoint")
+        || raw_str.contains("musicPlaylistEditHeaderRenderer")
+        || raw_str.contains("Excluir playlist")
+        || raw_str.contains("Delete playlist")
+        || raw_str.contains("Editar playlist")
+        || raw_str.contains("Edit playlist");
+
+    if !is_created_by_user {
         return None;
     }
 
@@ -288,11 +329,8 @@ fn parse_playlist_two_row(item: &Value) -> Option<Playlist> {
                 .join(" ")
         });
 
-    let artwork_url = item["thumbnailRenderer"]["musicThumbnailRenderer"]["thumbnail"]["thumbnails"]
-        .as_array()
-        .and_then(|arr| arr.last())
-        .and_then(|t| t["url"].as_str())
-        .map(|s| s.to_string());
+    let artwork_url = extract_thumbnail_from_renderer(&item["thumbnailRenderer"])
+        .or_else(|| extract_thumbnail_from_renderer(&item["thumbnail"]));
 
     Some(Playlist {
         id: browse_id.to_string(),
@@ -376,11 +414,8 @@ fn parse_responsive_item(item: &Value) -> Option<Track> {
         }
     }
 
-    let artwork_url = item["thumbnail"]["musicThumbnailRenderer"]["thumbnail"]["thumbnails"]
-        .as_array()
-        .and_then(|arr| arr.last())
-        .and_then(|t| t["url"].as_str())
-        .map(|s| s.to_string());
+    let artwork_url = extract_thumbnail_from_renderer(&item["thumbnail"])
+        .or_else(|| Some(format!("https://i.ytimg.com/vi/{video_id}/hqdefault.jpg")));
 
     Some(Track {
         id: video_id,
@@ -411,11 +446,9 @@ fn parse_two_row_item(item: &Value) -> Option<Track> {
         .unwrap_or("Artista")
         .to_string();
 
-    let artwork_url = item["thumbnailRenderer"]["musicThumbnailRenderer"]["thumbnail"]["thumbnails"]
-        .as_array()
-        .and_then(|arr| arr.last())
-        .and_then(|t| t["url"].as_str())
-        .map(|s| s.to_string());
+    let artwork_url = extract_thumbnail_from_renderer(&item["thumbnailRenderer"])
+        .or_else(|| extract_thumbnail_from_renderer(&item["thumbnail"]))
+        .or_else(|| Some(format!("https://i.ytimg.com/vi/{video_id}/hqdefault.jpg")));
 
     Some(Track {
         id: video_id,
