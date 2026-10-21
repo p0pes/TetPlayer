@@ -53,6 +53,36 @@ async fn get_playlist_tracks(
     fetch_playlist_tracks(&session, &playlist_id).await
 }
 
+#[tauri::command]
+fn minimize_window(window: tauri::Window) {
+    let _ = window.minimize();
+}
+
+#[tauri::command]
+fn toggle_maximize_window(window: tauri::Window) -> bool {
+    if let Ok(is_maximized) = window.is_maximized() {
+        if is_maximized {
+            let _ = window.unmaximize();
+            return false;
+        } else {
+            let _ = window.maximize();
+            return true;
+        }
+    }
+    let _ = window.maximize();
+    true
+}
+
+#[tauri::command]
+fn close_window(window: tauri::Window) {
+    let _ = window.close();
+}
+
+#[tauri::command]
+fn is_window_maximized(window: tauri::Window) -> bool {
+    window.is_maximized().unwrap_or(false)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let initial_session = find_youtube_session();
@@ -68,7 +98,11 @@ pub fn run() {
             search_tracks,
             get_quick_tracks,
             get_user_playlists,
-            get_playlist_tracks
+            get_playlist_tracks,
+            minimize_window,
+            toggle_maximize_window,
+            close_window,
+            is_window_maximized
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

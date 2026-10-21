@@ -17,6 +17,10 @@ import {
   Loader2,
   ArrowLeft,
   ListMusic,
+  Minus,
+  Square,
+  Copy,
+  X,
 } from "lucide-react";
 
 interface AuthSession {
@@ -95,6 +99,53 @@ export default function App() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ytPlayerRef = useRef<any>(null);
   const [isPlayerReady, setIsPlayerReady] = useState(false);
+
+  // Window state & controls
+  const [isMaximized, setIsMaximized] = useState(false);
+
+  useEffect(() => {
+    checkMaximizedState();
+
+    const handleResize = () => {
+      checkMaximizedState();
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  async function checkMaximizedState() {
+    try {
+      const maximized = await invoke<boolean>("is_window_maximized");
+      setIsMaximized(maximized);
+    } catch {
+      // ignore
+    }
+  }
+
+  async function handleMinimize() {
+    try {
+      await invoke("minimize_window");
+    } catch (err) {
+      console.error("Erro ao minimizar janela:", err);
+    }
+  }
+
+  async function handleToggleMaximize() {
+    try {
+      const maximized = await invoke<boolean>("toggle_maximize_window");
+      setIsMaximized(maximized);
+    } catch (err) {
+      console.error("Erro ao alternar maximizar/modo janela:", err);
+    }
+  }
+
+  async function handleClose() {
+    try {
+      await invoke("close_window");
+    } catch (err) {
+      console.error("Erro ao fechar aplicação:", err);
+    }
+  }
 
   // Refs for access inside callbacks
   const activeQueueRef = useRef<Track[]>([]);
@@ -373,10 +424,14 @@ export default function App() {
       {/* ======================================================= */}
       <aside className="w-64 bg-[#0f1118] border-r border-[#1f232e] p-4 flex flex-col justify-between shrink-0 h-full">
         <div className="space-y-6 flex-1 flex flex-col min-h-0">
-          {/* Logo TetPlayer */}
-          <div className="flex items-center gap-2.5 px-2 pt-1">
+          {/* Logo TetPlayer com suporte a arrastar janela */}
+          <div
+            data-tauri-drag-region
+            onDoubleClick={handleToggleMaximize}
+            className="flex items-center gap-2.5 px-2 pt-1 cursor-default"
+          >
             <div className="w-3.5 h-3.5 rounded-full bg-red-600 shadow-[0_0_10px_rgba(239,68,68,0.9)] animate-pulse" />
-            <h1 className="font-bold text-lg text-white tracking-tight flex items-center gap-2">
+            <h1 className="font-bold text-lg text-white tracking-tight flex items-center gap-2 pointer-events-none">
               TetPlayer <span className="text-[10px] bg-red-950 text-red-400 border border-red-800/60 px-2 py-0.5 rounded-full font-medium">Desktop</span>
             </h1>
           </div>
@@ -498,10 +553,14 @@ export default function App() {
       {/* ÁREA PRINCIPAL (Header superior + Conteúdo dinâmico)    */}
       {/* ======================================================= */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-        {/* Barra Superior */}
-        <header className="h-14 border-b border-[#1f232e] bg-[#0e1017] px-6 flex items-center justify-between gap-4 shrink-0">
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-[#8c91a4]">
+        {/* Barra Superior Integrada com Window Controls (Title Bar Customizada) */}
+        <header
+          data-tauri-drag-region
+          onDoubleClick={handleToggleMaximize}
+          className="h-14 border-b border-[#1f232e] bg-[#0e1017] px-6 flex items-center justify-between gap-4 shrink-0 select-none cursor-default"
+        >
+          <div className="flex items-center gap-3" data-tauri-drag-region>
+            <span className="text-xs text-[#8c91a4] pointer-events-none">
               {activeTab === "library"
                 ? selectedPlaylist
                   ? `Biblioteca > ${selectedPlaylist.title}`
@@ -510,7 +569,7 @@ export default function App() {
             </span>
           </div>
 
-          {/* Status Pills */}
+          {/* Status Pills e Controles de Navegação da Janela */}
           <div className="flex items-center gap-3">
             {auth?.is_authenticated ? (
               <span className="inline-flex items-center gap-1.5 bg-emerald-950/80 text-emerald-400 border border-emerald-800/50 px-2.5 py-0.5 rounded-full text-xs">
@@ -523,6 +582,40 @@ export default function App() {
                 Modo Anônimo
               </span>
             )}
+
+            {/* Menu de Navegação / Janela do Windows (Minimizar, Modo Janela, Fechar) */}
+            <div className="flex items-center gap-1 border-l border-[#1f232e] pl-3 ml-1">
+              <button
+                onClick={handleMinimize}
+                title="Minimizar"
+                aria-label="Minimizar"
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-[#8c91a4] hover:text-white hover:bg-[#1f232e] transition-colors cursor-pointer"
+              >
+                <Minus className="w-4 h-4" />
+              </button>
+
+              <button
+                onClick={handleToggleMaximize}
+                title={isMaximized ? "Restaurar (Modo Janela)" : "Maximizar"}
+                aria-label={isMaximized ? "Restaurar" : "Maximizar"}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-[#8c91a4] hover:text-white hover:bg-[#1f232e] transition-colors cursor-pointer"
+              >
+                {isMaximized ? (
+                  <Copy className="w-3.5 h-3.5" />
+                ) : (
+                  <Square className="w-3.5 h-3.5" />
+                )}
+              </button>
+
+              <button
+                onClick={handleClose}
+                title="Fechar"
+                aria-label="Fechar"
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-[#8c91a4] hover:text-white hover:bg-red-600 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </header>
 
