@@ -247,6 +247,78 @@ pub async fn get_playlist_tracks(session: &AuthSession, playlist_id: &str) -> Re
     Ok(tracks)
 }
 
+pub async fn get_radio_tracks(session: &AuthSession, video_id: &str) -> Result<Vec<Track>, String> {
+    let client = reqwest::Client::new();
+    let url = "https://music.youtube.com/youtubei/v1/next?prettyPrint=false";
+    let headers = build_headers(session, "WEB_REMIX");
+
+    let payload = json!({
+        "context": {
+            "client": {
+                "clientName": "WEB_REMIX",
+                "clientVersion": "1.20240401.01.00",
+                "hl": "pt",
+                "gl": "BR"
+            }
+        },
+        "videoId": video_id
+    });
+
+    let mut tracks = Vec::new();
+
+    if let Ok(resp) = client.post(url).headers(headers).json(&payload).send().await {
+        if let Ok(json_val) = resp.json::<Value>().await {
+            extract_tracks_from_value(&json_val, &mut tracks);
+        }
+    }
+
+    // Filtra a própria faixa que originou a rádio
+    tracks.retain(|t| t.id != video_id);
+
+    // Deduplica mantendo a ordem
+    let mut seen = std::collections::HashSet::new();
+    tracks.retain(|t| seen.insert(t.id.clone()));
+
+    // Fallback caso o endpoint next retorne poucas faixas
+    if tracks.is_empty() {
+        if let Ok(fallback) = get_home_recommendations(session).await {
+            let mut fallback_tracks: Vec<Track> = fallback.into_iter().filter(|t| t.id != video_id).collect();
+            tracks.append(&mut fallback_tracks);
+        }
+    }
+
+    Ok(tracks)
+}
+
+pub fn upgrade_artwork_url(url: &str) -> String {
+    let clean = if url.starts_with("//") {
+        format!("https:{}", url)
+    } else {
+        url.to_string()
+    };
+
+    // 1. Google User Content / GGPHT / YouTube Music CDN
+    if clean.contains("googleusercontent.com") || clean.contains("ggpht.com") {
+        if let Some(pos) = clean.rfind('=') {
+            let prefix = &clean[..pos];
+            let suffix = &clean[pos..];
+            if suffix.starts_with("=w") || suffix.starts_with("=s") {
+                return format!("{}=w800-h800-l90-rj", prefix);
+            }
+        }
+    }
+
+    // 2. YouTube Vi Thumbnails
+    if clean.contains("i.ytimg.com/vi/") || clean.contains("img.youtube.com/vi/") {
+        return clean
+            .replace("/hqdefault.jpg", "/maxresdefault.jpg")
+            .replace("/mqdefault.jpg", "/maxresdefault.jpg")
+            .replace("/default.jpg", "/maxresdefault.jpg");
+    }
+
+    clean
+}
+
 fn extract_thumbnail_from_renderer(renderer: &Value) -> Option<String> {
     let thumbs = renderer.get("musicThumbnailRenderer")
         .or_else(|| renderer.get("croppedSquareThumbnailRenderer"))
@@ -258,12 +330,7 @@ fn extract_thumbnail_from_renderer(renderer: &Value) -> Option<String> {
     if let Some(arr) = thumbs {
         if let Some(last_thumb) = arr.last() {
             if let Some(url) = last_thumb.get("url").and_then(|u| u.as_str()) {
-                let clean_url = if url.starts_with("//") {
-                    format!("https:{}", url)
-                } else {
-                    url.to_string()
-                };
-                return Some(clean_url);
+                return Some(upgrade_artwork_url(url));
             }
         }
     }
@@ -359,6 +426,10 @@ fn extract_tracks_from_value(val: &Value, tracks: &mut Vec<Track>) {
                 if let Some(track) = parse_two_row_item(item) {
                     tracks.push(track);
                 }
+            } else if let Some(item) = map.get("playlistPanelVideoRenderer") {
+                if let Some(track) = parse_playlist_panel_item(item) {
+                    tracks.push(track);
+                }
             }
 
             for v in map.values() {
@@ -422,7 +493,7 @@ fn parse_responsive_item(item: &Value) -> Option<Track> {
     }
 
     let artwork_url = extract_thumbnail_from_renderer(&item["thumbnail"])
-        .or_else(|| Some(format!("https://i.ytimg.com/vi/{video_id}/hqdefault.jpg")));
+        .or_else(|| Some(format!("https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg")));
 
     Some(Track {
         id: video_id,
@@ -455,7 +526,7 @@ fn parse_two_row_item(item: &Value) -> Option<Track> {
 
     let artwork_url = extract_thumbnail_from_renderer(&item["thumbnailRenderer"])
         .or_else(|| extract_thumbnail_from_renderer(&item["thumbnail"]))
-        .or_else(|| Some(format!("https://i.ytimg.com/vi/{video_id}/hqdefault.jpg")));
+        .or_else(|| Some(format!("https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg")));
 
     Some(Track {
         id: video_id,
@@ -463,6 +534,52 @@ fn parse_two_row_item(item: &Value) -> Option<Track> {
         artist,
         album: None,
         duration: None,
+        duration_seconds: None,
+        artwork_url,
+    })
+}
+
+fn parse_playlist_panel_item(item: &Value) -> Option<Track> {
+    let video_id = item["videoId"].as_str()?.to_string();
+    if video_id.is_empty() {
+        return None;
+    }
+
+    let title = item["title"]["runs"]
+        .as_array()
+        .and_then(|runs| runs.first())
+        .and_then(|r| r["text"].as_str())
+        .unwrap_or("Música")
+        .to_string();
+
+    let artist = item["longBylineText"]["runs"]
+        .as_array()
+        .and_then(|runs| runs.first())
+        .and_then(|r| r["text"].as_str())
+        .or_else(|| {
+            item["shortBylineText"]["runs"]
+                .as_array()
+                .and_then(|runs| runs.first())
+                .and_then(|r| r["text"].as_str())
+        })
+        .unwrap_or("Artista")
+        .to_string();
+
+    let duration = item["lengthText"]["runs"]
+        .as_array()
+        .and_then(|runs| runs.first())
+        .and_then(|r| r["text"].as_str())
+        .map(|s| s.to_string());
+
+    let artwork_url = extract_thumbnail_from_renderer(&item["thumbnail"])
+        .or_else(|| Some(format!("https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg")));
+
+    Some(Track {
+        id: video_id,
+        title,
+        artist,
+        album: None,
+        duration,
         duration_seconds: None,
         artwork_url,
     })

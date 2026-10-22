@@ -1,5 +1,42 @@
 @import "tailwindcss";
 
+/* Registro de Propriedades CSS Tipadas (<color>) para Interpolação Numérica Contínua */
+@property --aurora-1 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgba(220, 38, 38, 0.42);
+}
+
+@property --aurora-2 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgba(99, 102, 241, 0.32);
+}
+
+@property --aurora-3 {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgba(20, 184, 166, 0.26);
+}
+
+@property --aurora-1-glow {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgba(220, 38, 38, 0.85);
+}
+
+@property --aurora-2-glow {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgba(99, 102, 241, 0.75);
+}
+
+@property --aurora-3-glow {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgba(20, 184, 166, 0.65);
+}
+
 @layer base {
   :root {
     --aurora-1: rgba(220, 38, 38, 0.42); /* Vibrant ambient red */
@@ -8,10 +45,24 @@
     --aurora-1-glow: rgba(220, 38, 38, 0.85); /* High-intensity radiant red */
     --aurora-2-glow: rgba(99, 102, 241, 0.75); /* High-intensity radiant indigo */
     --aurora-3-glow: rgba(20, 184, 166, 0.65); /* High-intensity radiant teal */
+
+    /* Transição suave de Fade entre cores de fundo ao trocar de música */
+    transition:
+      --aurora-1 0.75s cubic-bezier(0.2, 0.8, 0.2, 1),
+      --aurora-2 0.75s cubic-bezier(0.2, 0.8, 0.2, 1),
+      --aurora-3 0.75s cubic-bezier(0.2, 0.8, 0.2, 1),
+      --aurora-1-glow 0.75s cubic-bezier(0.2, 0.8, 0.2, 1),
+      --aurora-2-glow 0.75s cubic-bezier(0.2, 0.8, 0.2, 1),
+      --aurora-3-glow 0.75s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  html,
+  body {
+    background-color: transparent !important;
   }
 
   body {
-    @apply bg-[#0b0c10] text-[#e0e2ec] font-sans antialiased overflow-hidden select-none;
+    @apply text-[#e0e2ec] font-sans antialiased overflow-hidden select-none;
   }
 }
 
@@ -41,6 +92,20 @@
   50% {
     transform: translate3d(6%, -8%, 0) scale(1.1);
   }
+}
+
+.aurora-blob-1,
+.aurora-blob-2,
+.aurora-blob-3,
+.aurora-cover-aura-1,
+.aurora-cover-aura-2 {
+  transition:
+    --aurora-1 0.75s cubic-bezier(0.2, 0.8, 0.2, 1),
+    --aurora-2 0.75s cubic-bezier(0.2, 0.8, 0.2, 1),
+    --aurora-3 0.75s cubic-bezier(0.2, 0.8, 0.2, 1),
+    --aurora-1-glow 0.75s cubic-bezier(0.2, 0.8, 0.2, 1),
+    --aurora-2-glow 0.75s cubic-bezier(0.2, 0.8, 0.2, 1),
+    --aurora-3-glow 0.75s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .aurora-blob-1 {
