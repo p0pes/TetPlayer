@@ -159,6 +159,24 @@
   will-change: transform;
 }
 
+/* Cinematic Light Sweep for Motion Cover (Sugestão 3.5) */
+@keyframes motionSweep {
+  0% {
+    transform: translate3d(-100%, -100%, 0) rotate(25deg);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(200%, 200%, 0) rotate(25deg);
+    opacity: 0;
+  }
+}
+
 /* Custom scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
@@ -173,4 +191,13 @@
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #343a4e;
+}
+
+/* Modo de Redução de Movimento (Acessibilidade & Bateria) */
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
 }

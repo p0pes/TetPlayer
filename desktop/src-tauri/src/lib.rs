@@ -101,7 +101,28 @@ fn clear_playback_stats() -> Result<(), String> {
     stats::clear_stats()
 }
 
+#[tauri::command]
+fn save_to_db_cache(key: String, value: String) -> Result<(), String> {
+    stats::set_cache_entry(&key, &value)
+}
+
+#[tauri::command]
+fn get_from_db_cache(key: String) -> Result<Option<String>, String> {
+    stats::get_cache_entry(&key)
+}
+
+#[tauri::command]
+fn delete_from_db_cache(key: String) -> Result<(), String> {
+    stats::delete_cache_entry(&key)
+}
+
 // Window commands
+#[tauri::command]
+fn show_main_window(window: tauri::Window) {
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
 #[tauri::command]
 fn minimize_window(window: tauri::Window) {
     let _ = window.minimize();
@@ -490,9 +511,19 @@ pub fn run() {
                     .build(app)?;
             }
 
+            // Fallback de segurança para garantir exibição mesmo em caso de erro no frontend
+            if let Some(main_win) = app.get_webview_window("main") {
+                let win_clone = main_win.clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_millis(1500));
+                    let _ = win_clone.show();
+                });
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            show_main_window,
             get_auth_status,
             refresh_auth,
             search_tracks,
@@ -504,6 +535,9 @@ pub fn run() {
             record_track_played,
             get_playback_stats,
             clear_playback_stats,
+            save_to_db_cache,
+            get_from_db_cache,
+            delete_from_db_cache,
             minimize_window,
             hide_to_tray,
             toggle_maximize_window,

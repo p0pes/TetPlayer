@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   BarChart3,
@@ -18,7 +18,7 @@ interface StatsViewProps {
   onPlayTrack: (track: Track) => void;
 }
 
-export function StatsView({ onPlayTrack }: StatsViewProps) {
+export const StatsView = React.memo(function StatsView({ onPlayTrack }: StatsViewProps) {
   const [timeframe, setTimeframe] = useState<number | null>(30); // 7, 30, null (tudo)
   const [stats, setStats] = useState<PlaybackStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -309,4 +309,4 @@ export function StatsView({ onPlayTrack }: StatsViewProps) {
       )}
     </div>
   );
-}
+});

@@ -17,7 +17,7 @@ interface SearchViewProps {
   scrollRef: React.RefObject<HTMLElement | null>;
 }
 
-export function SearchView({
+export const SearchView = React.memo(function SearchView({
   searchQuery,
   setSearchQuery,
   onSearch,
@@ -90,4 +90,4 @@ export function SearchView({
       </div>
     </div>
   );
-}
+});

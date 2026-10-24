@@ -57,6 +57,20 @@ function loadInitialPaletteCache(): Record<string, ColorWorkerResult> {
   }
 }
 
+/**
+ * Pré-carregamento de imagem e cores da arte para a próxima faixa da fila
+ */
+export function prefetchArtworkColors(track: Track): void {
+  if (!track || !track.artwork_url) return;
+  try {
+    const highResUrl = upgradeArtworkQuality(track.artwork_url, track.id);
+    const img = new Image();
+    img.src = highResUrl;
+  } catch {
+    // ignore
+  }
+}
+
 export function useAuroraColor(currentTrack: Track | null) {
   const workerRef = useRef<Worker | null>(null);
   const activeTrackIdRef = useRef<string | null>(null);
@@ -75,8 +89,15 @@ export function useAuroraColor(currentTrack: Track | null) {
         const { trackId, result } = e.data;
         if (!result) return;
 
-        // Persistir no cache de paletas para futuras transições em 0ms
+        // Persistir no cache de paletas para futuras transições em 0ms (com teto de 150 faixas)
         paletteCacheRef.current[trackId] = result;
+        const keys = Object.keys(paletteCacheRef.current);
+        if (keys.length > 150) {
+          const toRemove = keys.slice(0, keys.length - 150);
+          for (const k of toRemove) {
+            delete paletteCacheRef.current[k];
+          }
+        }
         try {
           localStorage.setItem(
             PALETTE_CACHE_KEY,

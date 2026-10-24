@@ -97,6 +97,7 @@ export function useMediaSession({
 
   // 3. Sincronizar posição no SMTC com throttling de 1s para não sobrecarregar IPC
   const lastPositionUpdateRef = useRef<number>(0);
+  const lastTrackedPositionRef = useRef<number>(0);
   useEffect(() => {
     if (
       "mediaSession" in navigator &&
@@ -104,12 +105,11 @@ export function useMediaSession({
       duration > 0
     ) {
       const now = performance.now();
-      // Atualiza apenas se passou 1s ou se houver salto grande (seek)
-      if (
-        now - lastPositionUpdateRef.current > 1000 ||
-        Math.abs(currentTime - (lastPositionUpdateRef.current ? currentTime : 0)) > 2
-      ) {
+      const isSeekJump = Math.abs(currentTime - lastTrackedPositionRef.current) > 2;
+      // Atualiza apenas se passou 1s ou se houver salto grande (seek manual)
+      if (now - lastPositionUpdateRef.current > 1000 || isSeekJump) {
         lastPositionUpdateRef.current = now;
+        lastTrackedPositionRef.current = currentTime;
         try {
           navigator.mediaSession.setPositionState({
             duration: Math.max(duration, 0),

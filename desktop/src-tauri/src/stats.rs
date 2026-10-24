@@ -1,6 +1,11 @@
+use base64::Engine;
+use flate2::read::DeflateDecoder;
+use flate2::write::DeflateEncoder;
+use flate2::Compression;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -79,6 +84,22 @@ pub fn init_db() -> Result<Connection, String> {
         [],
     )
     .map_err(|e| format!("Falha ao criar índice por data: {e}"))?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS app_cache (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at INTEGER NOT NULL
+        )",
+        [],
+    )
+    .map_err(|e| format!("Falha ao criar tabela app_cache: {e}"))?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_cache_updated ON app_cache (updated_at)",
+        [],
+    )
+    .map_err(|e| format!("Falha ao criar índice por updated_at no cache: {e}"))?;
 
     Ok(conn)
 }
@@ -239,3 +260,118 @@ pub fn clear_stats() -> Result<(), String> {
         .map_err(|e| format!("Erro ao limpar estatísticas: {e}"))?;
     Ok(())
 }
+
+const COMPRESSION_PREFIX: &str = "__df64__:";
+const COMPRESSION_THRESHOLD: usize = 128;
+
+pub fn compress_payload(data: &str) -> String {
+    if data.len() < COMPRESSION_THRESHOLD {
+        return data.to_string();
+    }
+
+    let mut encoder = DeflateEncoder::new(Vec::new(), Compression::default());
+    if encoder.write_all(data.as_bytes()).is_ok() {
+        if let Ok(compressed) = encoder.finish() {
+            let encoded = base64::engine::general_purpose::STANDARD.encode(&compressed);
+            // Salva comprimido apenas se realmente gerar economia de espaço
+            if encoded.len() + COMPRESSION_PREFIX.len() < data.len() {
+                return format!("{}{}", COMPRESSION_PREFIX, encoded);
+            }
+        }
+    }
+
+    data.to_string()
+}
+
+pub fn decompress_payload(data: &str) -> String {
+    if let Some(stripped) = data.strip_prefix(COMPRESSION_PREFIX) {
+        if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(stripped) {
+            let mut decoder = DeflateDecoder::new(&decoded[..]);
+            let mut decompressed = Vec::new();
+            if decoder.read_to_end(&mut decompressed).is_ok() {
+                if let Ok(text) = String::from_utf8(decompressed) {
+                    return text;
+                }
+            }
+        }
+    }
+
+    // Se não tiver o prefixo ou falhar na descompressão, retorna o valor original (100% retrocompatível)
+    data.to_string()
+}
+
+pub fn set_cache_entry(key: &str, value: &str) -> Result<(), String> {
+    let conn = init_db()?;
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+    let payload = compress_payload(value);
+    conn.execute(
+        "INSERT INTO app_cache (key, value, updated_at) VALUES (?1, ?2, ?3)
+         ON CONFLICT(key) DO UPDATE SET value = ?2, updated_at = ?3",
+        params![key, payload, now],
+    )
+    .map_err(|e| format!("Falha ao salvar no cache SQLite: {e}"))?;
+    Ok(())
+}
+
+pub fn get_cache_entry(key: &str) -> Result<Option<String>, String> {
+    let conn = init_db()?;
+    let mut stmt = conn
+        .prepare("SELECT value FROM app_cache WHERE key = ?1")
+        .map_err(|e| format!("Falha ao preparar consulta de cache SQLite: {e}"))?;
+    let mut rows = stmt
+        .query(params![key])
+        .map_err(|e| format!("Falha ao buscar chave no cache SQLite: {e}"))?;
+
+    if let Some(row) = rows.next().map_err(|e| format!("Falha ao ler linha do cache: {e}"))? {
+        let val: String = row.get(0).map_err(|e| format!("Falha ao extrair valor do cache: {e}"))?;
+        Ok(Some(decompress_payload(&val)))
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn delete_cache_entry(key: &str) -> Result<(), String> {
+    let conn = init_db()?;
+    conn.execute("DELETE FROM app_cache WHERE key = ?1", params![key])
+        .map_err(|e| format!("Falha ao deletar chave do cache SQLite: {e}"))?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_small_payload_uncompressed() {
+        let short_data = "{\"id\":\"123\",\"title\":\"Hello\"}";
+        let stored = compress_payload(short_data);
+        assert_eq!(stored, short_data);
+        let restored = decompress_payload(&stored);
+        assert_eq!(restored, short_data);
+    }
+
+    #[test]
+    fn test_large_payload_compression_roundtrip() {
+        let repetitive = "{\"title\":\"Repetitive Track Title Name Here\",\"artist\":\"Artist Name\"},".repeat(20);
+        let json = format!("[{}]", repetitive);
+        assert!(json.len() > 500);
+
+        let stored = compress_payload(&json);
+        assert!(stored.starts_with(COMPRESSION_PREFIX));
+        assert!(stored.len() < json.len(), "Compressed payload should be significantly smaller");
+
+        let restored = decompress_payload(&stored);
+        assert_eq!(restored, json);
+    }
+
+    #[test]
+    fn test_legacy_uncompressed_backward_compatibility() {
+        let legacy = "{\"version\":1,\"playlists\":[{\"id\":\"pl1\",\"name\":\"Favorites\"}]}";
+        let restored = decompress_payload(legacy);
+        assert_eq!(restored, legacy);
+    }
+}
+

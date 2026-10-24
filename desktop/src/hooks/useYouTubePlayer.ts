@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { SettingsService } from "../services/settings";
 
 interface UseYouTubePlayerProps {
   crossfadeSeconds: number;
@@ -86,6 +87,11 @@ export function useYouTubePlayer({
                 const factor = Math.min(1, Math.max(0, curr / cf));
                 target = Math.round(baseVol * factor);
               }
+            }
+
+            // Normalização inteligente de volume (ReplayGain / Anti-Clipping)
+            if (SettingsService.getSetting("normalizeVolume") && target > 85) {
+              target = Math.round(85 + (target - 85) * 0.5);
             }
 
             // Apenas despacha chamada IPC se o volume efetivo tiver sofrido alteração

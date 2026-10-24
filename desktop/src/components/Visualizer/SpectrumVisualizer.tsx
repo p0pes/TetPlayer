@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import { SettingsService, VisualizerStyle } from "../../services/settings";
 
 interface SpectrumVisualizerProps {
   isPlaying: boolean;
   barCount?: number;
   variant?: "mini" | "inline" | "full";
+  style?: VisualizerStyle;
   className?: string;
 }
 
@@ -11,8 +13,25 @@ export function SpectrumVisualizer({
   isPlaying,
   barCount = 5,
   variant = "mini",
+  style: propStyle,
   className = "",
 }: SpectrumVisualizerProps) {
+  const [visualizerStyle, setVisualizerStyle] = useState<VisualizerStyle>(
+    propStyle || SettingsService.getSetting("visualizerStyle")
+  );
+
+  useEffect(() => {
+    if (propStyle) {
+      setVisualizerStyle(propStyle);
+      return;
+    }
+    return SettingsService.subscribe((settings, key) => {
+      if (!key || key === "visualizerStyle") {
+        setVisualizerStyle(settings.visualizerStyle);
+      }
+    });
+  }, [propStyle]);
+
   const [heights, setHeights] = useState<number[]>(() =>
     Array.from({ length: barCount }, () => 15)
   );
@@ -62,10 +81,11 @@ export function SpectrumVisualizer({
           <span
             key={i}
             style={{
-              height: `${isPlaying ? Math.max(18, h) : 20}%`,
-              transition: isPlaying ? "height 60ms ease-out" : "height 250ms ease-in",
+              transform: `scaleY(${isPlaying ? Math.max(0.18, h / 100) : 0.2})`,
+              transformOrigin: "bottom",
+              transition: isPlaying ? "transform 60ms ease-out" : "transform 250ms ease-in",
             }}
-            className="w-0.75 bg-gradient-to-t from-red-600 to-red-400 rounded-full"
+            className="w-0.75 h-full bg-gradient-to-t from-red-600 to-red-400 rounded-full will-change-transform"
           />
         ))}
       </div>
@@ -82,17 +102,18 @@ export function SpectrumVisualizer({
           <span
             key={i}
             style={{
-              height: `${isPlaying ? Math.max(15, h) : 15}%`,
-              transition: isPlaying ? "height 70ms ease-out" : "height 300ms ease-in",
+              transform: `scaleY(${isPlaying ? Math.max(0.15, h / 100) : 0.15})`,
+              transformOrigin: "bottom",
+              transition: isPlaying ? "transform 70ms ease-out" : "transform 300ms ease-in",
             }}
-            className="w-1 bg-gradient-to-t from-red-600 via-rose-500 to-amber-400 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.5)]"
+            className="w-1 h-full bg-gradient-to-t from-red-600 via-rose-500 to-amber-400 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.5)] will-change-transform"
           />
         ))}
       </div>
     );
   }
 
-  // Variant === "full" (Waveform imersiva de alta resolução)
+  // Variant === "full" (Waveform imersiva de alta resolução acelerada por GPU)
   return (
     <div
       className={`relative w-full flex items-center justify-center p-3 rounded-2xl bg-[#0c0e15]/70 border border-[#1f2434] shadow-inner backdrop-blur-md overflow-hidden ${className}`}
@@ -115,18 +136,26 @@ export function SpectrumVisualizer({
           >
             <span
               style={{
-                height: `${isPlaying ? Math.max(10, h) : 10}%`,
-                transition: isPlaying ? "height 65ms cubic-bezier(0.2, 0.8, 0.2, 1)" : "height 400ms ease-out",
+                transform: `scaleY(${isPlaying ? Math.max(0.1, h / 100) : 0.1})`,
+                transformOrigin: "bottom",
+                transition: isPlaying ? "transform 65ms cubic-bezier(0.2, 0.8, 0.2, 1)" : "transform 400ms ease-out",
               }}
-              className="w-full bg-gradient-to-t from-red-600 via-red-500 to-amber-300 rounded-t-sm shadow-[0_0_12px_rgba(239,68,68,0.6)]"
+              className={`w-full h-full will-change-transform ${
+                visualizerStyle === "wave"
+                  ? "bg-gradient-to-t from-indigo-600 via-purple-500 to-pink-400 rounded-t-full shadow-[0_0_12px_rgba(168,85,247,0.6)]"
+                  : visualizerStyle === "gradient"
+                  ? "bg-gradient-to-t from-emerald-500 via-teal-400 to-cyan-300 rounded-t-md shadow-[0_0_12px_rgba(45,212,191,0.6)]"
+                  : "bg-gradient-to-t from-red-600 via-red-500 to-amber-300 rounded-t-sm shadow-[0_0_12px_rgba(239,68,68,0.6)]"
+              }`}
             />
             {/* Espelho invertido / Reflexo */}
             <span
               style={{
-                height: `${isPlaying ? Math.max(4, h * 0.25) : 4}%`,
-                transition: isPlaying ? "height 65ms cubic-bezier(0.2, 0.8, 0.2, 1)" : "height 400ms ease-out",
+                transform: `scaleY(${isPlaying ? Math.max(0.04, (h * 0.25) / 100) : 0.04})`,
+                transformOrigin: "top",
+                transition: isPlaying ? "transform 65ms cubic-bezier(0.2, 0.8, 0.2, 1)" : "transform 400ms ease-out",
               }}
-              className="w-full bg-gradient-to-b from-red-600/40 to-transparent rounded-b-sm opacity-40"
+              className="w-full h-3 bg-gradient-to-b from-red-600/40 to-transparent rounded-b-sm opacity-40 will-change-transform"
             />
           </div>
         ))}

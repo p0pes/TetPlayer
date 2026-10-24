@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Sparkles, Download, X, ExternalLink, ArrowRight } from "lucide-react";
 import { UpdateInfo, openReleasePage } from "../../services/updater";
 
@@ -13,13 +13,29 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ updateInfo, onClose })
     onClose();
   };
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   return (
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-md animate-in fade-in duration-200 select-none"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-md animate-in fade-in duration-200 select-none cursor-pointer"
     >
-      <div className="relative w-full max-w-md bg-[#13151f] border border-white/10 rounded-2xl shadow-2xl shadow-indigo-950/30 overflow-hidden text-[#e0e2ec]">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-md bg-[#13151f] border border-white/10 rounded-2xl shadow-2xl shadow-indigo-950/30 overflow-hidden text-[#e0e2ec] cursor-default"
+      >
         {/* Glow de destaque no topo */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-24 bg-gradient-to-b from-indigo-500/25 via-purple-500/10 to-transparent blur-xl pointer-events-none" />
 

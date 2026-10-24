@@ -3,13 +3,12 @@ import {
   Mic2,
   Sliders,
   ChevronDown,
-  Music,
 } from "lucide-react";
 import { usePlayer } from "../../context/PlayerContext";
 import { QueueView } from "../QueueView/QueueView";
 import { LyricsView } from "../LyricsView/LyricsView";
 import { SpectrumVisualizer } from "../Visualizer/SpectrumVisualizer";
-import { upgradeArtworkQuality, handleArtworkError } from "../../utils/artwork";
+import { MotionCover } from "./MotionCover";
 
 export function NowPlayingDrawer() {
   const {
@@ -26,83 +25,85 @@ export function NowPlayingDrawer() {
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative bg-[#0b0c10]/95 backdrop-blur-2xl animate-in fade-in duration-200">
       {/* Header da Gaveta: Tabs (Fila / Letras), Crossfade e Fechar */}
-      <div className="h-14 px-6 border-b border-[#1f232e] flex items-center justify-between shrink-0 bg-[#0e1017]/80 backdrop-blur-md z-20">
+      <div className="h-14 px-3 sm:px-4 md:px-6 border-b border-[#1f232e] flex items-center justify-between gap-2 sm:gap-4 shrink-0 bg-[#0e1017]/80 backdrop-blur-md z-20">
         {/* Esquerda: Identificador da faixa atual */}
-        <div className="flex items-center gap-3 min-w-0">
-          <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider bg-red-950/80 border border-red-800/40 px-2 py-0.5 rounded-md hidden sm:inline-block">
+        <div className="flex items-center gap-2 sm:gap-3 w-[28%] min-w-0 max-w-[260px]">
+          <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider bg-red-950/80 border border-red-800/40 px-2 py-0.5 rounded-md hidden xl:inline-block shrink-0">
             Reproduzindo Agora
           </span>
-          <div className="min-w-0">
-            <p className="text-xs font-semibold text-white truncate max-w-[200px] sm:max-w-xs">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold text-white truncate">
               {currentTrack?.title || "Nenhuma faixa selecionada"}
             </p>
-            <p className="text-[11px] text-[#8c91a4] truncate max-w-[200px] sm:max-w-xs">
+            <p className="text-[11px] text-[#8c91a4] truncate">
               {currentTrack?.artist || "TetPlayer"}
             </p>
           </div>
         </div>
 
         {/* Centro: Tabs com Semântica WAI-ARIA */}
-        <div
-          role="tablist"
-          aria-label="Visualização da gaveta de reprodução"
-          className="flex items-center bg-[#141722] p-1 rounded-xl border border-[#232735] shadow-inner shrink-0"
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={nowPlayingTab === "queue"}
-            aria-label="Fila de reprodução"
-            onClick={() => setNowPlayingTab("queue")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 h-8 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-              nowPlayingTab === "queue"
-                ? "bg-red-600 text-white shadow-md shadow-red-950/70"
-                : "text-[#8c91a4] hover:text-white hover:bg-[#1a1e2c]"
-            }`}
+        <div className="flex-1 flex items-center justify-center min-w-0 px-1 sm:px-2">
+          <div
+            role="tablist"
+            aria-label="Visualização da gaveta de reprodução"
+            className="flex items-center bg-[#141722] p-1 rounded-xl border border-[#232735] shadow-inner shrink-0"
           >
-            <ListMusic className="w-3.5 h-3.5 shrink-0" />
-            <span className="whitespace-nowrap">
-              <span className="hidden xl:inline">Fila de Reprodução</span>
-              <span className="xl:hidden">Fila</span>
-            </span>
-            {activeQueue.length > 0 && (
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/30 font-mono shrink-0">
-                {activeQueue.length}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={nowPlayingTab === "queue"}
+              aria-label="Fila de reprodução"
+              onClick={() => setNowPlayingTab("queue")}
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 h-8 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                nowPlayingTab === "queue"
+                  ? "bg-red-600 text-white shadow-md shadow-red-950/70"
+                  : "text-[#8c91a4] hover:text-white hover:bg-[#1a1e2c]"
+              }`}
+            >
+              <ListMusic className="w-3.5 h-3.5 shrink-0" />
+              <span className="whitespace-nowrap">
+                <span className="hidden xl:inline">Fila de Reprodução</span>
+                <span className="xl:hidden">Fila</span>
               </span>
-            )}
-          </button>
+              {activeQueue.length > 0 && (
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/30 font-mono shrink-0">
+                  {activeQueue.length}
+                </span>
+              )}
+            </button>
 
-          <button
-            type="button"
-            role="tab"
-            aria-selected={nowPlayingTab === "lyrics"}
-            aria-label="Letras sincronizadas"
-            onClick={() => setNowPlayingTab("lyrics")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 h-8 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-              nowPlayingTab === "lyrics"
-                ? "bg-red-600 text-white shadow-md shadow-red-950/70"
-                : "text-[#8c91a4] hover:text-white hover:bg-[#1a1e2c]"
-            }`}
-          >
-            <Mic2 className="w-3.5 h-3.5 shrink-0" />
-            <span className="whitespace-nowrap">Letras</span>
-          </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={nowPlayingTab === "lyrics"}
+              aria-label="Letras sincronizadas"
+              onClick={() => setNowPlayingTab("lyrics")}
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 h-8 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                nowPlayingTab === "lyrics"
+                  ? "bg-red-600 text-white shadow-md shadow-red-950/70"
+                  : "text-[#8c91a4] hover:text-white hover:bg-[#1a1e2c]"
+              }`}
+            >
+              <Mic2 className="w-3.5 h-3.5 shrink-0" />
+              <span className="whitespace-nowrap">Letras</span>
+            </button>
+          </div>
         </div>
 
         {/* Direita: Configuração de Crossfade e Fechar Gaveta */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center justify-end gap-1.5 sm:gap-2 shrink-0 w-[28%] min-w-0 max-w-[260px]">
           <button
             type="button"
             onClick={cycleCrossfade}
             title="Alternar Transição Suave (Crossfade: Desligado / 2s / 3s / 5s)"
-            className={`flex items-center gap-1.5 px-3 py-1.5 h-8 rounded-xl text-xs font-medium border transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 h-8 rounded-xl text-xs font-medium border transition-all cursor-pointer whitespace-nowrap shrink-0 ${
               crossfadeSeconds > 0
                 ? "bg-red-950/60 border-red-800/60 text-red-300 shadow-sm"
                 : "bg-[#141722] border-[#232735] text-[#8c91a4] hover:text-white"
             }`}
           >
             <Sliders className="w-3.5 h-3.5 text-red-400 shrink-0" />
-            <span className="hidden sm:inline">Crossfade:</span>
+            <span className="hidden lg:inline">Crossfade:</span>
             <span className="font-mono">{crossfadeSeconds > 0 ? `${crossfadeSeconds}s` : "Off"}</span>
           </button>
 
@@ -134,22 +135,8 @@ export function NowPlayingDrawer() {
             />
           </div>
 
-          {/* Capa com Escalonamento Fluido e max-h-[32vh] em Alta Resolução */}
-          <div className="relative group/cover z-10 w-44 h-44 sm:w-60 sm:h-60 lg:w-72 lg:h-72 max-h-[32vh] aspect-square rounded-2xl sm:rounded-3xl overflow-hidden shadow-[0_25px_60px_-15px_rgba(0,0,0,0.95)] border border-white/15 shrink-0 bg-[#141724]">
-            {currentTrack?.artwork_url || currentTrack?.id ? (
-              <img
-                src={upgradeArtworkQuality(currentTrack?.artwork_url, currentTrack?.id)}
-                alt={currentTrack?.title || "Capa do álbum"}
-                referrerPolicy="no-referrer"
-                onError={(e) => handleArtworkError(e, currentTrack?.id)}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <Music className="w-16 h-16 text-[#5e6479]" />
-              </div>
-            )}
-          </div>
+          {/* Capa Animada Motion Cover estilo Apple Music com 3D Tilt & Specular Light Sweep (Sugestão 3.5) */}
+          <MotionCover track={currentTrack} isPlaying={isPlaying} />
 
           {/* Metadados da Faixa Atual */}
           <div className="relative z-10 mt-6 text-center max-w-sm w-full px-2">

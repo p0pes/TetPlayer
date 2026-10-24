@@ -18,7 +18,7 @@ interface PlaylistDetailViewProps {
   scrollRef: React.RefObject<HTMLElement | null>;
 }
 
-export function PlaylistDetailView({
+export const PlaylistDetailView = React.memo(function PlaylistDetailView({
   playlist,
   tracks,
   isLoadingTracks,
@@ -115,4 +115,4 @@ export function PlaylistDetailView({
       </div>
     </div>
   );
-}
+});

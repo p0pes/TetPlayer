@@ -1,4 +1,4 @@
-import { ChevronUp, ChevronDown, Play, Pause, Trash2, ListMusic } from "lucide-react";
+import { ChevronUp, ChevronDown, Play, Pause, Trash2, ListMusic, MoreVertical } from "lucide-react";
 import { usePlayer } from "../../context/PlayerContext";
 import { formatTime } from "../../hooks/useLyrics";
 import { upgradeArtworkQuality, handleArtworkError } from "../../utils/artwork";
@@ -17,6 +17,7 @@ export function QueueView() {
     handleRemoveFromQueue,
     handleClearUpcomingQueue,
     currentQueueIndex,
+    openContextMenu,
   } = usePlayer();
 
   return (
@@ -44,6 +45,7 @@ export function QueueView() {
                 <div
                   key={`past-${track.id}-${idx}`}
                   onClick={() => handlePlayFromQueue(idx)}
+                  onContextMenu={(e) => openContextMenu(e, track)}
                   className="flex items-center justify-between p-2.5 rounded-xl bg-[#12141c]/60 hover:bg-[#1a1e2c] border border-transparent hover:border-[#282d3d] transition-all cursor-pointer group"
                 >
                   <div className="flex items-center gap-3 min-w-0">
@@ -69,12 +71,20 @@ export function QueueView() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0">
                     {track.duration && (
                       <span className="text-[11px] font-mono text-[#52576b]">
                         {track.duration}
                       </span>
                     )}
+                    <button
+                      title="Mais opções"
+                      aria-label="Mais opções"
+                      onClick={(e) => openContextMenu(e, track)}
+                      className="p-1 rounded-lg text-[#71778c] hover:text-white hover:bg-[#252b3d] opacity-80 group-hover:opacity-100 transition-opacity cursor-pointer"
+                    >
+                      <MoreVertical className="w-3.5 h-3.5" />
+                    </button>
                     <button
                       title="Ouvir novamente"
                       aria-label={`Ouvir novamente: ${track.title}`}
@@ -176,6 +186,7 @@ export function QueueView() {
                 <div
                   key={`upcoming-${track.id}-${actualIdx}`}
                   onClick={() => handlePlayFromQueue(actualIdx)}
+                  onContextMenu={(e) => openContextMenu(e, track)}
                   className="flex items-center justify-between p-2.5 rounded-xl bg-[#141722]/70 hover:bg-[#1c2030] border border-[#1f2433] hover:border-[#2d3448] transition-all cursor-pointer group"
                 >
                   <div className="flex items-center gap-3 min-w-0">
@@ -201,12 +212,25 @@ export function QueueView() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2.5 shrink-0 pl-2">
+                  <div className="flex items-center gap-2 shrink-0 pl-2">
                     {track.duration && (
                       <span className="text-xs font-mono text-[#71778c]">
                         {track.duration}
                       </span>
                     )}
+
+                    {/* Botão de Contexto / Mais Opções */}
+                    <button
+                      title="Mais opções"
+                      aria-label="Mais opções"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openContextMenu(e, track);
+                      }}
+                      className="p-1.5 rounded-lg text-[#71778c] hover:text-white hover:bg-[#252b3d] opacity-80 group-hover:opacity-100 transition-opacity cursor-pointer"
+                    >
+                      <MoreVertical className="w-3.5 h-3.5" />
+                    </button>
 
                     {/* Botão de Tocar Imediatamente com WAI-ARIA (Item #6) */}
                     <button

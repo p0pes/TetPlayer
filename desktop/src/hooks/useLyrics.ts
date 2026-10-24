@@ -1,6 +1,31 @@
 import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Track, LyricsData, LyricLine } from "../types";
+import { retryWithBackoff } from "../services/network";
+
+const globalLyricsCache: Record<string, LyricsData> = {};
+
+/**
+ * Pré-carregamento assíncrono antecipado de letras para próxima faixa (Gapless)
+ */
+export async function prefetchTrackLyrics(track: Track): Promise<LyricsData | null> {
+  if (!track || !track.id) return null;
+  if (globalLyricsCache[track.id]) return globalLyricsCache[track.id];
+
+  try {
+    const data = await retryWithBackoff(() =>
+      invoke<LyricsData>("get_track_lyrics", {
+        title: track.title,
+        artist: track.artist,
+        videoId: track.id,
+      })
+    );
+    globalLyricsCache[track.id] = data;
+    return data;
+  } catch {
+    return null;
+  }
+}
 
 export function formatTime(seconds: number): string {
   if (isNaN(seconds) || seconds < 0) return "0:00";
@@ -12,19 +37,23 @@ export function formatTime(seconds: number): string {
 export function parseLrc(lrcText: string): LyricLine[] {
   const lines = lrcText.split("\n");
   const result: LyricLine[] = [];
-  const regex = /\[(\d{2}):(\d{2})(?:\.(\d{2,3}))?\](.*)/;
+  const timeRegex = /\[(\d{2}):(\d{2})(?:\.(\d{2,3}))?\]/g;
 
-  for (const line of lines) {
-    const match = regex.exec(line.trim());
-    if (match) {
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    const matches = Array.from(line.matchAll(timeRegex));
+    if (matches.length === 0) continue;
+
+    const rawText = line.replace(timeRegex, "").trim();
+    // Se a linha possuir marcador de tempo mas sem texto (pausa instrumental), usa o símbolo musical ♪
+    const text = rawText || "♪";
+
+    for (const match of matches) {
       const minutes = parseInt(match[1], 10);
       const seconds = parseInt(match[2], 10);
       const millis = match[3] ? parseInt(match[3].padEnd(3, "0"), 10) : 0;
       const time = minutes * 60 + seconds + millis / 1000;
-      const text = match[4].trim();
-      if (text) {
-        result.push({ time, text });
-      }
+      result.push({ time, text });
     }
   }
 
@@ -53,13 +82,12 @@ export function useLyrics({
   const [activeLyricIndex, setActiveLyricIndex] = useState<number>(-1);
   const [isUserScrolledAway, setIsUserScrolledAway] = useState(false);
 
-  const lyricsCacheRef = useRef<Record<string, LyricsData>>({});
   const lyricsContainerRef = useRef<HTMLDivElement>(null);
   const activeLyricRef = useRef<HTMLDivElement>(null);
   const userScrollingLyricsRef = useRef(false);
   const userScrollTimeoutRef = useRef<number | null>(null);
 
-  // Carregamento de Letras Sincronizadas
+  // Carregamento de Letras Sincronizadas com Resiliência e Cache Global
   useEffect(() => {
     if (!currentTrack) {
       setLyricsData(null);
@@ -69,8 +97,8 @@ export function useLyrics({
     }
 
     const trackId = currentTrack.id;
-    if (lyricsCacheRef.current[trackId]) {
-      const cached = lyricsCacheRef.current[trackId];
+    if (globalLyricsCache[trackId]) {
+      const cached = globalLyricsCache[trackId];
       setLyricsData(cached);
       if (cached.synced) {
         setParsedLyrics(parseLrc(cached.synced));
@@ -85,14 +113,16 @@ export function useLyrics({
     setIsLoadingLyrics(true);
     setLyricsError(null);
 
-    invoke<LyricsData>("get_track_lyrics", {
-      title: currentTrack.title,
-      artist: currentTrack.artist,
-      videoId: currentTrack.id,
-    })
+    retryWithBackoff(() =>
+      invoke<LyricsData>("get_track_lyrics", {
+        title: currentTrack.title,
+        artist: currentTrack.artist,
+        videoId: currentTrack.id,
+      })
+    )
       .then((data) => {
         if (!isMounted) return;
-        lyricsCacheRef.current[trackId] = data;
+        globalLyricsCache[trackId] = data;
         setLyricsData(data);
         if (data.synced) {
           const parsed = parseLrc(data.synced);

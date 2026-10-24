@@ -1,7 +1,19 @@
 import React, { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Minus, Copy, Square, X, CheckCircle2, AlertCircle, ArrowDownToDot } from "lucide-react";
+import {
+  Minus,
+  Copy,
+  Square,
+  X,
+  CheckCircle2,
+  AlertCircle,
+  ArrowDownToDot,
+  WifiOff,
+  Wifi,
+} from "lucide-react";
 import { AuthSession, Playlist, Track, ActiveTab, NowPlayingTab } from "../../types";
+import { useNetworkStatus } from "../../services/network";
+import { SettingsService } from "../../services/settings";
 
 interface TitleBarProps {
   auth: AuthSession | null;
@@ -13,7 +25,7 @@ interface TitleBarProps {
   showLyrics: boolean;
 }
 
-export function TitleBar({
+export const TitleBar = React.memo(function TitleBar({
   auth,
   activeTab,
   selectedPlaylist,
@@ -23,6 +35,7 @@ export function TitleBar({
   showLyrics,
 }: TitleBarProps) {
   const [isMaximized, setIsMaximized] = useState(false);
+  const { isOnline, showRestoredNotice } = useNetworkStatus();
 
   useEffect(() => {
     checkMaximizedState();
@@ -70,9 +83,19 @@ export function TitleBar({
 
   async function handleClose() {
     try {
-      await invoke("close_window");
+      const closeAction = SettingsService.getSetting("closeAction");
+      if (closeAction === "tray") {
+        await invoke("hide_to_tray");
+      } else {
+        await invoke("close_window");
+      }
     } catch (err) {
-      console.error("Erro ao fechar aplicação:", err);
+      console.error("Erro ao fechar/ocultar aplicação:", err);
+      try {
+        await invoke("close_window");
+      } catch {
+        // ignore
+      }
     }
   }
 
@@ -130,8 +153,21 @@ export function TitleBar({
         </span>
       </div>
 
-      {/* Direita: Status de Sessão + Controles de Janela Colados no Canto */}
-      <div className="flex items-center h-full">
+      {/* Direita: Status de Conectividade + Status de Sessão + Controles de Janela Colados no Canto */}
+      <div className="flex items-center h-full shrink-0">
+        {!isOnline && (
+          <span className="inline-flex items-center gap-1.5 bg-red-950/80 text-red-300 border border-red-800/60 px-2.5 py-0.5 rounded-full text-xs mr-3 pointer-events-none animate-pulse">
+            <WifiOff className="w-3.5 h-3.5" />
+            Modo Offline
+          </span>
+        )}
+        {isOnline && showRestoredNotice && (
+          <span className="inline-flex items-center gap-1.5 bg-emerald-950/80 text-emerald-300 border border-emerald-800/60 px-2.5 py-0.5 rounded-full text-xs mr-3 pointer-events-none transition-all">
+            <Wifi className="w-3.5 h-3.5" />
+            Conexão Restaurada
+          </span>
+        )}
+
         {auth?.is_authenticated ? (
           <span className="inline-flex items-center gap-1.5 bg-emerald-950/70 text-emerald-400 border border-emerald-800/50 px-2.5 py-0.5 rounded-full text-xs mr-3 pointer-events-none">
             <CheckCircle2 className="w-3.5 h-3.5" />
@@ -189,4 +225,4 @@ export function TitleBar({
       </div>
     </header>
   );
-}
+});

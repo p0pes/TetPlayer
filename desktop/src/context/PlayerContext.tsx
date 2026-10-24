@@ -2,6 +2,7 @@ import React, {
   createContext,
   useContext,
   useState,
+  useReducer,
   useRef,
   useMemo,
   useEffect,
@@ -12,9 +13,14 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Track, RepeatMode, NowPlayingTab } from "../types";
 import { useYouTubePlayer } from "../hooks/useYouTubePlayer";
-import { useAuroraColor } from "../hooks/useAuroraColor";
+import { useAuroraColor, prefetchArtworkColors } from "../hooks/useAuroraColor";
 import { useMediaSession } from "../hooks/useMediaSession";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
+import { prefetchTrackLyrics } from "../hooks/useLyrics";
+import { PlaybackProgressProvider } from "./PlaybackProgressContext";
+import { playerReducer, createInitialQueueState } from "./playerReducer";
+import { TrackContextMenu, ContextMenuPosition } from "../components/ContextMenu/TrackContextMenu";
+import { SettingsService } from "../services/settings";
 
 interface PlayerContextType {
   currentTrack: Track | null;
@@ -32,6 +38,7 @@ interface PlayerContextType {
   isShuffle: boolean;
   repeatMode: RepeatMode;
   crossfadeSeconds: number;
+  setCrossfadeSeconds: (secs: number) => void;
   toggleShuffle: () => void;
   cycleRepeatMode: () => void;
   cycleCrossfade: () => void;
@@ -70,6 +77,13 @@ interface PlayerContextType {
   handleVolumeChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   toggleMute: () => void;
 
+  handlePlayNext: (track: Track) => void;
+  handleAddToQueue: (track: Track) => void;
+  handleStartRadio: (track: Track) => void;
+  searchArtist: (artist: string) => void;
+  openContextMenu: (e: React.MouseEvent, track: Track) => void;
+  closeContextMenu: () => void;
+
   pastTracks: Track[];
   upcomingTracks: Track[];
 
@@ -83,54 +97,49 @@ const PlayerContext = createContext<PlayerContextType | null>(null);
 interface PlayerProviderProps {
   children: ReactNode;
   onMarkPlaylistListened?: (playlistId?: string) => void;
+  onSearchArtist?: (artist: string) => void;
 }
 
 export function PlayerProvider({
   children,
   onMarkPlaylistListened,
+  onSearchArtist,
 }: PlayerProviderProps) {
-  const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
-  const [activeQueue, setActiveQueue] = useState<Track[]>([]);
-  const [currentQueueIndex, setCurrentQueueIndex] = useState<number>(-1);
+  // Máquina de estados determinística para a fila de reprodução (Sugestão 1.5)
+  const [queueState, dispatchQueue] = useReducer(
+    playerReducer,
+    undefined,
+    createInitialQueueState
+  );
+
+  const {
+    currentTrack,
+    activeQueue,
+    originalQueue,
+    currentQueueIndex,
+    isShuffle,
+    repeatMode,
+    isAutoplayRadio,
+  } = queueState;
+
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Modo Shuffle & Repeat
-  const [isShuffle, setIsShuffle] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem("tetplayer_shuffle") === "true";
-    } catch {
-      return false;
-    }
-  });
-
-  const [repeatMode, setRepeatMode] = useState<RepeatMode>(() => {
-    try {
-      const saved = localStorage.getItem("tetplayer_repeat");
-      return saved === "all" || saved === "one" ? saved : "off";
-    } catch {
-      return "off";
-    }
-  });
-
-  // Crossfade suave (0s / 2s / 3s / 5s)
+  // Crossfade suave sincronizado com o SettingsService
   const [crossfadeSeconds, setCrossfadeSeconds] = useState<number>(() => {
-    try {
-      const saved = localStorage.getItem("tetplayer_crossfade");
-      return saved !== null && !isNaN(parseInt(saved, 10)) ? parseInt(saved, 10) : 3;
-    } catch {
-      return 3;
-    }
+    return SettingsService.getSetting("crossfadeSeconds");
   });
 
-  // Autoplay Infinito & Rádio Contínua (Sugestão 2.6)
-  const [isAutoplayRadio, setIsAutoplayRadio] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem("tetplayer_autoplay_radio");
-      return saved === null ? true : saved === "true";
-    } catch {
-      return true;
-    }
-  });
+  // Listener para sincronização reativa com o SettingsService
+  useEffect(() => {
+    return SettingsService.subscribe((settings, key) => {
+      if (!key || key === "crossfadeSeconds") {
+        setCrossfadeSeconds(settings.crossfadeSeconds);
+      }
+      if (!key || key === "isAutoplayRadio") {
+        dispatchQueue({ type: "SET_AUTOPLAY_RADIO", payload: settings.isAutoplayRadio });
+      }
+    });
+  }, []);
 
   // Modo Mini Player Flutuante (Sugestão 2.1)
   const [isMiniPlayer, setIsMiniPlayer] = useState(false);
@@ -141,14 +150,15 @@ export function PlayerProvider({
   const [showLyrics, setShowLyrics] = useState(false);
   const [showPastTracks, setShowPastTracks] = useState(true);
 
-  const originalQueueRef = useRef<Track[]>([]);
-  const activeQueueRef = useRef<Track[]>([]);
-  const currentQueueIndexRef = useRef<number>(-1);
-  const currentTrackRef = useRef<Track | null>(null);
+  const originalQueueRef = useRef<Track[]>(originalQueue);
+  const activeQueueRef = useRef<Track[]>(activeQueue);
+  const currentQueueIndexRef = useRef<number>(currentQueueIndex);
+  const currentTrackRef = useRef<Track | null>(currentTrack);
   const repeatModeRef = useRef(repeatMode);
   const isShuffleRef = useRef(isShuffle);
   const isAutoplayRadioRef = useRef(isAutoplayRadio);
 
+  originalQueueRef.current = originalQueue;
   activeQueueRef.current = activeQueue;
   currentQueueIndexRef.current = currentQueueIndex;
   currentTrackRef.current = currentTrack;
@@ -192,6 +202,11 @@ export function PlayerProvider({
     onTrackError: (msg) => setErrorMessage(msg),
   });
 
+  const currentTimeRef = useRef(currentTime);
+  currentTimeRef.current = currentTime;
+  const durationRef = useRef(duration);
+  durationRef.current = duration;
+
   // Amostragem inteligente de cores da capa via Web Worker
   useAuroraColor(currentTrack);
 
@@ -206,15 +221,9 @@ export function PlayerProvider({
 
   // Alternar Autoplay Infinito / Rádio Contínua (Sugestão 2.6)
   function toggleAutoplayRadio() {
-    setIsAutoplayRadio((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem("tetplayer_autoplay_radio", String(next));
-      } catch {
-        // ignore
-      }
-      return next;
-    });
+    const next = !isAutoplayRadio;
+    dispatchQueue({ type: "TOGGLE_AUTOPLAY_RADIO" });
+    SettingsService.updateSetting("isAutoplayRadio", next);
   }
 
   // Escuta de Ações do System Tray (Sugestão 2.2)
@@ -305,7 +314,6 @@ export function PlayerProvider({
     index: number,
     playlistId?: string
   ) {
-    setCurrentTrack(track);
     setErrorMessage(null);
 
     if (playlistId) {
@@ -317,82 +325,38 @@ export function PlayerProvider({
       console.warn("Erro ao registrar reprodução no SQLite:", err);
     });
 
-    originalQueueRef.current = [...queue];
-
-    if (isShuffleRef.current) {
-      const currentIdx = index >= 0 && index < queue.length ? index : 0;
-      const current = queue[currentIdx];
-      const others = queue.filter((_, i) => i !== currentIdx);
-      for (let i = others.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [others[i], others[j]] = [others[j], others[i]];
-      }
-      setActiveQueue([current, ...others]);
-      setCurrentQueueIndex(0);
+    const enqueueMode = SettingsService.getSetting("playlistEnqueueMode");
+    if (enqueueMode === "append" && activeQueueRef.current.length > 0) {
+      const existingQueue = activeQueueRef.current;
+      const filteredNew = queue.filter((t) => !existingQueue.some((e) => e.id === t.id));
+      const combined = [...existingQueue, ...filteredNew];
+      const targetIndex = combined.findIndex((t) => t.id === track.id);
+      dispatchQueue({
+        type: "PLAY_TRACK_WITH_QUEUE",
+        payload: { track, queue: combined, index: targetIndex >= 0 ? targetIndex : index },
+      });
     } else {
-      setActiveQueue(queue);
-      setCurrentQueueIndex(index);
+      dispatchQueue({
+        type: "PLAY_TRACK_WITH_QUEUE",
+        payload: { track, queue, index },
+      });
     }
 
     loadAndPlayVideo(track.id);
   }
 
   function toggleShuffle() {
-    setIsShuffle((prev) => {
-      const nextState = !prev;
-      try {
-        localStorage.setItem("tetplayer_shuffle", String(nextState));
-      } catch {
-        // ignore
-      }
-
-      if (nextState) {
-        originalQueueRef.current = [...activeQueueRef.current];
-        if (activeQueueRef.current.length > 1 && currentTrackRef.current) {
-          const currentIdx = currentQueueIndexRef.current >= 0 ? currentQueueIndexRef.current : 0;
-          const current = activeQueueRef.current[currentIdx];
-          const others = activeQueueRef.current.filter((_, i) => i !== currentIdx);
-          for (let i = others.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [others[i], others[j]] = [others[j], others[i]];
-          }
-          setActiveQueue([current, ...others]);
-          setCurrentQueueIndex(0);
-        }
-      } else {
-        if (originalQueueRef.current.length > 0) {
-          const original = [...originalQueueRef.current];
-          const currId = currentTrackRef.current?.id;
-          const newIdx = currId ? original.findIndex((t) => t.id === currId) : -1;
-          setActiveQueue(original);
-          setCurrentQueueIndex(newIdx !== -1 ? newIdx : 0);
-        }
-      }
-      return nextState;
-    });
+    dispatchQueue({ type: "TOGGLE_SHUFFLE" });
   }
 
   function cycleRepeatMode() {
-    setRepeatMode((prev) => {
-      const nextMode: RepeatMode =
-        prev === "off" ? "all" : prev === "all" ? "one" : "off";
-      try {
-        localStorage.setItem("tetplayer_repeat", nextMode);
-      } catch {
-        // ignore
-      }
-      return nextMode;
-    });
+    dispatchQueue({ type: "CYCLE_REPEAT_MODE" });
   }
 
   function cycleCrossfade() {
     setCrossfadeSeconds((prev) => {
       const next = prev === 0 ? 2 : prev === 2 ? 3 : prev === 3 ? 5 : 0;
-      try {
-        localStorage.setItem("tetplayer_crossfade", String(next));
-      } catch {
-        // ignore
-      }
+      SettingsService.updateSetting("crossfadeSeconds", next);
       return next;
     });
   }
@@ -400,34 +364,19 @@ export function PlayerProvider({
   function handlePlayFromQueue(idx: number) {
     const queue = activeQueueRef.current;
     if (idx >= 0 && idx < queue.length) {
-      playTrackWithQueue(queue[idx], queue, idx);
+      const track = queue[idx];
+      dispatchQueue({ type: "PLAY_FROM_QUEUE", payload: { index: idx } });
+      loadAndPlayVideo(track.id);
     }
   }
 
   function handleRemoveFromQueue(idx: number, e?: React.MouseEvent) {
     if (e) e.stopPropagation();
-    const removedTrack = activeQueue[idx];
-    setActiveQueue((prev) => prev.filter((_, i) => i !== idx));
-
-    if (removedTrack) {
-      const origIdx = originalQueueRef.current.findIndex((t) => t.id === removedTrack.id);
-      if (origIdx !== -1) {
-        originalQueueRef.current = originalQueueRef.current.filter((_, i) => i !== origIdx);
-      }
-    }
-
-    setCurrentQueueIndex((prev) => (idx < prev ? Math.max(0, prev - 1) : prev));
+    dispatchQueue({ type: "REMOVE_FROM_QUEUE", payload: { index: idx } });
   }
 
   function handleClearUpcomingQueue() {
-    const current = activeQueue[currentQueueIndex];
-    setActiveQueue((prev) => prev.slice(0, currentQueueIndex + 1));
-    if (current) {
-      const origIdx = originalQueueRef.current.findIndex((t) => t.id === current.id);
-      if (origIdx !== -1) {
-        originalQueueRef.current = originalQueueRef.current.slice(0, origIdx + 1);
-      }
-    }
+    dispatchQueue({ type: "CLEAR_UPCOMING_QUEUE" });
   }
 
   // Avançar faixa com suporte a Autoplay Infinito & Rádio Contínua (Sugestão 2.6)
@@ -445,17 +394,29 @@ export function PlayerProvider({
 
     const nextIndex = currentIndex + 1;
     if (nextIndex < queue.length) {
-      playTrackWithQueue(queue[nextIndex], queue, nextIndex);
+      const nextTrack = queue[nextIndex];
+      dispatchQueue({ type: "PLAY_FROM_QUEUE", payload: { index: nextIndex } });
+      loadAndPlayVideo(nextTrack.id);
     } else if (repeat === "all" && queue.length > 0) {
-      playTrackWithQueue(queue[0], queue, 0);
+      const firstTrack = queue[0];
+      dispatchQueue({ type: "PLAY_FROM_QUEUE", payload: { index: 0 } });
+      loadAndPlayVideo(firstTrack.id);
     } else if (isAutoplayRadioRef.current && currentTrackRef.current) {
       // Autoplay Infinito: busca recomendações da rádio do YouTube Music
       const lastTrack = currentTrackRef.current;
       invoke<Track[]>("get_radio_tracks", { videoId: lastTrack.id })
         .then((radioTracks) => {
           if (radioTracks && radioTracks.length > 0) {
-            const nextQueue = [...activeQueueRef.current, ...radioTracks];
-            playTrackWithQueue(radioTracks[0], nextQueue, activeQueueRef.current.length);
+            const nextIdx = activeQueueRef.current.length;
+            dispatchQueue({
+              type: "APPEND_RADIO_TRACKS",
+              payload: { tracks: radioTracks },
+            });
+            dispatchQueue({
+              type: "PLAY_FROM_QUEUE",
+              payload: { index: nextIdx },
+            });
+            loadAndPlayVideo(radioTracks[0].id);
           }
         })
         .catch((err) => {
@@ -471,19 +432,73 @@ export function PlayerProvider({
 
     if (queue.length === 0 || currentIndex === -1) return;
 
-    if (currentTime > 3) {
+    if (currentTimeRef.current > 3) {
       restartCurrentTrack();
       return;
     }
 
     const prevIndex = currentIndex - 1;
     if (prevIndex >= 0) {
-      playTrackWithQueue(queue[prevIndex], queue, prevIndex);
+      const prevTrack = queue[prevIndex];
+      dispatchQueue({ type: "PLAY_FROM_QUEUE", payload: { index: prevIndex } });
+      loadAndPlayVideo(prevTrack.id);
     } else if (repeat === "all" && queue.length > 0) {
       const lastIndex = queue.length - 1;
-      playTrackWithQueue(queue[lastIndex], queue, lastIndex);
+      const lastTrack = queue[lastIndex];
+      dispatchQueue({ type: "PLAY_FROM_QUEUE", payload: { index: lastIndex } });
+      loadAndPlayVideo(lastTrack.id);
     }
   }
+
+  // Ações do Menu de Contexto (Sugestão 2.2)
+  function handlePlayNext(track: Track) {
+    dispatchQueue({ type: "INSERT_NEXT", payload: { track } });
+  }
+
+  function handleAddToQueue(track: Track) {
+    dispatchQueue({ type: "ADD_TO_END", payload: { track } });
+  }
+
+  function handleStartRadio(track: Track) {
+    playTrackWithQueue(track, [track], 0);
+    invoke<Track[]>("get_radio_tracks", { videoId: track.id })
+      .then((radioTracks) => {
+        if (radioTracks && radioTracks.length > 0) {
+          dispatchQueue({
+            type: "APPEND_RADIO_TRACKS",
+            payload: { tracks: radioTracks },
+          });
+        }
+      })
+      .catch((err) => {
+        console.warn("Falha ao iniciar rádio a partir da música:", err);
+      });
+  }
+
+  function searchArtist(artist: string) {
+    if (onSearchArtist && artist) {
+      onSearchArtist(artist);
+    }
+    window.dispatchEvent(
+      new CustomEvent("tetplayer:search-artist", { detail: { query: artist } })
+    );
+  }
+
+  // Estado e gatilhos do Menu de Contexto Flutuante (Sugestão 2.2)
+  const [contextMenuTrack, setContextMenuTrack] = useState<Track | null>(null);
+  const [contextMenuPosition, setContextMenuPosition] = useState<ContextMenuPosition | null>(null);
+
+  const openContextMenu = React.useCallback((e: React.MouseEvent, track: Track) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenuTrack(track);
+    setContextMenuPosition({ x: e.clientX, y: e.clientY });
+  }, []);
+
+  const closeContextMenu = React.useCallback(() => {
+    setContextMenuTrack(null);
+    setContextMenuPosition(null);
+  }, []);
 
   function handleVolumeChange(e: React.ChangeEvent<HTMLInputElement>) {
     changeVolume(parseFloat(e.target.value));
@@ -532,66 +547,148 @@ export function PlayerProvider({
     closeNowPlaying,
   });
 
+  // Pipeline de pré-carregamento inteligente da próxima faixa (Gapless Playback - Sugestão 1.2)
+  const prefetchedTrackIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    prefetchedTrackIdRef.current = null;
+  }, [currentTrack?.id]);
+
+  useEffect(() => {
+    if (!duration || duration <= 15 || currentTime <= 10) return;
+    const nextTrack = upcomingTracks[0];
+    if (!nextTrack || prefetchedTrackIdRef.current === nextTrack.id) return;
+
+    // Dispara quando faltar 20 segundos ou passar de 88% da faixa atual
+    if (currentTime / duration >= 0.88 || duration - currentTime <= 20) {
+      prefetchedTrackIdRef.current = nextTrack.id;
+      prefetchTrackLyrics(nextTrack).catch(() => {});
+      prefetchArtworkColors(nextTrack);
+
+      // Se rádio contínua estiver ativa e a fila estiver no fim, antecipa a busca
+      if (isAutoplayRadioRef.current && currentTrackRef.current && upcomingTracks.length <= 1) {
+        invoke<Track[]>("get_radio_tracks", { videoId: nextTrack.id })
+          .then((radioTracks) => {
+            if (radioTracks && radioTracks.length > 0) {
+              dispatchQueue({
+                type: "APPEND_RADIO_TRACKS",
+                payload: { tracks: radioTracks },
+              });
+            }
+          })
+          .catch(() => {});
+      }
+    }
+  }, [currentTime, duration, upcomingTracks]);
+
+  const contextValue = useMemo<PlayerContextType>(
+    () => ({
+      currentTrack,
+      activeQueue,
+      currentQueueIndex,
+      isPlaying,
+      get currentTime() {
+        return currentTimeRef.current;
+      },
+      get duration() {
+        return durationRef.current;
+      },
+      volume,
+      isMuted,
+      loadingTrackId,
+      errorMessage,
+      setErrorMessage,
+      isShuffle,
+      repeatMode,
+      crossfadeSeconds,
+      setCrossfadeSeconds,
+      toggleShuffle,
+      cycleRepeatMode,
+      cycleCrossfade,
+      isAutoplayRadio,
+      toggleAutoplayRadio,
+      isMiniPlayer,
+      toggleMiniPlayer,
+      isNowPlayingOpen,
+      nowPlayingTab,
+      showLyrics,
+      showPastTracks,
+      setShowPastTracks,
+      toggleNowPlaying,
+      openNowPlaying,
+      closeNowPlaying,
+      setNowPlayingTab,
+      toggleShowLyrics,
+      toggleShowQueue,
+      playTrackWithQueue,
+      handlePlayFromQueue,
+      handleRemoveFromQueue,
+      handleClearUpcomingQueue,
+      handleNextTrack,
+      handlePrevTrack,
+      togglePlayPause,
+      handleSeekTo: seekTo,
+      handleVolumeChange,
+      toggleMute,
+      handlePlayNext,
+      handleAddToQueue,
+      handleStartRadio,
+      searchArtist,
+      openContextMenu,
+      closeContextMenu,
+      pastTracks,
+      upcomingTracks,
+      mainScrollRef,
+      playlistScrollPosRef,
+      markPlaylistListened,
+    }),
+    [
+      currentTrack,
+      activeQueue,
+      currentQueueIndex,
+      isPlaying,
+      // Desacoplado do currentTime/duration: PlayerContext não re-renderiza consumidores a cada 80ms!
+      volume,
+      isMuted,
+      loadingTrackId,
+      errorMessage,
+      isShuffle,
+      repeatMode,
+      crossfadeSeconds,
+      isAutoplayRadio,
+      isMiniPlayer,
+      isNowPlayingOpen,
+      nowPlayingTab,
+      showLyrics,
+      showPastTracks,
+      pastTracks,
+      upcomingTracks,
+      seekTo,
+      togglePlayPause,
+      openContextMenu,
+      closeContextMenu,
+    ]
+  );
+
   return (
-    <PlayerContext.Provider
-      value={{
-        currentTrack,
-        activeQueue,
-        currentQueueIndex,
-        isPlaying,
-        currentTime,
-        duration,
-        volume,
-        isMuted,
-        loadingTrackId,
-        errorMessage,
-        setErrorMessage,
-        isShuffle,
-        repeatMode,
-        crossfadeSeconds,
-        toggleShuffle,
-        cycleRepeatMode,
-        cycleCrossfade,
-        isAutoplayRadio,
-        toggleAutoplayRadio,
-        isMiniPlayer,
-        toggleMiniPlayer,
-        isNowPlayingOpen,
-        nowPlayingTab,
-        showLyrics,
-        showPastTracks,
-        setShowPastTracks,
-        toggleNowPlaying,
-        openNowPlaying,
-        closeNowPlaying,
-        setNowPlayingTab,
-        toggleShowLyrics,
-        toggleShowQueue,
-        playTrackWithQueue,
-        handlePlayFromQueue,
-        handleRemoveFromQueue,
-        handleClearUpcomingQueue,
-        handleNextTrack,
-        handlePrevTrack,
-        togglePlayPause,
-        handleSeekTo: seekTo,
-        handleVolumeChange,
-        toggleMute,
-        pastTracks,
-        upcomingTracks,
-        mainScrollRef,
-        playlistScrollPosRef,
-        markPlaylistListened,
-      }}
-    >
-      {/* Hidden YouTube Iframe Player mantido PERMANENTEMENTE no DOM raiz para zero interrupções */}
-      <div
-        className="fixed -top-[9999px] -left-[9999px] pointer-events-none opacity-0 w-1 h-1 overflow-hidden"
-        aria-hidden="true"
-      >
-        <div id="yt-player-frame" />
-      </div>
-      {children}
+    <PlayerContext.Provider value={contextValue}>
+      <PlaybackProgressProvider currentTime={currentTime} duration={duration}>
+        {/* Hidden YouTube Iframe Player mantido PERMANENTEMENTE no DOM raiz para zero interrupções */}
+        <div
+          className="fixed -top-[9999px] -left-[9999px] pointer-events-none opacity-0 w-1 h-1 overflow-hidden"
+          aria-hidden="true"
+        >
+          <div id="yt-player-frame" />
+        </div>
+        {children}
+
+        {/* Menu de Contexto Flutuante com Backdrop & Posicionamento Inteligente (Sugestão 2.2) */}
+        <TrackContextMenu
+          track={contextMenuTrack}
+          position={contextMenuPosition}
+          onClose={closeContextMenu}
+        />
+      </PlaybackProgressProvider>
     </PlayerContext.Provider>
   );
 }
@@ -603,3 +700,5 @@ export function usePlayer() {
   }
   return context;
 }
+
+export { usePlaybackProgress } from "./PlaybackProgressContext";

@@ -11,6 +11,7 @@ import {
   ChevronDown,
   GripVertical,
   BarChart2,
+  Settings,
 } from "lucide-react";
 import { Playlist, AuthSession, ActiveTab } from "../../types";
 
@@ -25,12 +26,13 @@ interface SidebarProps {
   auth: AuthSession | null;
   isCheckingAuth: boolean;
   onRefreshAuth: () => void;
+  onOpenSettings?: () => void;
   playlistHistory: Record<string, number>;
   pinnedPlaylistIds: string[];
   setPinnedPlaylistIds: React.Dispatch<React.SetStateAction<string[]>>;
 }
 
-export function Sidebar({
+export const Sidebar = React.memo(function Sidebar({
   activeTab,
   setActiveTab,
   playlists,
@@ -41,6 +43,7 @@ export function Sidebar({
   auth,
   isCheckingAuth,
   onRefreshAuth,
+  onOpenSettings,
   playlistHistory,
   pinnedPlaylistIds,
   setPinnedPlaylistIds,
@@ -423,16 +426,32 @@ export function Sidebar({
             </div>
           </div>
 
-          <button
-            onClick={onRefreshAuth}
-            disabled={isCheckingAuth}
-            title="Recarregar sessão de cookies"
-            className="p-1 rounded-lg hover:bg-[#232836] text-[#8c91a4] hover:text-white transition-colors cursor-pointer shrink-0"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isCheckingAuth ? "animate-spin text-red-400" : ""}`} />
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            {onOpenSettings && (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                title="Configurações do TetPlayer [Ctrl+,]"
+                aria-label="Abrir configurações"
+                className="p-1 rounded-lg hover:bg-[#232836] text-[#8c91a4] hover:text-white transition-colors cursor-pointer shrink-0"
+              >
+                <Settings className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={onRefreshAuth}
+              disabled={isCheckingAuth}
+              title="Recarregar sessão de cookies"
+              aria-label="Recarregar sessão de cookies"
+              className="p-1 rounded-lg hover:bg-[#232836] text-[#8c91a4] hover:text-white transition-colors cursor-pointer shrink-0"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isCheckingAuth ? "animate-spin text-red-400" : ""}`} />
+            </button>
+          </div>
         </div>
       </div>
     </aside>
   );
-}
+});

@@ -11,7 +11,7 @@ interface PlaylistGridViewProps {
   onTogglePinPlaylist: (playlistId: string, e?: React.MouseEvent) => void;
 }
 
-export function PlaylistGridView({
+export const PlaylistGridView = React.memo(function PlaylistGridView({
   playlists,
   isLoadingPlaylists,
   pinnedPlaylistIds,
@@ -101,4 +101,4 @@ export function PlaylistGridView({
       )}
     </div>
   );
-}
+});

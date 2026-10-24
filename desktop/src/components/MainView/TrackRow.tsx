@@ -1,7 +1,8 @@
 import React from "react";
-import { Music, Play, Pause, Loader2 } from "lucide-react";
+import { Music, Play, Pause, Loader2, MoreVertical } from "lucide-react";
 import { Track } from "../../types";
 import { upgradeArtworkQuality, handleArtworkError } from "../../utils/artwork";
+import { usePlayer } from "../../context/PlayerContext";
 
 interface TrackRowProps {
   track: Track;
@@ -11,6 +12,7 @@ interface TrackRowProps {
   isLoadingThis: boolean;
   onPlay: () => void;
   onTogglePlayPause?: () => void;
+  onContextMenu?: (e: React.MouseEvent, track: Track) => void;
 }
 
 export const TrackRow = React.memo(function TrackRow({
@@ -21,7 +23,20 @@ export const TrackRow = React.memo(function TrackRow({
   isLoadingThis,
   onPlay,
   onTogglePlayPause,
+  onContextMenu,
 }: TrackRowProps) {
+  const { openContextMenu } = usePlayer();
+
+  function handleContextMenu(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onContextMenu) {
+      onContextMenu(e, track);
+    } else {
+      openContextMenu(e, track);
+    }
+  }
+
   function handleClick(e: React.MouseEvent) {
     if (isCurrent && onTogglePlayPause) {
       e.stopPropagation();
@@ -34,6 +49,7 @@ export const TrackRow = React.memo(function TrackRow({
   return (
     <div
       onClick={handleClick}
+      onContextMenu={handleContextMenu}
       className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer group ${
         isCurrent
           ? "bg-[#1c202d] border-red-500/50"
@@ -76,11 +92,24 @@ export const TrackRow = React.memo(function TrackRow({
         </div>
       </div>
 
-      {/* Duration & Play/Pause Button */}
-      <div className="flex items-center gap-4 shrink-0 pl-3">
+      {/* Duration & Actions */}
+      <div className="flex items-center gap-2.5 shrink-0 pl-3">
         {track.duration && (
-          <span className="text-xs text-[#71778c] font-mono">{track.duration}</span>
+          <span className="text-xs text-[#71778c] font-mono mr-1">{track.duration}</span>
         )}
+
+        {/* Botão de Contexto / Mais Opções */}
+        <button
+          type="button"
+          onClick={handleContextMenu}
+          title="Mais opções da música"
+          aria-label="Mais opções"
+          className="p-1.5 rounded-lg text-[#71778c] hover:text-white hover:bg-[#202535] opacity-80 group-hover:opacity-100 transition-opacity cursor-pointer"
+        >
+          <MoreVertical className="w-4 h-4" />
+        </button>
+
+        {/* Play/Pause Button */}
         <button
           onClick={handleClick}
           aria-label={isCurrent && isPlaying ? `Pausar ${track.title}` : `Tocar ${track.title}`}

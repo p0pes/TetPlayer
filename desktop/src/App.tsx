@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { AlertCircle } from "lucide-react";
 import { Playlist, Track, AuthSession, ActiveTab } from "./types";
@@ -15,8 +15,21 @@ import { NowPlayingDrawer } from "./components/NowPlayingDrawer/NowPlayingDrawer
 import { MiniPlayer } from "./components/MiniPlayer/MiniPlayer";
 import { UpdateInfo, checkForAppUpdates } from "./services/updater";
 import { UpdateModal } from "./components/UpdateModal/UpdateModal";
+import { SettingsModal } from "./components/SettingsModal/SettingsModal";
+import { SettingsService } from "./services/settings";
+import { PerformanceTelemetry } from "./services/telemetry";
 
 export default function App() {
+  useEffect(() => {
+    // Revela a janela apenas quando a interface inicial já estiver montada
+    invoke("show_main_window").catch(() => {});
+
+    if (import.meta.env.DEV) {
+      PerformanceTelemetry.start();
+      return () => PerformanceTelemetry.stop();
+    }
+  }, []);
+
   const [playlistHistory, setPlaylistHistory] = useState<Record<string, number>>(() => {
     try {
       const saved = localStorage.getItem("tetplayer_playlist_history");
@@ -74,6 +87,33 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
   // Navegação: 'library', 'search' ou 'stats'
   const [activeTab, setActiveTab] = useState<ActiveTab>("library");
 
+  // Configurações & Aurora Glow (Aba de Configurações)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [auroraIntensity, setAuroraIntensity] = useState<number>(() => {
+    return SettingsService.getSetting("auroraGlowIntensity");
+  });
+
+  useEffect(() => {
+    SettingsService.applySettingsToDOM(SettingsService.getSettings());
+    return SettingsService.subscribe((settings, key) => {
+      if (!key || key === "auroraGlowIntensity") {
+        setAuroraIntensity(settings.auroraGlowIntensity);
+      }
+    });
+  }, []);
+
+  // Atalho Global para abrir Configurações (Ctrl + , ou Cmd + ,)
+  useEffect(() => {
+    function handleGlobalKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key === ",") {
+        e.preventDefault();
+        setIsSettingsOpen((prev) => !prev);
+      }
+    }
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, []);
+
   // Auth state
   const [auth, setAuth] = useState<AuthSession | null>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(false);
@@ -106,6 +146,14 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
 
   useEffect(() => {
+    // Hidratação a partir do banco de dados SQLite nativo
+    LocalCacheService.initDbCache().then(() => {
+      const cached = LocalCacheService.getCachedPlaylists();
+      if (cached && cached.length > 0) {
+        setPlaylists((prev) => (prev.length === 0 ? cached : prev));
+      }
+    });
+
     loadAuthStatus();
     loadPlaylists();
 
@@ -132,6 +180,26 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
     };
   }, []);
 
+  // Escuta busca automática de artista via Menu de Contexto (Sugestão 2.2)
+  useEffect(() => {
+    function handleSearchArtistEvent(e: Event) {
+      const customEvent = e as CustomEvent<{ query: string }>;
+      const artist = customEvent.detail?.query;
+      if (artist) {
+        setSearchQuery(artist);
+        setActiveTab("search");
+        setIsSearching(true);
+        invoke<Track[]>("search_tracks", { query: artist })
+          .then((res) => setSearchResults(res))
+          .catch((err) => setErrorMessage(`Erro na busca: ${String(err)}`))
+          .finally(() => setIsSearching(false));
+      }
+    }
+
+    window.addEventListener("tetplayer:search-artist", handleSearchArtistEvent);
+    return () => window.removeEventListener("tetplayer:search-artist", handleSearchArtistEvent);
+  }, [setErrorMessage]);
+
   async function loadAuthStatus() {
     setIsCheckingAuth(true);
     try {
@@ -144,7 +212,7 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
     }
   }
 
-  async function handleRefreshAuth() {
+  const handleRefreshAuth = useCallback(async () => {
     setIsCheckingAuth(true);
     try {
       const res = await invoke<AuthSession>("refresh_auth");
@@ -155,24 +223,24 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
     } finally {
       setIsCheckingAuth(false);
     }
-  }
+  }, []);
 
   // Carregamento de Playlists com Stale-While-Revalidate (0ms de espera)
-  async function loadPlaylists() {
+  const loadPlaylists = useCallback(async () => {
     setIsLoadingPlaylists(true);
     try {
       const res = await invoke<Playlist[]>("get_user_playlists");
       setPlaylists(res);
       LocalCacheService.saveCachedPlaylists(res);
     } catch (err) {
-      console.error("Erro ao carregar playlists:", err);
+      console.warn("Falha ao carregar playlists da rede, mantendo cache local:", err);
     } finally {
       setIsLoadingPlaylists(false);
     }
-  }
+  }, []);
 
-  // Selecionar Playlist com Stale-While-Revalidate
-  async function handleSelectPlaylist(playlist: Playlist) {
+  // Selecionar Playlist com Stale-While-Revalidate e tolerância offline
+  const handleSelectPlaylist = useCallback(async (playlist: Playlist) => {
     playlistScrollPosRef.current = 0;
     if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
     setSelectedPlaylist(playlist);
@@ -196,13 +264,17 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
       setPlaylistTracks(tracks);
       LocalCacheService.saveCachedPlaylistTracks(playlist.id, tracks);
     } catch (err) {
-      setErrorMessage(`Erro ao carregar músicas da playlist: ${String(err)}`);
+      if (cachedTracks && cachedTracks.length > 0) {
+        console.warn("Falha ao revalidar playlist pela rede, mantendo cache local offline:", err);
+      } else {
+        setErrorMessage(`Erro ao carregar músicas da playlist: ${String(err)}`);
+      }
     } finally {
       setIsLoadingPlaylistTracks(false);
     }
-  }
+  }, [mainScrollRef, playlistScrollPosRef, setErrorMessage]);
 
-  async function handleSearch(e?: React.FormEvent) {
+  const handleSearch = useCallback(async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!searchQuery.trim()) return;
 
@@ -217,18 +289,45 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
     } finally {
       setIsSearching(false);
     }
-  }
+  }, [searchQuery, setErrorMessage]);
 
-  function handleBackToPlaylists() {
+  const handleBackToPlaylists = useCallback(() => {
     playlistScrollPosRef.current = 0;
     if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
     setSelectedPlaylist(null);
-  }
+  }, [mainScrollRef, playlistScrollPosRef]);
+
+  const handleSidebarTabChange = useCallback((tab: ActiveTab) => {
+    playlistScrollPosRef.current = 0;
+    setActiveTab(tab);
+    if (tab === "library") setSelectedPlaylist(null);
+  }, [playlistScrollPosRef]);
+
+  const handleTogglePinPlaylist = useCallback((playlistId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setPinnedPlaylistIds((prev) => {
+      let updated: string[];
+      if (prev.includes(playlistId)) {
+        updated = prev.filter((id) => id !== playlistId);
+      } else {
+        updated = [...prev, playlistId];
+      }
+      try {
+        localStorage.setItem(
+          "tetplayer_pinned_playlists",
+          JSON.stringify(updated)
+        );
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+  }, []);
 
   return (
     <div
       className={`w-screen h-screen select-none overflow-hidden relative ${
-        isMiniPlayer ? "bg-transparent" : "bg-[#0b0c10]"
+        isMiniPlayer ? "bg-[#0c0e17]" : "bg-[#0b0c10]"
       }`}
     >
       {/* Modo Mini Player Flutuante (Sugestão 2.1) */}
@@ -241,7 +340,10 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
         }`}
       >
         {/* Fundo Dinâmico Aurora de Alta Resolução */}
-        <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <div
+          className="fixed inset-0 pointer-events-none overflow-hidden z-0 transition-opacity duration-300"
+          style={{ opacity: auroraIntensity / 100 }}
+        >
           <div className="absolute -top-[15%] -left-[10%] w-[60vw] h-[60vw] rounded-full aurora-blob-1 blur-[90px] opacity-90" />
           <div className="absolute top-[15%] -right-[10%] w-[55vw] h-[55vw] rounded-full aurora-blob-2 blur-[100px] opacity-80" />
           <div className="absolute -bottom-[15%] left-[20%] w-[50vw] h-[50vw] rounded-full aurora-blob-3 blur-[90px] opacity-85" />
@@ -263,11 +365,7 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
         <div className="flex-1 flex min-h-0 overflow-hidden relative">
           <Sidebar
             activeTab={activeTab}
-            setActiveTab={(tab) => {
-              playlistScrollPosRef.current = 0;
-              setActiveTab(tab);
-              if (tab === "library") setSelectedPlaylist(null);
-            }}
+            setActiveTab={handleSidebarTabChange}
             playlists={playlists}
             isLoadingPlaylists={isLoadingPlaylists}
             onRefreshPlaylists={loadPlaylists}
@@ -276,6 +374,7 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
             auth={auth}
             isCheckingAuth={isCheckingAuth}
             onRefreshAuth={handleRefreshAuth}
+            onOpenSettings={() => setIsSettingsOpen(true)}
             playlistHistory={playlistHistory}
             pinnedPlaylistIds={pinnedPlaylistIds}
             setPinnedPlaylistIds={setPinnedPlaylistIds}
@@ -347,26 +446,7 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
                       isLoadingPlaylists={isLoadingPlaylists}
                       pinnedPlaylistIds={pinnedPlaylistIds}
                       onSelectPlaylist={handleSelectPlaylist}
-                      onTogglePinPlaylist={(playlistId, e) => {
-                        if (e) e.stopPropagation();
-                        setPinnedPlaylistIds((prev) => {
-                          let updated: string[];
-                          if (prev.includes(playlistId)) {
-                            updated = prev.filter((id) => id !== playlistId);
-                          } else {
-                            updated = [...prev, playlistId];
-                          }
-                          try {
-                            localStorage.setItem(
-                              "tetplayer_pinned_playlists",
-                              JSON.stringify(updated)
-                            );
-                          } catch {
-                            // ignore
-                          }
-                          return updated;
-                        });
-                      }}
+                      onTogglePinPlaylist={handleTogglePinPlaylist}
                     />
                   )}
                 </>
@@ -415,6 +495,16 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
           onClose={() => setUpdateInfo(null)}
         />
       )}
+
+      {/* Modal Central de Configurações */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        auth={auth}
+        isCheckingAuth={isCheckingAuth}
+        onRefreshAuth={handleRefreshAuth}
+        onForceAnonymous={() => setAuth(null)}
+      />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import React from "react";
+import { memo } from "react";
 import {
   ChevronUp,
   ChevronDown,
@@ -18,17 +18,15 @@ import {
   Tv,
 } from "lucide-react";
 import { usePlayer } from "../../context/PlayerContext";
-import { formatTime } from "../../hooks/useLyrics";
+import { TimelineScrubber } from "./TimelineScrubber";
 import { SpectrumVisualizer } from "../Visualizer/SpectrumVisualizer";
 import { upgradeArtworkQuality, handleArtworkError } from "../../utils/artwork";
 
-export function PlayerBar() {
+export const PlayerBar = memo(function PlayerBar() {
   const {
     currentTrack,
     activeQueue,
     isPlaying,
-    currentTime,
-    duration,
     volume,
     isMuted,
     isShuffle,
@@ -51,20 +49,16 @@ export function PlayerBar() {
     toggleShowLyrics,
   } = usePlayer();
 
-  function onSeek(e: React.ChangeEvent<HTMLInputElement>) {
-    handleSeekTo(parseFloat(e.target.value));
-  }
-
   return (
-    <footer className="h-20 shrink-0 border-t border-[#1f232e] bg-[#0e1017]/95 backdrop-blur-md px-6 flex items-center justify-between gap-6 z-40">
+    <footer className="h-20 shrink-0 border-t border-[#1f232e] bg-[#0e1017]/95 backdrop-blur-md px-3 sm:px-4 md:px-6 flex items-center justify-between gap-2 sm:gap-4 md:gap-6 z-40">
       {/* Faixa Atual e Botão da Gaveta de Reprodução */}
-      <div className="flex items-center gap-3 w-1/4 min-w-[220px]">
+      <div className="flex items-center gap-2 sm:gap-3 w-[28%] min-w-0 max-w-[280px]">
         {/* Seta na Barra de Baixo para Abrir a Gaveta */}
         <button
           onClick={toggleNowPlaying}
           aria-label={isNowPlayingOpen ? "Recolher gaveta de reprodução" : "Abrir gaveta de reprodução"}
           title={isNowPlayingOpen ? "Recolher gaveta [Shift+Up / Esc]" : "Abrir gaveta de reprodução (Fila & Letras) [Shift+Up]"}
-          className={`p-2 rounded-xl border transition-all cursor-pointer shrink-0 ${
+          className={`p-1.5 sm:p-2 rounded-xl border transition-all cursor-pointer shrink-0 ${
             isNowPlayingOpen
               ? "bg-red-600 text-white border-red-500 shadow-lg shadow-red-950/60"
               : "bg-[#171a24] text-[#8c91a4] hover:text-white hover:bg-[#202534] border-[#252a3a]"
@@ -79,7 +73,7 @@ export function PlayerBar() {
 
         <div
           onClick={toggleNowPlaying}
-          className="w-12 h-12 rounded-lg bg-[#171a24] border border-[#232733] overflow-hidden shrink-0 flex items-center justify-center cursor-pointer group relative shadow-md"
+          className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-[#171a24] border border-[#232733] overflow-hidden shrink-0 flex items-center justify-center cursor-pointer group relative shadow-md"
           title="Abrir gaveta de reprodução"
         >
           {currentTrack?.artwork_url || currentTrack?.id ? (
@@ -97,7 +91,7 @@ export function PlayerBar() {
 
         <div
           onClick={toggleNowPlaying}
-          className="min-w-0 overflow-hidden cursor-pointer"
+          className="min-w-0 flex-1 overflow-hidden cursor-pointer"
           title="Abrir gaveta de reprodução"
         >
           <div className="flex items-center gap-1.5">
@@ -112,21 +106,21 @@ export function PlayerBar() {
       </div>
 
       {/* Controles Centrais e Scrubber */}
-      <div className="flex-1 max-w-xl flex flex-col items-center gap-1.5">
-        <div className="flex items-center gap-3">
+      <div className="flex-1 min-w-0 max-w-xl flex flex-col items-center justify-center gap-1 sm:gap-1.5 px-1 sm:px-2">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 md:gap-3">
           {/* Modo Aleatório (Shuffle) */}
           <button
             onClick={toggleShuffle}
             aria-label="Modo aleatório"
             aria-pressed={isShuffle}
             title={`Modo Aleatório [S] (${isShuffle ? "Ativado" : "Desativado"})`}
-            className={`p-2 rounded-lg transition-all cursor-pointer relative ${
+            className={`p-1.5 sm:p-2 rounded-lg transition-all cursor-pointer relative shrink-0 ${
               isShuffle
                 ? "text-red-400 bg-red-950/40 border border-red-800/50 shadow-[0_0_10px_rgba(239,68,68,0.25)]"
                 : "text-[#71778c] hover:text-white hover:bg-[#1a1d28]"
             }`}
           >
-            <Shuffle className="w-4 h-4" />
+            <Shuffle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             {isShuffle && (
               <span className="w-1 h-1 rounded-full bg-red-400 absolute bottom-1 left-1/2 -translate-x-1/2" />
             )}
@@ -138,9 +132,9 @@ export function PlayerBar() {
             disabled={activeQueue.length === 0}
             aria-label="Faixa anterior"
             title="Faixa Anterior [Media / J]"
-            className="text-[#8c91a4] hover:text-white disabled:opacity-30 p-2 rounded-lg hover:bg-[#1a1d28] transition-colors cursor-pointer"
+            className="text-[#8c91a4] hover:text-white disabled:opacity-30 p-1.5 sm:p-2 rounded-lg hover:bg-[#1a1d28] transition-colors cursor-pointer shrink-0"
           >
-            <SkipBack className="w-4 h-4 fill-current" />
+            <SkipBack className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
           </button>
 
           {/* Play / Pause */}
@@ -149,7 +143,7 @@ export function PlayerBar() {
             disabled={!currentTrack}
             aria-label={isPlaying ? "Pausar música" : "Reproduzir música"}
             title="Reproduzir / Pausar [Espaço / Media]"
-            className="w-10 h-10 rounded-full bg-white hover:scale-105 active:scale-95 disabled:opacity-40 text-black flex items-center justify-center shadow-lg shadow-white/10 transition-transform cursor-pointer"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white hover:scale-105 active:scale-95 disabled:opacity-40 text-black flex items-center justify-center shadow-lg shadow-white/10 transition-transform cursor-pointer shrink-0"
           >
             {isPlaying ? (
               <Pause className="w-4 h-4 fill-current" />
@@ -164,9 +158,9 @@ export function PlayerBar() {
             disabled={activeQueue.length === 0}
             aria-label="Próxima faixa"
             title="Próxima Faixa [Media / K]"
-            className="text-[#8c91a4] hover:text-white disabled:opacity-30 p-2 rounded-lg hover:bg-[#1a1d28] transition-colors cursor-pointer"
+            className="text-[#8c91a4] hover:text-white disabled:opacity-30 p-1.5 sm:p-2 rounded-lg hover:bg-[#1a1d28] transition-colors cursor-pointer shrink-0"
           >
-            <SkipForward className="w-4 h-4 fill-current" />
+            <SkipForward className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
           </button>
 
           {/* Modo Repetição (Repeat) */}
@@ -187,16 +181,16 @@ export function PlayerBar() {
                 ? "Repetir Toda a Fila"
                 : "Repetir Música Atual"
             }`}
-            className={`p-2 rounded-lg transition-all cursor-pointer relative ${
+            className={`p-1.5 sm:p-2 rounded-lg transition-all cursor-pointer relative shrink-0 ${
               repeatMode !== "off"
                 ? "text-red-400 bg-red-950/40 border border-red-800/50 shadow-[0_0_10px_rgba(239,68,68,0.25)]"
                 : "text-[#71778c] hover:text-white hover:bg-[#1a1d28]"
             }`}
           >
             {repeatMode === "one" ? (
-              <Repeat1 className="w-4 h-4" />
+              <Repeat1 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             ) : (
-              <Repeat className="w-4 h-4" />
+              <Repeat className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             )}
             {repeatMode !== "off" && (
               <span className="w-1 h-1 rounded-full bg-red-400 absolute bottom-1 left-1/2 -translate-x-1/2" />
@@ -209,44 +203,34 @@ export function PlayerBar() {
             aria-label="Autoplay Infinito / Rádio Contínua"
             aria-pressed={isAutoplayRadio}
             title={`Autoplay Infinito / Rádio Contínua (${isAutoplayRadio ? "Ativado" : "Desativado"})`}
-            className={`p-2 rounded-lg transition-all cursor-pointer relative ${
+            className={`p-1.5 sm:p-2 rounded-lg transition-all cursor-pointer relative shrink-0 ${
               isAutoplayRadio
                 ? "text-red-400 bg-red-950/40 border border-red-800/50 shadow-[0_0_10px_rgba(239,68,68,0.25)]"
                 : "text-[#71778c] hover:text-white hover:bg-[#1a1d28]"
             }`}
           >
-            <Radio className="w-4 h-4" />
+            <Radio className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             {isAutoplayRadio && (
               <span className="w-1 h-1 rounded-full bg-red-400 absolute bottom-1 left-1/2 -translate-x-1/2" />
             )}
           </button>
         </div>
 
-        {/* Scrubber Timeline */}
-        <div className="w-full flex items-center gap-3 text-[10px] text-[#71778c] font-mono">
-          <span>{formatTime(currentTime)}</span>
-          <input
-            type="range"
-            min={0}
-            max={duration || 100}
-            value={currentTime}
-            onChange={onSeek}
-            disabled={!currentTrack}
-            aria-label="Posição da música na linha do tempo"
-            className="flex-1 h-1 bg-[#232733] rounded-full accent-red-500 cursor-pointer disabled:cursor-not-allowed"
-          />
-          <span>{formatTime(duration)}</span>
-        </div>
+        {/* Scrubber Timeline Isolado (Sugestão 1.2) */}
+        <TimelineScrubber
+          disabled={!currentTrack}
+          onSeek={handleSeekTo}
+        />
       </div>
 
       {/* Volume, Fila, Letras & Mini Player */}
-      <div className="flex items-center justify-end gap-2.5 w-1/4 min-w-[220px]">
+      <div className="flex items-center justify-end gap-1.5 sm:gap-2 md:gap-2.5 w-[28%] min-w-0 max-w-[280px]">
         {/* Botão Mini Player (Sugestão 2.1) */}
         <button
           onClick={toggleMiniPlayer}
           title="Modo Mini Player Flutuante (Always-on-Top / PiP)"
           aria-label="Modo Mini Player"
-          className="p-2 rounded-xl text-[#8c91a4] hover:text-white hover:bg-[#1a1d28] border border-transparent hover:border-[#252a3a] transition-all cursor-pointer"
+          className="p-1.5 sm:p-2 rounded-xl text-[#8c91a4] hover:text-white hover:bg-[#1a1d28] border border-transparent hover:border-[#252a3a] transition-all cursor-pointer shrink-0"
         >
           <Tv className="w-4 h-4" />
         </button>
@@ -258,14 +242,14 @@ export function PlayerBar() {
           aria-label="Exibir fila de reprodução"
           aria-pressed={isNowPlayingOpen && nowPlayingTab === "queue"}
           title="Fila de Reprodução [Q]"
-          className={`p-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-medium disabled:opacity-30 ${
+          className={`p-1.5 sm:p-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-medium disabled:opacity-30 shrink-0 ${
             isNowPlayingOpen && nowPlayingTab === "queue"
               ? "bg-red-600 text-white shadow-lg shadow-red-950/50 border border-red-500"
               : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
           }`}
         >
-          <ListMusic className="w-4 h-4" />
-          <span className="hidden md:inline">Fila</span>
+          <ListMusic className="w-4 h-4 shrink-0" />
+          <span className="hidden xl:inline">Fila</span>
         </button>
 
         {/* Botão Letras */}
@@ -275,18 +259,18 @@ export function PlayerBar() {
           aria-label="Exibir letras sincronizadas"
           aria-pressed={isNowPlayingOpen && nowPlayingTab === "lyrics"}
           title="Letras Sincronizadas [L]"
-          className={`p-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-medium disabled:opacity-30 ${
+          className={`p-1.5 sm:p-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-medium disabled:opacity-30 shrink-0 ${
             isNowPlayingOpen && nowPlayingTab === "lyrics"
               ? "bg-red-600 text-white shadow-lg shadow-red-950/50 border border-red-500"
               : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
           }`}
         >
-          <Mic2 className="w-4 h-4" />
-          <span className="hidden md:inline">Letras</span>
+          <Mic2 className="w-4 h-4 shrink-0" />
+          <span className="hidden xl:inline">Letras</span>
         </button>
 
         {/* Visualizador de Áudio Mini & Status Badge (Sugestão 3.2) */}
-        <div className="hidden lg:flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[#141724] border border-[#212638]">
+        <div className="hidden 2xl:flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[#141724] border border-[#212638] shrink-0">
           <SpectrumVisualizer isPlaying={isPlaying} variant="mini" barCount={4} />
           <span className="text-[10px] font-mono text-emerald-400">
             {isPlaying ? "Tocando" : "Pausa"}
@@ -294,12 +278,12 @@ export function PlayerBar() {
         </div>
 
         {/* Volume */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
           <button
             onClick={toggleMute}
             aria-label={isMuted ? "Desativar mudo" : "Ativar mudo"}
             title="Mudo [M]"
-            className="text-[#8c91a4] hover:text-white transition-colors cursor-pointer"
+            className="p-1 text-[#8c91a4] hover:text-white transition-colors cursor-pointer shrink-0"
           >
             {isMuted || volume === 0 ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
           </button>
@@ -311,10 +295,10 @@ export function PlayerBar() {
             value={isMuted ? 0 : volume}
             onChange={handleVolumeChange}
             aria-label="Volume de reprodução"
-            className="w-18 h-1 bg-[#232733] rounded-full accent-red-500 cursor-pointer"
+            className="w-14 sm:w-16 md:w-20 h-1 bg-[#232733] rounded-full accent-red-500 cursor-pointer"
           />
         </div>
       </div>
     </footer>
   );
-}
+});

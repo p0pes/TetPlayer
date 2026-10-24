@@ -15,7 +15,7 @@ import {
   ChevronRight,
   ChevronsRight,
 } from "lucide-react";
-import { usePlayer } from "../../context/PlayerContext";
+import { usePlayer, usePlaybackProgress } from "../../context/PlayerContext";
 import { formatTime } from "../../hooks/useLyrics";
 import { SpectrumVisualizer } from "../Visualizer/SpectrumVisualizer";
 import { upgradeArtworkQuality, handleArtworkError } from "../../utils/artwork";
@@ -24,8 +24,6 @@ export function MiniPlayer() {
   const {
     currentTrack,
     isPlaying,
-    currentTime,
-    duration,
     volume,
     isMuted,
     handlePrevTrack,
@@ -36,6 +34,8 @@ export function MiniPlayer() {
     toggleMute,
     toggleMiniPlayer,
   } = usePlayer();
+
+  const { currentTime, duration } = usePlaybackProgress();
 
   // Estado de ancoragem / docking na borda ('left' | 'right' | null)
   const [isDocked, setIsDocked] = useState<"left" | "right" | null>(null);
@@ -152,10 +152,10 @@ export function MiniPlayer() {
           isDraggingTabRef.current = false;
         }}
         title="TetPlayer Mini - Clique para expandir ou arraste para cima/baixo"
-        className={`w-full h-full bg-[#0e1017]/95 hover:bg-[#151928] border border-[#2b3042] hover:border-red-500/60 flex flex-col items-center justify-between py-2.5 shadow-2xl cursor-pointer group transition-colors select-none backdrop-blur-2xl relative ${
+        className={`w-full h-full bg-[#0c0e17] hover:bg-[#151928] border border-[#2b3042] hover:border-red-500/60 flex flex-col items-center justify-between py-2.5 shadow-2xl cursor-pointer group transition-colors select-none relative ${
           isDocked === "left"
-            ? "rounded-r-2xl border-l-0"
-            : "rounded-l-2xl border-r-0"
+            ? "border-l-0"
+            : "border-r-0"
         }`}
       >
         {/* Glow Aurora de fundo sutil */}
@@ -197,9 +197,9 @@ export function MiniPlayer() {
     );
   }
 
-  // Visualização Completa do Mini Player Flutuante
+  // Visualização Completa do Mini Player Flutuante (Solid Edge-to-Edge Frame)
   return (
-    <div className="w-full h-full bg-[#0e1017]/95 border border-[#2b3042] rounded-2xl flex flex-col justify-between overflow-hidden shadow-2xl relative select-none backdrop-blur-2xl">
+    <div className="w-full h-full bg-[#0c0e17] border border-[#232738] flex flex-col justify-between overflow-hidden shadow-2xl relative select-none">
       {/* Glow Aurora de fundo sutil */}
       <div
         className="absolute inset-0 opacity-25 pointer-events-none"
@@ -213,7 +213,7 @@ export function MiniPlayer() {
       <div
         data-tauri-drag-region
         onMouseDown={handleStartDrag}
-        className="h-7 px-2.5 bg-[#141724]/90 border-b border-[#1f2434] flex items-center justify-between cursor-move shrink-0 z-20"
+        className="h-7 px-2.5 bg-[#121522] border-b border-[#1c2030] flex items-center justify-between cursor-move shrink-0 z-20"
       >
         <div
           data-tauri-drag-region

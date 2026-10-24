@@ -1,9 +1,10 @@
 import { Sparkles, Mic2, Loader2 } from "lucide-react";
-import { usePlayer } from "../../context/PlayerContext";
+import { usePlayer, usePlaybackProgress } from "../../context/PlayerContext";
 import { useLyrics } from "../../hooks/useLyrics";
 
 export function LyricsView() {
-  const { currentTrack, currentTime, isNowPlayingOpen, nowPlayingTab, showLyrics, handleSeekTo } = usePlayer();
+  const { currentTrack, isNowPlayingOpen, nowPlayingTab, showLyrics, handleSeekTo } = usePlayer();
+  const { currentTime } = usePlaybackProgress();
 
   const {
     lyricsData,
