@@ -1,6 +1,7 @@
 export type PlaylistEnqueueMode = "replace" | "append";
 export type VisualizerStyle = "bars" | "wave" | "gradient";
 export type CloseAction = "tray" | "exit";
+export type AccentTheme = "ruby" | "indigo" | "emerald" | "ocean" | "monochrome";
 
 export interface AppSettings {
   // Aba 1: Áudio & Reprodução
@@ -9,7 +10,8 @@ export interface AppSettings {
   normalizeVolume: boolean;
   playlistEnqueueMode: PlaylistEnqueueMode;
 
-  // Aba 2: Aparência & Efeitos Visuais
+  // Aba 2: Aparência & Efeitos Visuais (Item 3.2: Temas de Cores)
+  accentTheme: AccentTheme;
   auroraGlowIntensity: number; // 0 a 100%
   motionCoverEnabled: boolean;
   visualizerStyle: VisualizerStyle;
@@ -24,6 +26,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   isAutoplayRadio: true,
   normalizeVolume: false,
   playlistEnqueueMode: "replace",
+  accentTheme: "ruby",
   auroraGlowIntensity: 80,
   motionCoverEnabled: true,
   visualizerStyle: "bars",
@@ -111,6 +114,28 @@ export const SettingsService = {
     if (typeof document === "undefined") return;
 
     const root = document.documentElement;
+
+    // Tema de Cores e Acento (Item 3.2: TetPlayer Ruby, Cyber Indigo, Emerald Wave, Ocean Blue, Pure Dark OLED)
+    const currentTheme = settings.accentTheme || "ruby";
+    root.setAttribute("data-theme", currentTheme);
+
+    const themePalettes: Record<AccentTheme, { primary: string; glow: string }> = {
+      ruby: { primary: "#ef4444", glow: "rgba(239, 68, 68, 0.85)" },
+      indigo: { primary: "#8b5cf6", glow: "rgba(139, 92, 246, 0.85)" },
+      emerald: { primary: "#10b981", glow: "rgba(16, 185, 129, 0.85)" },
+      ocean: { primary: "#0ea5e9", glow: "rgba(14, 165, 233, 0.85)" },
+      monochrome: { primary: "#f4f4f5", glow: "rgba(244, 244, 245, 0.7)" },
+    };
+
+    const palette = themePalettes[currentTheme] || themePalettes.ruby;
+    root.style.setProperty("--accent-primary", palette.primary);
+    root.style.setProperty("--accent-glow", palette.glow);
+
+    if (currentTheme === "monochrome") {
+      root.classList.add("theme-monochrome-oled");
+    } else {
+      root.classList.remove("theme-monochrome-oled");
+    }
 
     // Intensidade da Aurora Boreal (0% a 100%)
     const opacityMultiplier = Math.max(0, Math.min(100, settings.auroraGlowIntensity)) / 100;

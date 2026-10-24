@@ -40,9 +40,21 @@ describe("SettingsService", () => {
   it("restaura as configurações padrão com resetSettings", () => {
     SettingsService.updateSetting("crossfadeSeconds", 10);
     SettingsService.updateSetting("motionCoverEnabled", false);
+    SettingsService.updateSetting("accentTheme", "emerald");
 
     const reset = SettingsService.resetSettings();
     expect(reset.crossfadeSeconds).toBe(DEFAULT_SETTINGS.crossfadeSeconds);
     expect(reset.motionCoverEnabled).toBe(DEFAULT_SETTINGS.motionCoverEnabled);
+    expect(reset.accentTheme).toBe("ruby");
+  });
+
+  it("permite selecionar e persistir temas de acento (Item 3.2)", () => {
+    expect(SettingsService.getSetting("accentTheme")).toBe("ruby");
+
+    SettingsService.updateSetting("accentTheme", "indigo");
+    expect(SettingsService.getSetting("accentTheme")).toBe("indigo");
+
+    SettingsService.updateSetting("accentTheme", "monochrome");
+    expect(SettingsService.getSetting("accentTheme")).toBe("monochrome");
   });
 });

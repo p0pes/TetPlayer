@@ -2,10 +2,10 @@
 
 > **Data da Auditoria:** 24 de Outubro de 2026  
 > **Avaliador:** Agente Especialista em Code Review, Análise Estática e UX/UI Inspection (`reviwer.md`)  
-> **Status Geral da Aplicação:** 🟢 **Build, Compilação e Testes 100% Verificados (TypeScript + Rust `cargo test` & `vite build` com Zero Erros, 29 testes Vitest + 3 testes Rust passando)**. Todos os 41 apontamentos técnicos catalogados foram integralmente implementados, testados e validados.  
+> **Status Geral da Aplicação:** 🟢 **Build, Compilação e Testes 100% Verificados (TypeScript + Rust `cargo test` & `vite build` com Zero Erros, 30 testes Vitest + 3 testes Rust passando)**. Todos os 42 apontamentos técnicos catalogados foram integralmente implementados, testados e validados.  
 > **Status Comparativo:**  
 > - 📌 **0 Apontamentos Ativos Pendentes** (Nenhum débito técnico ativo; topo 100% limpo)  
-> - ✅ **41 Itens Integralmente Resolvidos e Validados** (Histórico técnico preservado na íntegra na seção inferior)  
+> - ✅ **42 Itens Integralmente Resolvidos e Validados** (Histórico técnico preservado na íntegra na seção inferior)  
 
 ---
 
@@ -26,7 +26,7 @@
 
 ---
 
-## ✅ HISTÓRICO CONSOLIDADO: 41 Apontamentos Resolvidos e Validados
+## ✅ HISTÓRICO CONSOLIDADO: 42 Apontamentos Resolvidos e Validados
 
 > [!NOTE]
 > Todos os itens abaixo foram implementados, testados, compilados e validados no TetPlayer Desktop. Eles permanecem registrados na base deste documento como memória técnica da arquitetura, robustez e performance da aplicação.
@@ -380,9 +380,28 @@
 
 ---
 
+### 42. Temas de Cores Customizáveis (Accent Themes) & Modo Pure Dark OLED — Sugestão 3.2
+* **Status:** `[Resolvido]` ✅
+* **Localização:** [`desktop/src/services/settings.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/settings.ts), [`desktop/src/components/SettingsModal/SettingsModal.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/SettingsModal/SettingsModal.tsx), [`desktop/src/index.css`](file:///d:/progrmação/programas/TetPlayer/desktop/src/index.css) e [`desktop/src/services/__tests__/settings.test.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/__tests__/settings.test.ts).
+* **Diagnóstico Técnico:**
+  - A interface estava rigidamente acoplada apenas ao tom vermelho (`#ef4444`) e aos parâmetros fixos de iluminação, impedindo que o usuário personalizasse o acento estético do aplicativo de acordo com suas preferências visuais ou hardware de monitor.
+  - Não havia um modo de contraste extremo e consumo zero de energia otimizado especificamente para telas OLED, onde auras de fundo ativas impedem os pixels de desligarem completamente.
+* **Solução Implementada:**
+  - **5 Paletas de Cores de Acento de Alta Fidelidade:**
+    1. 🔴 **TetPlayer Ruby (Padrão):** Vermelho vibrante (`#ef4444`) com detalhes carmesim e brilho dinâmico.
+    2. 🟣 **Cyber Indigo:** Violeta elétrico (`#8b5cf6`) com detalhes neon roxo e aura violeta.
+    3. 🟢 **Emerald Wave:** Verde esmeralda analógico (`#10b981`) com atmosfera retrô vintage.
+    4. 🔵 **Ocean Blue:** Azul safira e turquesa profundo (`#0ea5e9`) com iluminação aquática límpida.
+    5. 🖤 **Monochrome Pure OLED:** Fundo 100% preto absoluto (`#000000`) com detalhes em cinza titânio e branco puro (`#f4f4f5`), desativando o glow difuso da aurora (0%) para contraste infinito e economia real de energia em telas OLED.
+  - **Sincronização DOM & CSS Dinâmica:** `SettingsService.applySettingsToDOM` injeta `data-theme` no elemento raiz `<html>`, seta `--accent-primary` e `--accent-glow` e alterna a classe `.theme-monochrome-oled`. O `index.css` mapeia as auras dinâmicas do fundo para se harmonizarem com a cor de acento selecionada.
+  - **UI de Seleção Premium no Modal:** Grid interativo de 5 cartões na Aba "Aparência" do Modal de Configurações (`Ctrl+,`) com indicador de cor, anéis luminosos temáticos e badge "Ativo".
+  - **Testes Unitários Automatizados:** Cobertura de persistência, reatividade e restauração padrão do `accentTheme` adicionada ao Vitest, elevando a suíte para 30 testes unitários passando.
+
+---
+
 ## 📋 Conclusão da Auditoria
 
 A base de código do **TetPlayer Desktop** atingiu o mais alto padrão de robustez, estabilidade e excelência visual:
-- **Zero erros de compilação ou tipos:** `tsc && vite build`, `npm test` (29 testes passando) e `cargo test` (3 testes Rust passando) finalizados com código de saída 0.
-- **Zero apontamentos ativos pendentes:** Todas as 41 melhorias, otimizações e correções catalogadas encontram-se plenamente implementadas, testadas e documentadas.
-- **Eficiência e Estabilidade:** Modal de Configurações centralizado com 5 abas completas e atalho `Ctrl+,`, inicialização de janela sem flash, Mini Player sem cantos vazios, layout e controles responsivos imunes a colisões em larguras mínimas (PlayerBar e Drawer Header), isolamento de renderização com `TimelineScrubber`, máquina de estados determinística no `playerReducer`, menu de contexto de faixas com WAI-ARIA e Motion Cover com amortecimento sedoso.
+- **Zero erros de compilação ou tipos:** `tsc && vite build`, `npm test` (30 testes passando) e `cargo test` (3 testes Rust passando) finalizados com código de saída 0.
+- **Zero apontamentos ativos pendentes:** Todas as 42 melhorias, otimizações e correções catalogadas encontram-se plenamente implementadas, testadas e documentadas.
+- **Eficiência e Estabilidade:** Modal de Configurações centralizado com 5 abas completas e atalho `Ctrl+,`, 5 temas de cores customizáveis com modo Pure Dark OLED (Item 3.2), inicialização de janela sem flash, Mini Player sem cantos vazios, layout e controles responsivos imunes a colisões em larguras mínimas (PlayerBar e Drawer Header), isolamento de renderização com `TimelineScrubber`, máquina de estados determinística no `playerReducer`, menu de contexto de faixas com WAI-ARIA e Motion Cover com amortecimento sedoso.

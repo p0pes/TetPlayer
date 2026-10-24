@@ -24,6 +24,7 @@ import {
   SettingsService,
   AppSettings,
   VisualizerStyle,
+  AccentTheme,
 } from "../../services/settings";
 import { LocalCacheService } from "../../services/cache";
 import { AuthSession } from "../../types";
@@ -346,7 +347,123 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             {/* ============================================================== */}
             {activeTab === "appearance" && (
               <div className="space-y-6 animate-in fade-in duration-150">
+                {/* Item 3.2: Temas de Cores Customizáveis (Accent Themes & Modo Dark OLED) */}
                 <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Palette className="w-4 h-4 text-red-400" />
+                    Variação de Cores & Tema de Acento
+                  </h3>
+                  <p className="text-xs text-[#8c91a4] mt-1">
+                    Personalize o visual e os detalhes de iluminação do TetPlayer com paletas de acento vibrantes ou o modo OLED preto puro.
+                  </p>
+
+                  <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                    {(
+                      [
+                        {
+                          id: "ruby",
+                          name: "TetPlayer Ruby",
+                          desc: "Vermelho vibrante com carmesim (Padrão)",
+                          color: "#ef4444",
+                          glowColor: "rgba(239, 68, 68, 0.45)",
+                          borderClass: "border-red-500",
+                          activeBg: "bg-red-950/40",
+                        },
+                        {
+                          id: "indigo",
+                          name: "Cyber Indigo",
+                          desc: "Violeta elétrico com neon roxo",
+                          color: "#8b5cf6",
+                          glowColor: "rgba(139, 92, 246, 0.45)",
+                          borderClass: "border-violet-500",
+                          activeBg: "bg-violet-950/40",
+                        },
+                        {
+                          id: "emerald",
+                          name: "Emerald Wave",
+                          desc: "Verde esmeralda analógico",
+                          color: "#10b981",
+                          glowColor: "rgba(16, 185, 129, 0.45)",
+                          borderClass: "border-emerald-500",
+                          activeBg: "bg-emerald-950/40",
+                        },
+                        {
+                          id: "ocean",
+                          name: "Ocean Blue",
+                          desc: "Azul safira e turquesa profundo",
+                          color: "#0ea5e9",
+                          glowColor: "rgba(14, 165, 233, 0.45)",
+                          borderClass: "border-sky-500",
+                          activeBg: "bg-sky-950/40",
+                        },
+                        {
+                          id: "monochrome",
+                          name: "Pure OLED Dark",
+                          desc: "Preto absoluto (#000000) e titânio",
+                          color: "#f4f4f5",
+                          glowColor: "rgba(244, 244, 245, 0.25)",
+                          borderClass: "border-zinc-300",
+                          activeBg: "bg-zinc-900/60",
+                        },
+                      ] as Array<{
+                        id: AccentTheme;
+                        name: string;
+                        desc: string;
+                        color: string;
+                        glowColor: string;
+                        borderClass: string;
+                        activeBg: string;
+                      }>
+                    ).map((theme) => {
+                      const isSelected = settings.accentTheme === theme.id;
+                      return (
+                        <button
+                          key={theme.id}
+                          type="button"
+                          onClick={() => {
+                            updateSetting("accentTheme", theme.id);
+                            if (theme.id === "monochrome") {
+                              updateSetting("auroraGlowIntensity", 0);
+                            }
+                          }}
+                          className={`relative p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between overflow-hidden group ${
+                            isSelected
+                              ? `${theme.activeBg} ${theme.borderClass} shadow-md`
+                              : "bg-[#141724] border-[#202534] hover:border-[#2e3549] text-[#8c91a4] hover:text-white"
+                          }`}
+                          style={{
+                            boxShadow: isSelected ? `0 0 16px ${theme.glowColor}` : undefined,
+                          }}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <span
+                              className="w-4 h-4 rounded-full border border-white/20 shadow-sm shrink-0"
+                              style={{
+                                backgroundColor: theme.color,
+                                boxShadow: `0 0 8px ${theme.glowColor}`,
+                              }}
+                            />
+                            {isSelected && (
+                              <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-white/10 text-white font-mono">
+                                Ativo
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-white group-hover:text-white transition-colors">
+                              {theme.name}
+                            </p>
+                            <p className="text-[10px] text-[#8c91a4] mt-0.5 leading-tight">
+                              {theme.desc}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="border-t border-[#1f2434] pt-5">
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="text-sm font-bold text-white flex items-center gap-2">

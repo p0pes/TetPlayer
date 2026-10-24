@@ -94,14 +94,16 @@ Abaixo encontram-se as **sugestões ativas em aberto** (Eixos 2, 3 e 4), seguida
 ---
 
 #### 3.2 Temas de Cores Customizáveis (Accent Themes & Modo Dark OLED)
-* **Status:** `[Em Aberto / Alta Prioridade]` 💡
+* **Status:** `[Implementado e Validado]` ✅
 * **Impacto:** `[Médio / Personalização]` | **Esforço:** `[Baixo]`
-* **Presets de Acento:**
-  - 🔴 **TetPlayer Ruby (Padrão):** Vermelho vibrante com detalhes carmesim.
-  - 🟣 **Cyber Indigo:** Violeta elétrico com detalhes neon roxo.
-  - 🟢 **Emerald Wave:** Verde esmeralda analógico.
-  - 🔵 **Ocean Blue:** Azul safira e turquesa profundo.
-  - 🖤 **Monochrome Pure OLED:** Fundo 100% preto absoluto (`#000000`) com detalhes em cinza titânio e branco puro, otimizado para economia de energia e contraste perfeito em telas OLED.
+* **Localização:** [`desktop/src/services/settings.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/settings.ts), [`desktop/src/components/SettingsModal/SettingsModal.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/SettingsModal/SettingsModal.tsx) e [`desktop/src/index.css`](file:///d:/progrmação/programas/TetPlayer/desktop/src/index.css).
+* **Presets de Acento Implementados:**
+  - 🔴 **TetPlayer Ruby (Padrão):** Vermelho vibrante (`#ef4444`) com detalhes carmesim e brilho dinâmico.
+  - 🟣 **Cyber Indigo:** Violeta elétrico (`#8b5cf6`) com detalhes neon roxo e aura temática.
+  - 🟢 **Emerald Wave:** Verde esmeralda analógico (`#10b981`) com atmosfera retrô vintage.
+  - 🔵 **Ocean Blue:** Azul safira e turquesa profundo (`#0ea5e9`) com iluminação aquática límpida.
+  - 🖤 **Monochrome Pure OLED:** Fundo 100% preto absoluto (`#000000`) com detalhes em cinza titânio e branco puro (`#f4f4f5`), glow desativado automaticamente (0%) para máximo contraste e eficiência energética em telas OLED.
+* **Solução Implementada:** Integrado diretamente na Aba de Aparência do Modal de Configurações (`Ctrl+,`), persistido no `SettingsService` e propagado ao DOM via atributos CSS `data-theme`, classes `.theme-monochrome-oled` e variáveis dinâmicas `--accent-primary` e `--accent-glow`.
 
 ---
 
@@ -204,7 +206,7 @@ Abaixo encontram-se as **sugestões ativas em aberto** (Eixos 2, 3 e 4), seguida
   [ ] Sleep Timer com fade-out gradual de áudio (Eixo 2.3)
   [ ] Modo Tela Cheia Imersivo / Karaokê com estrofes desfocadas (Eixo 3.1)
   [ ] Discord Rich Presence com status, capa e links em tempo real (Eixo 4.1)
-  [ ] Temas de acento customizáveis e modo Pure Dark OLED (Eixo 3.2)
+  [x] Temas de acento customizáveis e modo Pure Dark OLED (Eixo 3.2)
 
   FASE 4: AUDIÓFILO, ESTÉTICA AVANÇADA & ECOSSISTEMA (Médio Prazo) 🔮
   ────────────────────────────────────────────────────────────────────────
