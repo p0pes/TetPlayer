@@ -31,6 +31,12 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
   onTogglePlayPause,
   scrollRef,
 }: PlaylistDetailViewProps) {
+  const [hasImageError, setHasImageError] = React.useState(false);
+
+  React.useEffect(() => {
+    setHasImageError(false);
+  }, [playlist.id]);
+
   return (
     <div className="space-y-6">
       {/* Botão Voltar */}
@@ -43,16 +49,14 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
       </button>
 
       {/* Header da Playlist */}
-      <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 bg-gradient-to-r from-red-950/40 via-[#1c1826] to-[#12141c] p-6 rounded-2xl border border-red-900/30">
+      <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 bg-gradient-to-r from-[var(--accent-subtle)] via-[#1c1826] to-[#12141c] p-6 rounded-2xl border border-[var(--accent-border)]">
         <div className="w-36 h-36 rounded-xl bg-gradient-to-br from-indigo-600 via-purple-700 to-pink-600 overflow-hidden shrink-0 shadow-2xl flex items-center justify-center">
-          {playlist.artwork_url ? (
+          {playlist.artwork_url && !hasImageError ? (
             <img
               src={upgradeArtworkQuality(playlist.artwork_url)}
               alt={playlist.title}
               referrerPolicy="no-referrer"
-              onError={(e) => {
-                (e.target as HTMLElement).style.display = "none";
-              }}
+              onError={() => setHasImageError(true)}
               className="w-full h-full object-cover"
             />
           ) : (
@@ -61,7 +65,7 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
         </div>
 
         <div className="flex-1 space-y-2 text-center sm:text-left">
-          <span className="text-[11px] font-bold text-red-400 uppercase tracking-wider bg-red-950/80 px-2.5 py-1 rounded-md border border-red-800/40">
+          <span className="text-[11px] font-bold text-[var(--accent-text)] uppercase tracking-wider bg-[var(--accent-subtle)] px-2.5 py-1 rounded-md border border-[var(--accent-border)]">
             Playlist
           </span>
           <h2 className="text-2xl font-extrabold text-white">
@@ -80,7 +84,7 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
             <button
               onClick={onPlayPlaylist}
               disabled={tracks.length === 0}
-              className="bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-xs font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-red-950/50 flex items-center gap-2 transition-all cursor-pointer"
+              className="bg-[var(--accent)] hover:opacity-90 disabled:opacity-50 text-white text-xs font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-[var(--accent-glow)] flex items-center gap-2 transition-all cursor-pointer"
             >
               <Play className="w-4 h-4 fill-current ml-0.5" />
               Tocar Playlist
@@ -93,7 +97,7 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
       <div className="space-y-2">
         {isLoadingTracks && tracks.length === 0 ? (
           <div className="h-48 flex flex-col items-center justify-center gap-2 text-[#71778c]">
-            <Loader2 className="w-6 h-6 animate-spin text-red-500" />
+            <Loader2 className="w-6 h-6 animate-spin text-[var(--accent)]" />
             <p className="text-xs">Carregando músicas da playlist...</p>
           </div>
         ) : tracks.length === 0 ? (

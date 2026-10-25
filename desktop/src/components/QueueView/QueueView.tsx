@@ -108,13 +108,13 @@ export function QueueView() {
       {/* 2. Faixa Atual: Tocando Agora */}
       {currentTrack && (
         <div className="space-y-2">
-          <span className="text-xs font-bold text-red-400 uppercase tracking-wider flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+          <span className="text-xs font-bold text-[var(--accent-text)] uppercase tracking-wider flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-[var(--accent)] animate-ping" />
             Tocando Agora
           </span>
-          <div className="flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-red-950/40 via-[#181a26] to-[#12141c] border border-red-800/40 shadow-lg shadow-red-950/20">
+          <div className="flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-[var(--accent-subtle)] via-[#181a26] to-[#12141c] border border-[var(--accent-border)] shadow-lg shadow-[var(--accent-glow)]">
             <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-12 h-12 rounded-xl bg-[#171a24] overflow-hidden shrink-0 border border-red-500/30">
+              <div className="w-12 h-12 rounded-xl bg-[#171a24] overflow-hidden shrink-0 border border-[var(--accent-border)]">
                 <img
                   src={upgradeArtworkQuality(currentTrack.artwork_url, currentTrack.id)}
                   alt={currentTrack.title}
@@ -127,7 +127,7 @@ export function QueueView() {
                 <p className="text-sm font-bold text-white truncate">
                   {currentTrack.title}
                 </p>
-                <p className="text-xs text-red-300 font-medium truncate">
+                <p className="text-xs text-[var(--accent-text)] font-medium truncate">
                   {currentTrack.artist} {currentTrack.album ? `• ${currentTrack.album}` : ""}
                 </p>
               </div>
@@ -140,7 +140,7 @@ export function QueueView() {
               <button
                 onClick={togglePlayPause}
                 aria-label={isPlaying ? "Pausar música" : "Reproduzir música"}
-                className="w-8 h-8 rounded-full bg-red-600 hover:bg-red-500 text-white flex items-center justify-center transition-all shadow-md shadow-red-950/60 cursor-pointer"
+                className="w-8 h-8 rounded-full bg-[var(--accent)] hover:opacity-90 text-white flex items-center justify-center transition-all shadow-md shadow-[var(--accent-glow)] cursor-pointer"
               >
                 {isPlaying ? (
                   <Pause className="w-3.5 h-3.5 fill-current" />
@@ -168,7 +168,7 @@ export function QueueView() {
               onClick={handleClearUpcomingQueue}
               title="Remover todas as próximas faixas da fila"
               aria-label="Limpar todas as próximas músicas da fila"
-              className="text-[11px] text-[#71778c] hover:text-red-400 font-medium transition-colors cursor-pointer"
+              className="text-[11px] text-[#71778c] hover:text-[var(--accent-text)] font-medium transition-colors cursor-pointer"
             >
               Limpar Próximas
             </button>
@@ -229,9 +229,9 @@ export function QueueView() {
                   onContextMenu={(e) => openContextMenu(e, track)}
                   className={`flex items-center justify-between p-2.5 rounded-xl transition-all cursor-pointer group ${
                     isBeingDragged
-                      ? "opacity-35 scale-[0.98] border-dashed border-red-500/60 bg-[#1e2334]"
+                      ? "opacity-35 scale-[0.98] border-dashed border-[var(--accent)] bg-[#1e2334]"
                       : isDragOver
-                      ? "border-t-2 border-t-red-500 bg-[#1c2030] shadow-lg shadow-red-950/40"
+                      ? "border-t-2 border-t-[var(--accent)] bg-[#1c2030] shadow-lg shadow-[var(--accent-glow)]"
                       : "bg-[#141722]/70 hover:bg-[#1c2030] border border-[#1f2433] hover:border-[#2d3448]"
                   }`}
                 >
@@ -246,7 +246,7 @@ export function QueueView() {
                       <GripVertical className="w-3.5 h-3.5" />
                     </div>
 
-                    <span className="w-4 text-center text-xs font-mono text-[#71778c] group-hover:text-red-400 shrink-0">
+                    <span className="w-4 text-center text-xs font-mono text-[#71778c] group-hover:text-[var(--accent-text)] shrink-0">
                       {relativeIdx + 1}
                     </span>
                     <div className="w-10 h-10 rounded-lg bg-[#1a1d27] overflow-hidden shrink-0 border border-[#232838]">
@@ -259,7 +259,7 @@ export function QueueView() {
                       />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold text-white truncate group-hover:text-red-300">
+                      <p className="text-xs font-semibold text-white truncate group-hover:text-[var(--accent-text)]">
                         {track.title}
                       </p>
                       <p className="text-[11px] text-[#8c91a4] truncate">

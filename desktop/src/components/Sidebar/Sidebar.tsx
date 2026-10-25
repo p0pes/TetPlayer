@@ -209,7 +209,7 @@ export const Sidebar = React.memo(function Sidebar({
             }}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold text-sm transition-all cursor-pointer ${
               activeTab === "library"
-                ? "bg-red-600 text-white shadow-lg shadow-red-950/50"
+                ? "bg-[var(--accent)] text-white shadow-lg shadow-[var(--accent-glow)]"
                 : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
             }`}
           >
@@ -223,7 +223,7 @@ export const Sidebar = React.memo(function Sidebar({
             }}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-medium text-sm transition-all cursor-pointer ${
               activeTab === "search"
-                ? "bg-red-600 text-white shadow-lg shadow-red-950/50"
+                ? "bg-[var(--accent)] text-white shadow-lg shadow-[var(--accent-glow)]"
                 : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
             }`}
           >
@@ -237,7 +237,7 @@ export const Sidebar = React.memo(function Sidebar({
             }}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-medium text-sm transition-all cursor-pointer ${
               activeTab === "stats"
-                ? "bg-red-600 text-white shadow-lg shadow-red-950/50"
+                ? "bg-[var(--accent)] text-white shadow-lg shadow-[var(--accent-glow)]"
                 : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
             }`}
           >
@@ -254,7 +254,7 @@ export const Sidebar = React.memo(function Sidebar({
                 Suas Playlists
               </p>
               {pinnedPlaylists.length > 0 && (
-                <span className="text-[10px] bg-red-950/60 text-red-400 border border-red-900/40 px-1.5 py-0.2 rounded-full font-mono">
+                <span className="text-[10px] bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] px-1.5 py-0.2 rounded-full font-mono">
                   {pinnedPlaylists.length} fixada{pinnedPlaylists.length > 1 ? "s" : ""}
                 </span>
               )}
@@ -264,14 +264,14 @@ export const Sidebar = React.memo(function Sidebar({
               title="Recarregar playlists"
               className="text-[#555a6d] hover:text-white transition-colors cursor-pointer"
             >
-              <RefreshCw className={`w-3 h-3 ${isLoadingPlaylists ? "animate-spin text-red-500" : ""}`} />
+              <RefreshCw className={`w-3 h-3 ${isLoadingPlaylists ? "animate-spin text-[var(--accent)]" : ""}`} />
             </button>
           </div>
 
           <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
             {isLoadingPlaylists && playlists.length === 0 ? (
               <div className="flex items-center gap-2 px-3 py-2 text-xs text-[#555a6d]">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-red-500" />
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--accent)]" />
                 Carregando playlists...
               </div>
             ) : sortedPlaylists.length === 0 ? (
@@ -293,10 +293,10 @@ export const Sidebar = React.memo(function Sidebar({
                       data-pinned-index={idx}
                       className={`group relative px-2.5 py-2 rounded-lg text-xs transition-all flex items-center justify-between gap-1.5 select-none ${
                         isSelected
-                          ? "bg-[#1f2331] text-red-400 font-semibold"
+                          ? "bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] font-semibold"
                           : "text-[#9da3b7] hover:bg-[#1a1d28] hover:text-white"
-                      } ${isBeingDragged ? "opacity-40 scale-[0.98] ring-1 ring-red-500/50 bg-[#221722]" : ""} ${
-                        isTargetOfDrop ? "border-t-2 border-red-500 bg-[#281c25] shadow-[0_-2px_8px_rgba(239,68,68,0.4)]" : ""
+                      } ${isBeingDragged ? "opacity-40 scale-[0.98] ring-1 ring-[var(--accent)] bg-[#221722]" : ""} ${
+                        isTargetOfDrop ? "border-t-2 border-[var(--accent)] bg-[var(--accent-subtle)] shadow-[0_-2px_8px_var(--accent-glow)]" : ""
                       }`}
                     >
                       {/* Grip Handle para Arrastar */}
@@ -316,7 +316,7 @@ export const Sidebar = React.memo(function Sidebar({
                         className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer"
                       >
                         {isLiked ? (
-                          <Flame className="w-3.5 h-3.5 text-red-500 shrink-0 pointer-events-none" />
+                          <Flame className="w-3.5 h-3.5 text-[var(--accent)] shrink-0 pointer-events-none" />
                         ) : (
                           <ListMusic className="w-3.5 h-3.5 text-[#5e6479] shrink-0 pointer-events-none" />
                         )}
@@ -349,7 +349,7 @@ export const Sidebar = React.memo(function Sidebar({
                         <button
                           onClick={(e) => togglePinPlaylist(pl.id, e)}
                           title="Desafixar playlist"
-                          className="p-1 rounded text-red-400 hover:text-red-300 hover:bg-red-950/60 transition-colors cursor-pointer"
+                          className="p-1 rounded text-[var(--accent-text)] hover:text-white hover:bg-[var(--accent-subtle)] transition-colors cursor-pointer"
                         >
                           <Pin className="w-3 h-3 fill-current rotate-45" />
                         </button>
@@ -378,13 +378,13 @@ export const Sidebar = React.memo(function Sidebar({
                       onClick={() => onSelectPlaylist(pl)}
                       className={`group px-2.5 py-2 rounded-lg text-xs transition-colors cursor-pointer flex items-center justify-between gap-1.5 ${
                         isSelected
-                          ? "bg-[#1f2331] text-red-400 font-semibold"
+                          ? "bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] font-semibold"
                           : "text-[#9da3b7] hover:bg-[#1a1d28] hover:text-white"
                       }`}
                     >
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         {isLiked ? (
-                          <Flame className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                          <Flame className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" />
                         ) : (
                           <ListMusic className="w-3.5 h-3.5 text-[#5e6479] shrink-0" />
                         )}
@@ -395,7 +395,7 @@ export const Sidebar = React.memo(function Sidebar({
                         <button
                           onClick={(e) => togglePinPlaylist(pl.id, e)}
                           title="Fixar playlist no topo"
-                          className="opacity-0 group-hover:opacity-100 p-1 rounded text-[#555a6d] hover:text-red-400 hover:bg-[#232838] transition-all cursor-pointer"
+                          className="opacity-0 group-hover:opacity-100 p-1 rounded text-[#555a6d] hover:text-[var(--accent-text)] hover:bg-[#232838] transition-all cursor-pointer"
                         >
                           <Pin className="w-3 h-3" />
                         </button>
@@ -413,7 +413,7 @@ export const Sidebar = React.memo(function Sidebar({
       <div className="pt-3 border-t border-[#1f232e]">
         <div className="bg-[#171a24] p-2.5 rounded-xl border border-[#232836] flex items-center justify-between gap-2.5">
           <div className="flex items-center gap-2 min-w-0">
-            <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-red-600 to-amber-500 flex items-center justify-center font-bold text-xs text-white shrink-0">
+            <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-[var(--accent)] to-[var(--accent-hover)] flex items-center justify-center font-bold text-xs text-white shrink-0">
               P
             </div>
             <div className="overflow-hidden min-w-0">
@@ -447,7 +447,7 @@ export const Sidebar = React.memo(function Sidebar({
               aria-label="Recarregar sessão de cookies"
               className="p-1 rounded-lg hover:bg-[#232836] text-[#8c91a4] hover:text-white transition-colors cursor-pointer shrink-0"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isCheckingAuth ? "animate-spin text-red-400" : ""}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${isCheckingAuth ? "animate-spin text-[var(--accent)]" : ""}`} />
             </button>
           </div>
         </div>

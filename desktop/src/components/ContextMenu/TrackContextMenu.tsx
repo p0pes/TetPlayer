@@ -155,9 +155,9 @@ export function TrackContextMenu({
           type="button"
           role="menuitem"
           onClick={onPlayNext}
-          className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-[#c4c8d8] hover:text-white hover:bg-red-950/40 hover:border-red-800/40 border border-transparent transition-all cursor-pointer group text-left"
+          className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-[#c4c8d8] hover:text-white hover:bg-[var(--accent-subtle)] hover:border-[var(--accent-border)] border border-transparent transition-all cursor-pointer group text-left"
         >
-          <ListPlus className="w-4 h-4 text-red-400 shrink-0 group-hover:scale-110 transition-transform" />
+          <ListPlus className="w-4 h-4 text-[var(--accent-text)] shrink-0 group-hover:scale-110 transition-transform" />
           <span>Tocar a Seguir</span>
         </button>
 
@@ -179,7 +179,7 @@ export function TrackContextMenu({
           onClick={onStartRadio}
           className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-[#c4c8d8] hover:text-white hover:bg-[#1a1e2e] transition-all cursor-pointer group text-left"
         >
-          <Radio className="w-4 h-4 text-[#8c91a4] group-hover:text-red-400 shrink-0 group-hover:scale-110 transition-transform" />
+          <Radio className="w-4 h-4 text-[#8c91a4] group-hover:text-[var(--accent-text)] shrink-0 group-hover:scale-110 transition-transform" />
           <span>Iniciar Rádio desta música</span>
         </button>
 
@@ -221,7 +221,7 @@ export function TrackContextMenu({
 
       {/* Toast Feedback Temporário */}
       {toastMessage && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 text-white text-xs font-bold shadow-2xl shadow-red-950/80 animate-in fade-in slide-in-from-bottom-2 duration-150">
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--accent)] text-white text-xs font-bold shadow-2xl shadow-[var(--accent-glow)] animate-in fade-in slide-in-from-bottom-2 duration-150">
           <Check className="w-4 h-4 shrink-0" />
           <span>{toastMessage}</span>
         </div>

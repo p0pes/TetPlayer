@@ -130,9 +130,9 @@ export const TitleBar = React.memo(function TitleBar({
         data-tauri-drag-region
         className="flex items-center gap-2.5 px-4 w-64 shrink-0 h-full border-r border-[#1f232e]"
       >
-        <div className="w-3 h-3 rounded-full bg-red-600 shadow-[0_0_8px_rgba(239,68,68,0.9)] animate-pulse" />
+        <div className="w-3 h-3 rounded-full bg-[var(--accent)] shadow-[0_0_8px_var(--accent-glow)] animate-pulse" />
         <span className="font-bold text-sm text-white tracking-tight flex items-center gap-1.5 pointer-events-none">
-          TetPlayer <span className="text-[9px] bg-red-950/80 text-red-400 border border-red-800/50 px-1.5 py-0.2 rounded font-medium">Desktop</span>
+          TetPlayer <span className="text-[9px] bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] px-1.5 py-0.2 rounded font-medium">Desktop</span>
         </span>
       </div>
 
@@ -149,7 +149,7 @@ export const TitleBar = React.memo(function TitleBar({
               : "Biblioteca de Playlists"
             : activeTab === "search"
             ? "Busca de Músicas"
-            : "Estatísticas de Reprodução (TetStats)"}
+            : "Estatísticas de Reprodução"}
         </span>
       </div>
 

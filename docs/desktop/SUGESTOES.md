@@ -421,7 +421,7 @@ Abaixo encontram-se a **pesquisa de mercado**, as **24 sugestões ativas em aber
   ────────────────────────────────────────────────────────────────────────
   [x] Reordenação Drag & Drop na fila de reprodução (Eixo 2.1)
   [x] Menu de Contexto em cada faixa com ações rápidas (Eixo 2.2)
-  [x] Temas de acento customizáveis e modo Pure Dark OLED (Eixo 3.2)
+  [x] Temas de acento customizáveis com 8 paletas vibrantes (Eixo 3.2)
   [x] Teclas multimídia globais de mídia e teclado via tauri-plugin-global-shortcut (Eixo 4.4)
   [x] Cartões de compartilhamento social em PNG das estatísticas TetStats (Eixo 4.3)
   [x] Transição suave e crossfade contínuo entre faixas (Eixo 2.4)
@@ -755,7 +755,7 @@ Abaixo encontram-se a **pesquisa de mercado**, as **24 sugestões ativas em aber
 * **Implementação Concluída:**  
   - Criado o painel modal de configurações com design glassmorphic escuro de alto padrão e 5 abas verticais (`Áudio & Fila`, `Aparência & Efeitos`, `Sistema & Atalhos`, `Sessão & Armazenamento` e `Sobre`).
   - **Áudio:** Slider de crossfade suave de 0 a 12s com predefinições, toggle de Autoplay Infinito / Rádio Contínua, Normalização Inteligente de Volume (anti-clipping) e comportamento ao tocar playlists (Substituir vs Anexar).
-  - **Aparência:** Slider de intensidade do Aurora Glow dinâmico com modo OLED Preto Puro (0%), toggle de Motion Cover 3D, seletor de estilo do Visualizador de Espectro (Barras, Onda, Gradiente Neon) e Redução de Movimento para economia de bateria.
+  - **Aparência:** Slider de intensidade do Aurora Glow dinâmico (com opção 0% para desativação completa), toggle de Motion Cover 3D, seletor de estilo do Visualizador de Espectro (Barras, Blocos Hi-Fi, Gradiente Neon, Pulso Central) e Redução de Movimento para economia de bateria.
   - **Sistema:** Controle da ação do botão Fechar `[X]` (minimizar para bandeja vs encerrar aplicação) e catálogo visual dos atalhos de teclado suportados.
   - **Sessão & Cache:** Detalhes da sessão do YouTube Music, forçar re-sincronização, modo anônimo, medição do tamanho do cache e botão de limpeza temporária em 1 clique.
   - **Sobre & Acesso:** Exibição da versão `v0.2.0`, atalho universal `Ctrl + ,` e botão de engrenagem no rodapé da barra lateral.

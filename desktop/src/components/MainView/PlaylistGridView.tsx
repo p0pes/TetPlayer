@@ -29,7 +29,7 @@ export const PlaylistGridView = React.memo(function PlaylistGridView({
 
       {isLoadingPlaylists && playlists.length === 0 ? (
         <div className="h-64 flex flex-col items-center justify-center gap-2 text-[#71778c]">
-          <Loader2 className="w-7 h-7 animate-spin text-red-500" />
+          <Loader2 className="w-7 h-7 animate-spin text-[var(--accent)]" />
           <p className="text-xs">Carregando suas playlists...</p>
         </div>
       ) : (
@@ -56,7 +56,7 @@ export const PlaylistGridView = React.memo(function PlaylistGridView({
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                   ) : isLiked ? (
-                    <Flame className="w-14 h-14 text-red-400" />
+                    <Flame className="w-14 h-14 text-[var(--accent-text)]" />
                   ) : (
                     <ListMusic className="w-12 h-12 text-white/50" />
                   )}
@@ -67,14 +67,14 @@ export const PlaylistGridView = React.memo(function PlaylistGridView({
                     title={isPinned ? "Desafixar playlist" : "Fixar playlist no topo"}
                     className={`absolute top-2.5 right-2.5 w-7 h-7 rounded-full flex items-center justify-center shadow-lg transition-all ${
                       isPinned
-                        ? "bg-red-600 text-white"
+                        ? "bg-[var(--accent)] text-white shadow-md shadow-[var(--accent-glow)]"
                         : "bg-black/60 text-white/70 hover:text-white opacity-0 group-hover:opacity-100 hover:bg-black/80"
                     }`}
                   >
                     <Pin className={`w-3.5 h-3.5 ${isPinned ? "fill-current rotate-45" : ""}`} />
                   </button>
 
-                  <div className="absolute bottom-2.5 right-2.5 w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center shadow-xl opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0">
+                  <div className="absolute bottom-2.5 right-2.5 w-10 h-10 rounded-full bg-[var(--accent)] text-white flex items-center justify-center shadow-xl shadow-[var(--accent-glow)] opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0">
                     <Play className="w-4 h-4 fill-current ml-0.5" />
                   </div>
                 </div>
@@ -82,11 +82,11 @@ export const PlaylistGridView = React.memo(function PlaylistGridView({
                 <div>
                   <div className="flex items-center gap-1.5">
                     {isPinned && (
-                      <span className="text-[10px] text-red-400 font-bold uppercase tracking-wider shrink-0 bg-red-950/80 px-1.5 py-0.2 rounded border border-red-800/40">
+                      <span className="text-[10px] text-[var(--accent-text)] font-bold uppercase tracking-wider shrink-0 bg-[var(--accent-subtle)] px-1.5 py-0.2 rounded border border-[var(--accent-border)]">
                         Fixada
                       </span>
                     )}
-                    <h4 className="text-sm font-semibold text-white truncate group-hover:text-red-400 transition-colors">
+                    <h4 className="text-sm font-semibold text-white truncate group-hover:text-[var(--accent-text)] transition-colors">
                       {pl.title}
                     </h4>
                   </div>

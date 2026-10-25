@@ -18,8 +18,8 @@ Combinando um backend compilado nativo em **Rust** com o motor de interface acel
 ### 🎨 Experiência Visual & Design System
 * **Dynamic Aurora Glow:** Fundo atmosférico tridimensional gerado via CSS `@property` interpolando suavemente em 60/144 FPS as paletas de cores da arte do álbum.
 * **Capas Animadas 3D (Motion Cover estilo Apple Music):** Efeito cinemático com perspectiva tridimensional reativa ao mouse, feixe de luz especular contínuo e retorno com curva de amortecimento sedosa (`cubic-bezier`).
-* **Visualizador de Espectro Harmônico:** Barras e ondas harmônicas aceleradas na GPU com `transform: scaleY`, sem causar *layout reflow*.
-* **5 Temas de Cores Customizáveis:** TetPlayer Ruby, Cyber Indigo, Emerald Wave, Ocean Blue e Modo **Monochrome Pure OLED** (100% preto absoluto com 0% glow para economia energética em telas OLED).
+* **Visualizador de Espectro Harmônico:** 4 estilos visuais selecionáveis (Barras de Estúdio, Blocos Hi-Fi em matriz de LEDs segmentados, Gradiente Neon e Pulso Central).
+* **8 Temas de Cores Vibrantes:** TetPlayer Ruby, Neon Rose, Solar Gold, Sunset Orange, Cyber Lime, Emerald Wave, Ocean Blue e Cyber Indigo.
 
 ### ⚡ Performance & Arquitetura de Ponta
 * **Virtualização de Listas de Alta Frequência:** Integração com `@tanstack/react-virtual` para rolagem fluida travada a **144 FPS** mesmo em bibliotecas com milhares de faixas.

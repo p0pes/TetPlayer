@@ -26,7 +26,7 @@ export function NowPlayingDrawer() {
       <div className="h-14 px-3 sm:px-4 md:px-6 border-b border-[#1f232e] flex items-center justify-between gap-2 sm:gap-4 shrink-0 bg-[#0e1017]/80 backdrop-blur-md z-20">
         {/* Esquerda: Identificador da faixa atual */}
         <div className="flex items-center gap-2 sm:gap-3 w-[28%] min-w-0 max-w-[260px]">
-          <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider bg-red-950/80 border border-red-800/40 px-2 py-0.5 rounded-md hidden xl:inline-block shrink-0">
+          <span className="text-[10px] font-bold text-[var(--accent-text)] uppercase tracking-wider bg-[var(--accent-subtle)] border border-[var(--accent-border)] px-2 py-0.5 rounded-md hidden xl:inline-block shrink-0">
             Reproduzindo Agora
           </span>
           <div className="min-w-0 flex-1">
@@ -54,7 +54,7 @@ export function NowPlayingDrawer() {
               onClick={() => setNowPlayingTab("queue")}
               className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 h-8 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 nowPlayingTab === "queue"
-                  ? "bg-red-600 text-white shadow-md shadow-red-950/70"
+                  ? "bg-[var(--accent)] text-white shadow-md shadow-[var(--accent-glow)]"
                   : "text-[#8c91a4] hover:text-white hover:bg-[#1a1e2c]"
               }`}
             >
@@ -78,7 +78,7 @@ export function NowPlayingDrawer() {
               onClick={() => setNowPlayingTab("lyrics")}
               className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 h-8 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 nowPlayingTab === "lyrics"
-                  ? "bg-red-600 text-white shadow-md shadow-red-950/70"
+                  ? "bg-[var(--accent)] text-white shadow-md shadow-[var(--accent-glow)]"
                   : "text-[#8c91a4] hover:text-white hover:bg-[#1a1e2c]"
               }`}
             >
@@ -93,14 +93,14 @@ export function NowPlayingDrawer() {
           <button
             type="button"
             onClick={cycleCrossfade}
-            title="Alternar Transição Suave (Crossfade: Desligado / 2s / 3s / 5s)"
+            title="Alternar Transição Suave (Crossfade: Desligado / 2s / 3s / 5s / 8s / 12s)"
             className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 h-8 rounded-xl text-xs font-medium border transition-all cursor-pointer whitespace-nowrap shrink-0 ${
               crossfadeSeconds > 0
-                ? "bg-red-950/60 border-red-800/60 text-red-300 shadow-sm"
+                ? "bg-[var(--accent-subtle)] border border-[var(--accent-border)] text-[var(--accent-text)] shadow-sm"
                 : "bg-[#141722] border-[#232735] text-[#8c91a4] hover:text-white"
             }`}
           >
-            <Sliders className="w-3.5 h-3.5 text-red-400 shrink-0" />
+            <Sliders className="w-3.5 h-3.5 text-[var(--accent-text)] shrink-0" />
             <span className="hidden lg:inline">Crossfade:</span>
             <span className="font-mono">{crossfadeSeconds > 0 ? `${crossfadeSeconds}s` : "Off"}</span>
           </button>
@@ -131,7 +131,7 @@ export function NowPlayingDrawer() {
             <h2 className="text-lg sm:text-xl font-extrabold text-white tracking-tight truncate drop-shadow-md">
               {currentTrack?.title || "Nenhuma faixa selecionada"}
             </h2>
-            <p className="text-sm font-semibold text-red-400 mt-1 truncate">
+            <p className="text-sm font-semibold text-[var(--accent-text)] mt-1 truncate">
               {currentTrack?.artist || "TetPlayer"}
             </p>
             {currentTrack?.album && (
@@ -146,7 +146,7 @@ export function NowPlayingDrawer() {
                 {currentTrack?.duration || "Streaming HD"}
               </span>
               {crossfadeSeconds > 0 && (
-                <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-red-950/70 border border-red-800/40 text-red-300">
+                <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-[var(--accent-subtle)] border border-[var(--accent-border)] text-[var(--accent-text)]">
                   Crossfade {crossfadeSeconds}s
                 </span>
               )}

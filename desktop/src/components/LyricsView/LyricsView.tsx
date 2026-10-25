@@ -34,8 +34,8 @@ export function LyricsView() {
           Letra da Música
         </span>
         {lyricsData?.synced ? (
-          <span className="flex items-center gap-1.5 text-xs bg-red-950/70 text-red-300 border border-red-800/60 px-3 py-0.5 rounded-full font-medium shadow-sm">
-            <Sparkles className="w-3.5 h-3.5 text-red-400 animate-pulse" />
+          <span className="flex items-center gap-1.5 text-xs bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] px-3 py-0.5 rounded-full font-medium shadow-sm">
+            <Sparkles className="w-3.5 h-3.5 text-[var(--accent-text)] animate-pulse" />
             Sincronizada ({lyricsData.source})
           </span>
         ) : lyricsData?.plain ? (
@@ -53,7 +53,7 @@ export function LyricsView() {
       >
         {isLoadingLyrics ? (
           <div className="h-64 flex flex-col items-center justify-center gap-3 text-[#71778c]">
-            <Loader2 className="w-8 h-8 animate-spin text-red-500" />
+            <Loader2 className="w-8 h-8 animate-spin text-[var(--accent)]" />
             <p className="text-sm font-medium">Buscando letra sincronizada...</p>
           </div>
         ) : lyricsError || (!lyricsData?.synced && !lyricsData?.plain) ? (
@@ -102,9 +102,9 @@ export function LyricsView() {
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20">
           <button
             onClick={handleRecenterLyrics}
-            className="flex items-center gap-2 px-4 py-2 rounded-full bg-red-600/95 hover:bg-red-500 text-white text-xs font-semibold shadow-xl shadow-red-950/70 border border-red-400/30 backdrop-blur-md transition-all active:scale-95 cursor-pointer animate-pulse"
+            className="flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--accent)] hover:opacity-90 text-white text-xs font-semibold shadow-xl shadow-[var(--accent-glow)] border border-[var(--accent-border)] backdrop-blur-md transition-all active:scale-95 cursor-pointer animate-pulse"
           >
-            <Sparkles className="w-3.5 h-3.5 text-red-200" />
+            <Sparkles className="w-3.5 h-3.5 text-white" />
             <span>Sincronizar com o áudio</span>
           </button>
         </div>

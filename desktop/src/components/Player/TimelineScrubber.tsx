@@ -1,4 +1,4 @@
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useState, useRef } from "react";
 import { usePlaybackProgress } from "../../context/PlayerContext";
 import { formatTime } from "../../hooks/useLyrics";
 
@@ -20,25 +20,40 @@ export const TimelineScrubber = memo(function TimelineScrubber({
   const [isDragging, setIsDragging] = useState(false);
   const [dragValue, setDragValue] = useState(0);
 
+  const isDraggingRef = useRef(false);
+  const dragValueRef = useRef(0);
+
   const displayTime = isDragging ? dragValue : currentTime;
 
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = parseFloat(e.target.value);
+      dragValueRef.current = val;
       setDragValue(val);
-      onSeek(val);
+
+      // Se a alteração não for proveniente de arrasto contínuo (ex: navegação por teclado),
+      // despacha o seek imediatamente
+      if (!isDraggingRef.current) {
+        onSeek(val);
+      }
     },
     [onSeek]
   );
 
   const handlePointerDown = useCallback(() => {
+    isDraggingRef.current = true;
+    dragValueRef.current = currentTime;
     setIsDragging(true);
     setDragValue(currentTime);
   }, [currentTime]);
 
   const handlePointerUp = useCallback(() => {
-    setIsDragging(false);
-  }, []);
+    if (isDraggingRef.current) {
+      isDraggingRef.current = false;
+      setIsDragging(false);
+      onSeek(dragValueRef.current);
+    }
+  }, [onSeek]);
 
   return (
     <div
@@ -60,7 +75,7 @@ export const TimelineScrubber = memo(function TimelineScrubber({
         disabled={disabled}
         aria-label="Posição da música na linha do tempo"
         data-testid="scrubber-range-input"
-        className="flex-1 h-1 bg-[#232733] rounded-full accent-red-500 cursor-pointer disabled:cursor-not-allowed"
+        className="flex-1 h-1 bg-[#232733] rounded-full accent-[var(--accent)] cursor-pointer disabled:cursor-not-allowed"
       />
       <span data-testid="scrubber-duration" className="w-8 text-left">
         {formatTime(duration)}
@@ -68,3 +83,4 @@ export const TimelineScrubber = memo(function TimelineScrubber({
     </div>
   );
 });
+

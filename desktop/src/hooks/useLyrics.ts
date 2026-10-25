@@ -3,14 +3,43 @@ import { invoke } from "@tauri-apps/api/core";
 import { Track, LyricsData, LyricLine } from "../types";
 import { retryWithBackoff } from "../services/network";
 
-const globalLyricsCache: Record<string, LyricsData> = {};
+export const MAX_LYRICS_CACHE_ENTRIES = 80;
+const globalLyricsCache = new Map<string, LyricsData>();
+
+export function getCachedLyrics(trackId: string): LyricsData | undefined {
+  const item = globalLyricsCache.get(trackId);
+  if (item) {
+    // Reinsere para manter a ordem de acesso mais recente (LRU)
+    globalLyricsCache.delete(trackId);
+    globalLyricsCache.set(trackId, item);
+  }
+  return item;
+}
+
+export function setCachedLyrics(trackId: string, data: LyricsData): void {
+  if (globalLyricsCache.has(trackId)) {
+    globalLyricsCache.delete(trackId);
+  } else if (globalLyricsCache.size >= MAX_LYRICS_CACHE_ENTRIES) {
+    // Evicção da entrada mais antiga (FIFO / LRU)
+    const oldestKey = globalLyricsCache.keys().next().value;
+    if (oldestKey) {
+      globalLyricsCache.delete(oldestKey);
+    }
+  }
+  globalLyricsCache.set(trackId, data);
+}
+
+export function clearLyricsCache(): void {
+  globalLyricsCache.clear();
+}
 
 /**
  * Pré-carregamento assíncrono antecipado de letras para próxima faixa (Gapless)
  */
 export async function prefetchTrackLyrics(track: Track): Promise<LyricsData | null> {
   if (!track || !track.id) return null;
-  if (globalLyricsCache[track.id]) return globalLyricsCache[track.id];
+  const cached = getCachedLyrics(track.id);
+  if (cached) return cached;
 
   try {
     const data = await retryWithBackoff(() =>
@@ -20,7 +49,7 @@ export async function prefetchTrackLyrics(track: Track): Promise<LyricsData | nu
         videoId: track.id,
       })
     );
-    globalLyricsCache[track.id] = data;
+    setCachedLyrics(track.id, data);
     return data;
   } catch {
     return null;
@@ -97,8 +126,8 @@ export function useLyrics({
     }
 
     const trackId = currentTrack.id;
-    if (globalLyricsCache[trackId]) {
-      const cached = globalLyricsCache[trackId];
+    const cached = getCachedLyrics(trackId);
+    if (cached) {
       setLyricsData(cached);
       if (cached.synced) {
         setParsedLyrics(parseLrc(cached.synced));
@@ -122,7 +151,7 @@ export function useLyrics({
     )
       .then((data) => {
         if (!isMounted) return;
-        globalLyricsCache[trackId] = data;
+        setCachedLyrics(trackId, data);
         setLyricsData(data);
         if (data.synced) {
           const parsed = parseLrc(data.synced);
@@ -222,7 +251,8 @@ export function useLyrics({
           top: Math.max(0, targetScroll),
           behavior: "smooth",
         });
-        setTimeout(() => {
+        if (programmaticScrollTimeoutRef.current) window.clearTimeout(programmaticScrollTimeoutRef.current);
+        programmaticScrollTimeoutRef.current = window.setTimeout(() => {
           isProgrammaticScrollRef.current = false;
         }, 700);
       }
@@ -242,7 +272,8 @@ export function useLyrics({
         top: Math.max(0, targetScroll),
         behavior: "smooth",
       });
-      setTimeout(() => {
+      if (programmaticScrollTimeoutRef.current) window.clearTimeout(programmaticScrollTimeoutRef.current);
+      programmaticScrollTimeoutRef.current = window.setTimeout(() => {
         isProgrammaticScrollRef.current = false;
       }, 700);
     }

@@ -132,6 +132,7 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Track[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
 
   // Playlists Fixadas
   const [pinnedPlaylistIds, setPinnedPlaylistIds] = useState<string[]>(() => {
@@ -216,6 +217,7 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
         setSearchQuery(artist);
         setActiveTab("search");
         setIsSearching(true);
+        setHasSearched(true);
         invoke<Track[]>("search_tracks", { query: artist })
           .then((res) => setSearchResults(res))
           .catch((err) => setErrorMessage(`Erro na busca: ${String(err)}`))
@@ -306,6 +308,7 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
     if (!searchQuery.trim()) return;
 
     setIsSearching(true);
+    setHasSearched(true);
     setActiveTab("search");
     setErrorMessage(null);
     try {
@@ -502,7 +505,13 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
               {activeTab === "search" && (
                 <SearchView
                   searchQuery={searchQuery}
-                  setSearchQuery={setSearchQuery}
+                  setSearchQuery={(q) => {
+                    setSearchQuery(q);
+                    if (!q.trim()) {
+                      setSearchResults([]);
+                      setHasSearched(false);
+                    }
+                  }}
                   onSearch={handleSearch}
                   isSearching={isSearching}
                   searchResults={searchResults}
@@ -514,6 +523,7 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
                   }
                   onTogglePlayPause={togglePlayPause}
                   scrollRef={mainScrollRef}
+                  hasSearched={hasSearched}
                 />
               )}
 

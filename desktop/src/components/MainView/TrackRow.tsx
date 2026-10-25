@@ -52,7 +52,7 @@ export const TrackRow = React.memo(function TrackRow({
       onContextMenu={handleContextMenu}
       className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer group ${
         isCurrent
-          ? "bg-[#1c202d] border-red-500/50"
+          ? "bg-[#1c202d] border-[var(--accent)]"
           : "bg-[#12141c] border-[#1f232e] hover:bg-[#171a24] hover:border-[#2b3040]"
       }`}
     >
@@ -78,14 +78,14 @@ export const TrackRow = React.memo(function TrackRow({
           )}
           {isLoadingThis && (
             <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-              <Loader2 className="w-4 h-4 animate-spin text-red-500" />
+              <Loader2 className="w-4 h-4 animate-spin text-[var(--accent)]" />
             </div>
           )}
         </div>
 
         {/* Info */}
         <div className="min-w-0 flex-1">
-          <p className={`text-sm font-semibold truncate ${isCurrent ? "text-red-400" : "text-white"}`}>
+          <p className={`text-sm font-semibold truncate ${isCurrent ? "text-[var(--accent-text)]" : "text-white"}`}>
             {track.title}
           </p>
           <p className="text-xs text-[#8c91a4] truncate">
@@ -117,8 +117,8 @@ export const TrackRow = React.memo(function TrackRow({
           aria-label={isCurrent && isPlaying ? `Pausar ${track.title}` : `Tocar ${track.title}`}
           className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${
             isCurrent && isPlaying
-              ? "bg-red-600 text-white shadow-md shadow-red-950/60"
-              : "bg-[#1a1d28] text-white group-hover:bg-red-600"
+              ? "bg-[var(--accent)] text-white shadow-md shadow-[var(--accent-glow)]"
+              : "bg-[#1a1d28] text-white group-hover:bg-[var(--accent)]"
           }`}
         >
           {isLoadingThis ? (

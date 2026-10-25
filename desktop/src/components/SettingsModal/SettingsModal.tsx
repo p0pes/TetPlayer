@@ -28,6 +28,7 @@ import {
 } from "../../services/settings";
 import { LocalCacheService } from "../../services/cache";
 import { AuthSession } from "../../types";
+import { SpectrumVisualizer } from "../Visualizer/SpectrumVisualizer";
 
 export type SettingsTabId = "audio" | "appearance" | "system" | "storage" | "about";
 
@@ -114,7 +115,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         {/* Cabeçalho do Modal */}
         <div className="h-14 px-6 border-b border-[#1f2434] flex items-center justify-between shrink-0 bg-[#111420]/80">
           <div className="flex items-center gap-2.5">
-            <SlidersHorizontal className="w-5 h-5 text-red-500" />
+            <SlidersHorizontal className="w-5 h-5 text-[var(--accent)]" />
             <h2 id="settings-modal-title" className="text-base font-bold text-white tracking-tight">
               Configurações do TetPlayer
             </h2>
@@ -137,7 +138,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               onClick={() => setActiveTab("audio")}
               className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer text-left ${
                 activeTab === "audio"
-                  ? "bg-red-600 text-white shadow-md shadow-red-950/60"
+                  ? "bg-[var(--accent)] text-white shadow-md shadow-[var(--accent-subtle)]"
                   : "text-[#8c91a4] hover:text-white hover:bg-[#171a26]"
               }`}
             >
@@ -150,7 +151,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               onClick={() => setActiveTab("appearance")}
               className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer text-left ${
                 activeTab === "appearance"
-                  ? "bg-red-600 text-white shadow-md shadow-red-950/60"
+                  ? "bg-[var(--accent)] text-white shadow-md shadow-[var(--accent-subtle)]"
                   : "text-[#8c91a4] hover:text-white hover:bg-[#171a26]"
               }`}
             >
@@ -163,7 +164,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               onClick={() => setActiveTab("system")}
               className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer text-left ${
                 activeTab === "system"
-                  ? "bg-red-600 text-white shadow-md shadow-red-950/60"
+                  ? "bg-[var(--accent)] text-white shadow-md shadow-[var(--accent-subtle)]"
                   : "text-[#8c91a4] hover:text-white hover:bg-[#171a26]"
               }`}
             >
@@ -176,7 +177,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               onClick={() => setActiveTab("storage")}
               className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer text-left ${
                 activeTab === "storage"
-                  ? "bg-red-600 text-white shadow-md shadow-red-950/60"
+                  ? "bg-[var(--accent)] text-white shadow-md shadow-[var(--accent-subtle)]"
                   : "text-[#8c91a4] hover:text-white hover:bg-[#171a26]"
               }`}
             >
@@ -191,7 +192,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               onClick={() => setActiveTab("about")}
               className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer text-left ${
                 activeTab === "about"
-                  ? "bg-red-600 text-white shadow-md shadow-red-950/60"
+                  ? "bg-[var(--accent)] text-white shadow-md shadow-[var(--accent-subtle)]"
                   : "text-[#8c91a4] hover:text-white hover:bg-[#171a26]"
               }`}
             >
@@ -209,7 +210,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="space-y-6 animate-in fade-in duration-150">
                 <div>
                   <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <Sliders className="w-4 h-4 text-red-400" />
+                    <Sliders className="w-4 h-4 text-[var(--accent-text)]" />
                     Transição Suave (Crossfade)
                   </h3>
                   <p className="text-xs text-[#8c91a4] mt-1">
@@ -225,9 +226,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       step={1}
                       value={settings.crossfadeSeconds}
                       onChange={(e) => updateSetting("crossfadeSeconds", parseInt(e.target.value, 10))}
-                      className="flex-1 h-1.5 bg-[#1f2436] rounded-full accent-red-500 cursor-pointer"
+                      className="flex-1 h-1.5 bg-[#1f2436] rounded-full accent-[var(--accent)] cursor-pointer"
                     />
-                    <span className="font-mono text-xs font-bold px-2.5 py-1 rounded-lg bg-[#141724] border border-[#23283a] text-red-400 min-w-[70px] text-center">
+                    <span className="font-mono text-xs font-bold px-2.5 py-1 rounded-lg bg-[var(--accent-subtle)] border border-[var(--accent-border)] text-[var(--accent-text)] min-w-[70px] text-center">
                       {settings.crossfadeSeconds === 0 ? "Desligado" : `${settings.crossfadeSeconds}s`}
                     </span>
                   </div>
@@ -241,7 +242,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         onClick={() => updateSetting("crossfadeSeconds", sec)}
                         className={`text-[11px] px-2.5 py-1 rounded-lg border font-mono transition-all cursor-pointer ${
                           settings.crossfadeSeconds === sec
-                            ? "bg-red-950/80 border-red-700 text-white font-bold"
+                            ? "bg-[var(--accent-subtle)] border-[var(--accent)] text-white font-bold shadow-sm"
                             : "bg-[#141724] border-[#202534] text-[#8c91a4] hover:text-white"
                         }`}
                       >
@@ -255,7 +256,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                        <Radio className="w-4 h-4 text-red-400" />
+                        <Radio className="w-4 h-4 text-[var(--accent-text)]" />
                         Autoplay Infinito & Rádio Contínua
                       </h3>
                       <p className="text-xs text-[#8c91a4] mt-1">
@@ -270,7 +271,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         onChange={(e) => updateSetting("isAutoplayRadio", e.target.checked)}
                         className="sr-only peer"
                       />
-                      <div className="w-11 h-6 bg-[#1f2436] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600" />
+                      <div className="w-11 h-6 bg-[#1f2436] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--accent)]" />
                     </label>
                   </div>
                 </div>
@@ -279,7 +280,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                        <Activity className="w-4 h-4 text-red-400" />
+                        <Activity className="w-4 h-4 text-[var(--accent-text)]" />
                         Normalização de Volume (ReplayGain)
                       </h3>
                       <p className="text-xs text-[#8c91a4] mt-1">
@@ -294,14 +295,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         onChange={(e) => updateSetting("normalizeVolume", e.target.checked)}
                         className="sr-only peer"
                       />
-                      <div className="w-11 h-6 bg-[#1f2436] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600" />
+                      <div className="w-11 h-6 bg-[#1f2436] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--accent)]" />
                     </label>
                   </div>
                 </div>
 
                 <div className="border-t border-[#1f2434] pt-5">
                   <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-red-400" />
+                    <Layers className="w-4 h-4 text-[var(--accent-text)]" />
                     Ao Reproduzir uma Playlist
                   </h3>
                   <p className="text-xs text-[#8c91a4] mt-1">
@@ -313,7 +314,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       onClick={() => updateSetting("playlistEnqueueMode", "replace")}
                       className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
                         settings.playlistEnqueueMode === "replace"
-                          ? "bg-red-950/40 border-red-700 text-white shadow-sm"
+                          ? "bg-[var(--accent-subtle)] border-[var(--accent)] text-white shadow-sm"
                           : "bg-[#141724] border-[#202534] text-[#8c91a4] hover:text-white"
                       }`}
                     >
@@ -328,7 +329,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       onClick={() => updateSetting("playlistEnqueueMode", "append")}
                       className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
                         settings.playlistEnqueueMode === "append"
-                          ? "bg-red-950/40 border-red-700 text-white shadow-sm"
+                          ? "bg-[var(--accent-subtle)] border-[var(--accent)] text-white shadow-sm"
                           : "bg-[#141724] border-[#202534] text-[#8c91a4] hover:text-white"
                       }`}
                     >
@@ -347,63 +348,90 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             {/* ============================================================== */}
             {activeTab === "appearance" && (
               <div className="space-y-6 animate-in fade-in duration-150">
-                {/* Item 3.2: Temas de Cores Customizáveis (Accent Themes & Modo Dark OLED) */}
+                {/* Item 3.2: Temas de Cores Customizáveis (Accent Themes) */}
                 <div>
                   <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <Palette className="w-4 h-4 text-red-400" />
+                    <Palette className="w-4 h-4 text-[var(--accent-text)]" />
                     Variação de Cores & Tema de Acento
                   </h3>
                   <p className="text-xs text-[#8c91a4] mt-1">
-                    Personalize o visual e os detalhes de iluminação do TetPlayer com paletas de acento vibrantes ou o modo OLED preto puro.
+                    Personalize o visual e todos os detalhes do TetPlayer com paletas vibrantes e distintas.
                   </p>
 
-                  <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                     {(
                       [
                         {
                           id: "ruby",
                           name: "TetPlayer Ruby",
-                          desc: "Vermelho vibrante com carmesim (Padrão)",
+                          desc: "Vermelho vibrante clássico",
                           color: "#ef4444",
                           glowColor: "rgba(239, 68, 68, 0.45)",
                           borderClass: "border-red-500",
                           activeBg: "bg-red-950/40",
                         },
                         {
-                          id: "indigo",
-                          name: "Cyber Indigo",
-                          desc: "Violeta elétrico com neon roxo",
-                          color: "#8b5cf6",
-                          glowColor: "rgba(139, 92, 246, 0.45)",
-                          borderClass: "border-violet-500",
-                          activeBg: "bg-violet-950/40",
+                          id: "rose",
+                          name: "Neon Rose",
+                          desc: "Rosa choque com magenta",
+                          color: "#ec4899",
+                          glowColor: "rgba(236, 72, 153, 0.45)",
+                          borderClass: "border-pink-500",
+                          activeBg: "bg-pink-950/40",
+                        },
+                        {
+                          id: "amber",
+                          name: "Solar Gold",
+                          desc: "Amarelo solar e âmbar",
+                          color: "#f59e0b",
+                          glowColor: "rgba(245, 158, 11, 0.45)",
+                          borderClass: "border-amber-500",
+                          activeBg: "bg-amber-950/40",
+                        },
+                        {
+                          id: "sunset",
+                          name: "Sunset Orange",
+                          desc: "Laranja vibrante do entardecer",
+                          color: "#f97316",
+                          glowColor: "rgba(249, 115, 22, 0.45)",
+                          borderClass: "border-orange-500",
+                          activeBg: "bg-orange-950/40",
+                        },
+                        {
+                          id: "lime",
+                          name: "Cyber Lime",
+                          desc: "Verde limão elétrico e ácido",
+                          color: "#84cc16",
+                          glowColor: "rgba(132, 204, 22, 0.45)",
+                          borderClass: "border-lime-500",
+                          activeBg: "bg-lime-950/40",
                         },
                         {
                           id: "emerald",
                           name: "Emerald Wave",
-                          desc: "Verde esmeralda analógico",
+                          desc: "Verde esmeralda bio",
                           color: "#10b981",
                           glowColor: "rgba(16, 185, 129, 0.45)",
                           borderClass: "border-emerald-500",
                           activeBg: "bg-emerald-950/40",
                         },
                         {
+                          id: "indigo",
+                          name: "Cyber Indigo",
+                          desc: "Violeta elétrico e neon",
+                          color: "#8b5cf6",
+                          glowColor: "rgba(139, 92, 246, 0.45)",
+                          borderClass: "border-violet-500",
+                          activeBg: "bg-violet-950/40",
+                        },
+                        {
                           id: "ocean",
                           name: "Ocean Blue",
-                          desc: "Azul safira e turquesa profundo",
+                          desc: "Azul safira e turquesa",
                           color: "#0ea5e9",
                           glowColor: "rgba(14, 165, 233, 0.45)",
                           borderClass: "border-sky-500",
                           activeBg: "bg-sky-950/40",
-                        },
-                        {
-                          id: "monochrome",
-                          name: "Pure OLED Dark",
-                          desc: "Preto absoluto (#000000) e titânio",
-                          color: "#f4f4f5",
-                          glowColor: "rgba(244, 244, 245, 0.25)",
-                          borderClass: "border-zinc-300",
-                          activeBg: "bg-zinc-900/60",
                         },
                       ] as Array<{
                         id: AccentTheme;
@@ -422,9 +450,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           type="button"
                           onClick={() => {
                             updateSetting("accentTheme", theme.id);
-                            if (theme.id === "monochrome") {
-                              updateSetting("auroraGlowIntensity", 0);
-                            }
                           }}
                           className={`relative p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between overflow-hidden group ${
                             isSelected
@@ -467,12 +492,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-red-400" />
+                        <Sparkles className="w-4 h-4 text-[var(--accent-text)]" />
                         Intensidade do Aurora Glow Dinâmico
                       </h3>
                       <p className="text-xs text-[#8c91a4] mt-1">
                         Controla a luminosidade das auras difusas no fundo sincronizadas com a capa do álbum.
-                        Em 0%, o app opera no modo OLED Preto Puro.
+                        Em 0%, desativa o efeito difuso para visual ultra limpo e economia de GPU.
                       </p>
                     </div>
                   </div>
@@ -485,10 +510,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       step={5}
                       value={settings.auroraGlowIntensity}
                       onChange={(e) => updateSetting("auroraGlowIntensity", parseInt(e.target.value, 10))}
-                      className="flex-1 h-1.5 bg-[#1f2436] rounded-full accent-red-500 cursor-pointer"
+                      className="flex-1 h-1.5 bg-[#1f2436] rounded-full accent-[var(--accent)] cursor-pointer"
                     />
-                    <span className="font-mono text-xs font-bold px-2.5 py-1 rounded-lg bg-[#141724] border border-[#23283a] text-red-400 min-w-[65px] text-center">
-                      {settings.auroraGlowIntensity === 0 ? "OLED (0%)" : `${settings.auroraGlowIntensity}%`}
+                    <span className="font-mono text-xs font-bold px-2.5 py-1 rounded-lg bg-[var(--accent-subtle)] border border-[var(--accent-border)] text-[var(--accent-text)] min-w-[65px] text-center">
+                      {settings.auroraGlowIntensity === 0 ? "Mínimo (0%)" : `${settings.auroraGlowIntensity}%`}
                     </span>
                   </div>
                 </div>
@@ -497,7 +522,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                        <Flame className="w-4 h-4 text-red-400" />
+                        <Flame className="w-4 h-4 text-[var(--accent-text)]" />
                         Capas Animadas 3D (Motion Cover)
                       </h3>
                       <p className="text-xs text-[#8c91a4] mt-1">
@@ -512,38 +537,48 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         onChange={(e) => updateSetting("motionCoverEnabled", e.target.checked)}
                         className="sr-only peer"
                       />
-                      <div className="w-11 h-6 bg-[#1f2436] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600" />
+                      <div className="w-11 h-6 bg-[#1f2436] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--accent)]" />
                     </label>
                   </div>
                 </div>
 
                 <div className="border-t border-[#1f2434] pt-5">
                   <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-red-400" />
+                    <Activity className="w-4 h-4 text-[var(--accent-text)]" />
                     Estilo do Visualizador de Espectro
                   </h3>
                   <p className="text-xs text-[#8c91a4] mt-1">
-                    Escolha a renderização gráfica do equalizador de áudio na gaveta de reprodução.
+                    Escolha a renderização gráfica do equalizador de áudio na gaveta de reprodução (cores sincronizadas com seu tema).
                   </p>
 
-                  <div className="mt-3 grid grid-cols-3 gap-2.5">
+                  <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                     {[
                       { id: "bars", label: "Barras de Estúdio", desc: "Clássico vertical com reflexo espelhado" },
-                      { id: "wave", label: "Onda Harmônica", desc: "Forma de onda contínua e suave" },
+                      { id: "blocks", label: "Blocos Hi-Fi", desc: "LEDs segmentados estilo receiver vintage" },
                       { id: "gradient", label: "Gradiente Neon", desc: "Transição vibrante de cores aurora" },
+                      { id: "pulse", label: "Pulso Central", desc: "Expansão simétrica a partir do centro" },
                     ].map((item) => (
                       <button
                         key={item.id}
                         type="button"
                         onClick={() => updateSetting("visualizerStyle", item.id as VisualizerStyle)}
-                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between overflow-hidden group ${
                           settings.visualizerStyle === item.id
-                            ? "bg-red-950/40 border-red-700 text-white shadow-sm"
+                            ? "bg-[var(--accent-subtle)] border-[var(--accent)] text-white shadow-sm"
                             : "bg-[#141724] border-[#202534] text-[#8c91a4] hover:text-white"
                         }`}
                       >
-                        <p className="text-xs font-bold text-white">{item.label}</p>
-                        <p className="text-[10px] text-[#8c91a4] mt-0.5 leading-tight">{item.desc}</p>
+                        <div>
+                          <p className="text-xs font-bold text-white group-hover:text-white transition-colors">
+                            {item.label}
+                          </p>
+                          <p className="text-[10px] text-[#8c91a4] mt-1 leading-snug">
+                            {item.desc}
+                          </p>
+                        </div>
+                        <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-center w-full min-h-[22px]">
+                          <SpectrumVisualizer isPlaying={true} variant="mini" style={item.id as VisualizerStyle} />
+                        </div>
                       </button>
                     ))}
                   </div>
@@ -553,7 +588,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                        <Zap className="w-4 h-4 text-red-400" />
+                        <Zap className="w-4 h-4 text-[var(--accent-text)]" />
                         Redução de Movimento (Bateria & Conforto)
                       </h3>
                       <p className="text-xs text-[#8c91a4] mt-1">
@@ -568,7 +603,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         onChange={(e) => updateSetting("reducedMotion", e.target.checked)}
                         className="sr-only peer"
                       />
-                      <div className="w-11 h-6 bg-[#1f2436] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600" />
+                      <div className="w-11 h-6 bg-[#1f2436] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--accent)]" />
                     </label>
                   </div>
                 </div>
@@ -582,7 +617,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="space-y-6 animate-in fade-in duration-150">
                 <div>
                   <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <Monitor className="w-4 h-4 text-red-400" />
+                    <Monitor className="w-4 h-4 text-[var(--accent-text)]" />
                     Ação ao Clicar no Botão Fechar [X]
                   </h3>
                   <p className="text-xs text-[#8c91a4] mt-1">
@@ -595,7 +630,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       onClick={() => updateSetting("closeAction", "tray")}
                       className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
                         settings.closeAction === "tray"
-                          ? "bg-red-950/40 border-red-700 text-white shadow-sm"
+                          ? "bg-[var(--accent-subtle)] border-[var(--accent)] text-white shadow-sm"
                           : "bg-[#141724] border-[#202534] text-[#8c91a4] hover:text-white"
                       }`}
                     >
@@ -615,7 +650,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       onClick={() => updateSetting("closeAction", "exit")}
                       className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
                         settings.closeAction === "exit"
-                          ? "bg-red-950/40 border-red-700 text-white shadow-sm"
+                          ? "bg-[var(--accent-subtle)] border-[var(--accent)] text-white shadow-sm"
                           : "bg-[#141724] border-[#202534] text-[#8c91a4] hover:text-white"
                       }`}
                     >
@@ -629,7 +664,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 <div className="border-t border-[#1f2434] pt-5">
                   <h3 className="text-sm font-bold text-white flex items-center gap-2 mb-3">
-                    <Command className="w-4 h-4 text-red-400" />
+                    <Command className="w-4 h-4 text-[var(--accent-text)]" />
                     Atalhos de Teclado Globais do TetPlayer
                   </h3>
 
@@ -668,7 +703,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="space-y-6 animate-in fade-in duration-150">
                 <div>
                   <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-red-400" />
+                    <CheckCircle2 className="w-4 h-4 text-[var(--accent-text)]" />
                     Sessão do YouTube Music
                   </h3>
                   <p className="text-xs text-[#8c91a4] mt-1">
@@ -677,7 +712,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                   <div className="mt-3 p-3.5 rounded-xl bg-[#141724] border border-[#202534] flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-red-950/80 border border-red-800/60 flex items-center justify-center text-red-400 font-bold">
+                      <div className="w-9 h-9 rounded-full bg-[var(--accent-subtle)] border border-[var(--accent-border)] flex items-center justify-center text-[var(--accent-text)] font-bold">
                         YTM
                       </div>
                       <div>
@@ -699,7 +734,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         disabled={isCheckingAuth}
                         className="px-3 py-1.5 rounded-lg bg-[#1e2334] hover:bg-[#282f46] text-xs font-medium text-white transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-40"
                       >
-                        <RefreshCw className={`w-3.5 h-3.5 ${isCheckingAuth ? "animate-spin text-red-400" : ""}`} />
+                        <RefreshCw className={`w-3.5 h-3.5 ${isCheckingAuth ? "animate-spin text-[var(--accent)]" : ""}`} />
                         <span>Re-sincronizar</span>
                       </button>
 
@@ -707,7 +742,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         <button
                           type="button"
                           onClick={onForceAnonymous}
-                          className="px-3 py-1.5 rounded-lg bg-red-950/40 hover:bg-red-900/60 border border-red-800/40 text-xs font-medium text-red-300 transition-colors cursor-pointer"
+                          className="px-3 py-1.5 rounded-lg bg-[var(--accent-subtle)] hover:opacity-80 border border-[var(--accent-border)] text-xs font-medium text-[var(--accent-text)] transition-colors cursor-pointer"
                         >
                           Modo Anônimo
                         </button>
@@ -718,7 +753,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 <div className="border-t border-[#1f2434] pt-5">
                   <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <Database className="w-4 h-4 text-red-400" />
+                    <Database className="w-4 h-4 text-[var(--accent-text)]" />
                     Gerenciamento do Cache Local
                   </h3>
                   <p className="text-xs text-[#8c91a4] mt-1">
@@ -761,10 +796,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             {activeTab === "about" && (
               <div className="space-y-6 flex flex-col items-center justify-center text-center py-6 animate-in fade-in duration-150">
                 <div className="relative">
-                  <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-red-600 via-rose-600 to-amber-500 flex items-center justify-center shadow-[0_0_30px_rgba(239,68,68,0.4)] animate-pulse">
+                  <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-[var(--accent)] via-[var(--accent-hover)] to-[var(--accent-glow)] flex items-center justify-center shadow-[0_0_30px_var(--accent-glow)] animate-pulse">
                     <Music2 className="w-10 h-10 text-white" />
                   </div>
-                  <span className="absolute -bottom-2 -right-2 px-2 py-0.5 rounded-full bg-red-950 border border-red-700 text-red-300 text-[10px] font-mono font-bold">
+                  <span className="absolute -bottom-2 -right-2 px-2 py-0.5 rounded-full bg-[var(--accent-subtle)] border border-[var(--accent-border)] text-[var(--accent-text)] text-[10px] font-mono font-bold">
                     Desktop
                   </span>
                 </div>

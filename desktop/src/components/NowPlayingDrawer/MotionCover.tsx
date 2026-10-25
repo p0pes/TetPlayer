@@ -28,12 +28,11 @@ export function MotionCover({ track, isPlaying, className = "" }: MotionCoverPro
   const [isHovered, setIsHovered] = useState(false);
 
   function toggleMotionMode(e: React.MouseEvent) {
+    e.preventDefault();
     e.stopPropagation();
-    setIsMotionEnabled((prev) => {
-      const next = !prev;
-      SettingsService.updateSetting("motionCoverEnabled", next);
-      return next;
-    });
+    const current = SettingsService.getSetting("motionCoverEnabled");
+    const next = !current;
+    SettingsService.updateSetting("motionCoverEnabled", next);
   }
 
   function handleMouseMove(e: React.MouseEvent<HTMLDivElement>) {
@@ -149,15 +148,16 @@ export function MotionCover({ track, isPlaying, className = "" }: MotionCoverPro
         <button
           type="button"
           onClick={toggleMotionMode}
+          onPointerDown={(e) => e.stopPropagation()}
           title={
             isMotionEnabled
               ? "Desativar Capa Animada (Motion Cover)"
               : "Ativar Capa Animada (Motion Cover estilo Apple Music)"
           }
           aria-label={isMotionEnabled ? "Capa animada ativada" : "Capa animada desativada"}
-          className={`absolute top-2.5 right-2.5 z-20 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wider uppercase transition-all backdrop-blur-md cursor-pointer ${
+          className={`absolute top-2.5 right-2.5 z-30 flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold tracking-wider uppercase transition-all backdrop-blur-md cursor-pointer select-none active:scale-95 ${
             isMotionEnabled
-              ? "bg-black/60 text-white border border-white/30 shadow-lg shadow-black/50"
+              ? "bg-black/60 text-white border border-white/30 shadow-lg shadow-black/50 hover:bg-black/80"
               : "bg-black/40 text-[#8c91a4] border border-white/10 hover:text-white hover:border-white/20"
           }`}
         >

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Download, Copy, Check, X, Loader2, Share2 } from "lucide-react";
 import { PlaybackStats } from "../../types";
+import { SettingsService, THEME_PALETTES } from "../../services/settings";
 
 interface StatsShareModalProps {
   stats: PlaybackStats;
@@ -63,6 +64,9 @@ export function StatsShareModal({
   async function generateCard() {
     setIsGenerating(true);
     try {
+      const activeThemeKey = SettingsService.getSetting("accentTheme") || "ruby";
+      const theme = THEME_PALETTES[activeThemeKey] || THEME_PALETTES.ruby;
+
       const width = 1200;
       const height = 675;
       const canvas = document.createElement("canvas");
@@ -75,19 +79,19 @@ export function StatsShareModal({
       ctx.fillStyle = "#0b0c10";
       ctx.fillRect(0, 0, width, height);
 
-      // 2. Aurora Glows Tridimensionais
-      // Aurora Top-Left (Vermelho Ruby)
+      // 2. Aurora Glows Tridimensionais com o tema ativo
+      // Aurora Top-Left (Harmonizado com tema ativo)
       const gradTL = ctx.createRadialGradient(160, 140, 20, 160, 140, 480);
-      gradTL.addColorStop(0, "rgba(239, 68, 68, 0.38)");
-      gradTL.addColorStop(0.6, "rgba(185, 28, 28, 0.12)");
+      gradTL.addColorStop(0, theme.glow.replace("0.85", "0.38"));
+      gradTL.addColorStop(0.6, theme.subtle);
       gradTL.addColorStop(1, "rgba(11, 12, 16, 0)");
       ctx.fillStyle = gradTL;
       ctx.fillRect(0, 0, width, height);
 
-      // Aurora Bottom-Right (Índigo/Violeta)
+      // Aurora Bottom-Right (Tom secundário do gradiente)
       const gradBR = ctx.createRadialGradient(1040, 520, 20, 1040, 520, 420);
-      gradBR.addColorStop(0, "rgba(99, 102, 241, 0.28)");
-      gradBR.addColorStop(0.7, "rgba(67, 56, 202, 0.08)");
+      gradBR.addColorStop(0, theme.glow.replace("0.85", "0.28"));
+      gradBR.addColorStop(0.7, theme.subtle);
       gradBR.addColorStop(1, "rgba(11, 12, 16, 0)");
       ctx.fillStyle = gradBR;
       ctx.fillRect(0, 0, width, height);
@@ -102,21 +106,21 @@ export function StatsShareModal({
       ctx.roundRect(pad, pad, wInner, hInner, 24);
       ctx.stroke();
 
-      // 4. Header: Badge TetStats
-      ctx.fillStyle = "rgba(239, 68, 68, 0.18)";
-      ctx.strokeStyle = "rgba(239, 68, 68, 0.5)";
+      // 4. Header: Badge Resumo Semanal
+      ctx.fillStyle = theme.subtle;
+      ctx.strokeStyle = theme.border;
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.roundRect(64, 60, 230, 30, 8);
+      ctx.roundRect(64, 60, 175, 30, 8);
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = "#fca5a5";
+      ctx.fillStyle = theme.text;
       ctx.font = "bold 12px Inter, system-ui, sans-serif";
-      ctx.fillText("🔥 TETSTATS • RESUMO PESSOAL", 78, 80);
+      ctx.fillText("🔥 RESUMO SEMANAL", 78, 80);
 
       // Logotipo TetPlayer no canto direito
-      ctx.fillStyle = "#ef4444";
+      ctx.fillStyle = theme.primary;
       ctx.font = "bold 22px Inter, system-ui, sans-serif";
       ctx.fillText("TetPlayer", 1020, 82);
       ctx.fillStyle = "#ffffff";
@@ -248,12 +252,6 @@ export function StatsShareModal({
         ctx.fillText(`${t.play_count}x`, colX2 + colW - 85, rowY + 31);
       });
 
-      // 7. Rodapé de Crédito
-      ctx.fillStyle = "#555b70";
-      ctx.font = "12px Inter, system-ui, sans-serif";
-      ctx.fillText("TetPlayer Desktop • O reprodutor de áudio ultraleve nativo para Windows", 64, 608);
-      ctx.fillText("tetplayer.app", 1060, 608);
-
       // Converte para Blob PNG
       canvas.toBlob((blob) => {
         if (blob) {
@@ -288,7 +286,7 @@ export function StatsShareModal({
     if (!imageUrl) return;
     const a = document.createElement("a");
     a.href = imageUrl;
-    a.download = `tetplayer-wrapped-${timeframe ?? "tudo"}.png`;
+    a.download = `resumo-semanal-${timeframe ?? "tudo"}.png`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -312,13 +310,13 @@ export function StatsShareModal({
         {/* Cabeçalho do Modal */}
         <div className="flex items-center justify-between pb-3 border-b border-[#1f2436]">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-red-600/20 border border-red-500/40 flex items-center justify-center text-red-400">
+            <div className="w-9 h-9 rounded-xl bg-[var(--accent-subtle)] border border-[var(--accent-border)] flex items-center justify-center text-[var(--accent-text)]">
               <Share2 className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold">Compartilhar Cartão TetStats</h2>
+              <h2 className="text-lg font-bold">Compartilhar Resumo Semanal</h2>
               <p className="text-xs text-[#8c91a4]">
-                Imagem em alta resolução pronta para Discord, Twitter/X ou Instagram
+                Imagem em alta resolução pronta para compartilhar
               </p>
             </div>
           </div>
@@ -336,13 +334,13 @@ export function StatsShareModal({
         <div className="rounded-2xl overflow-hidden border border-[#232738] bg-[#0b0c10] shadow-xl flex items-center justify-center min-h-[300px]">
           {isGenerating || !imageUrl ? (
             <div className="flex flex-col items-center gap-3 text-[#71778c]">
-              <Loader2 className="w-8 h-8 animate-spin text-red-500" />
+              <Loader2 className="w-8 h-8 animate-spin text-[var(--accent)]" />
               <p className="text-sm font-medium">Renderizando cartão artístico...</p>
             </div>
           ) : (
             <img
               src={imageUrl}
-              alt="Cartão de Estatísticas TetStats"
+              alt="Cartão de Resumo Semanal"
               className="w-full h-auto object-contain max-h-[420px] select-none"
             />
           )}
@@ -383,7 +381,7 @@ export function StatsShareModal({
               className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs transition-all shadow-lg cursor-pointer ${
                 downloaded
                   ? "bg-emerald-600 text-white shadow-emerald-950/60"
-                  : "bg-red-600 hover:bg-red-500 text-white shadow-red-950/60"
+                  : "bg-[var(--accent)] hover:opacity-90 text-white shadow-[var(--accent-glow)]"
               }`}
             >
               {downloaded ? (

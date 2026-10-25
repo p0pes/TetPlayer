@@ -1,7 +1,141 @@
 export type PlaylistEnqueueMode = "replace" | "append";
-export type VisualizerStyle = "bars" | "wave" | "gradient";
+export type VisualizerStyle = "bars" | "blocks" | "gradient" | "pulse" | "wave";
 export type CloseAction = "tray" | "exit";
-export type AccentTheme = "ruby" | "indigo" | "emerald" | "ocean" | "monochrome";
+export type AccentTheme =
+  | "ruby"
+  | "indigo"
+  | "emerald"
+  | "ocean"
+  | "rose"
+  | "amber"
+  | "sunset"
+  | "lime"
+  | "monochrome";
+
+export interface ThemeColorTokens {
+  primary: string;
+  hover: string;
+  active: string;
+  text: string;
+  subtle: string;
+  border: string;
+  glow: string;
+  gradientFrom: string;
+  gradientVia: string;
+  gradientTo: string;
+}
+
+export const THEME_PALETTES: Record<AccentTheme, ThemeColorTokens> = {
+  ruby: {
+    primary: "#ef4444",
+    hover: "#dc2626",
+    active: "#b91c1c",
+    text: "#f87171",
+    subtle: "rgba(239, 68, 68, 0.16)",
+    border: "rgba(239, 68, 68, 0.40)",
+    glow: "rgba(239, 68, 68, 0.85)",
+    gradientFrom: "#ef4444",
+    gradientVia: "#f43f5e",
+    gradientTo: "#fb923c",
+  },
+  indigo: {
+    primary: "#8b5cf6",
+    hover: "#7c3aed",
+    active: "#6d28d9",
+    text: "#a78bfa",
+    subtle: "rgba(139, 92, 246, 0.18)",
+    border: "rgba(139, 92, 246, 0.42)",
+    glow: "rgba(139, 92, 246, 0.85)",
+    gradientFrom: "#8b5cf6",
+    gradientVia: "#a855f7",
+    gradientTo: "#ec4899",
+  },
+  emerald: {
+    primary: "#10b981",
+    hover: "#059669",
+    active: "#047857",
+    text: "#34d399",
+    subtle: "rgba(16, 185, 129, 0.18)",
+    border: "rgba(16, 185, 129, 0.42)",
+    glow: "rgba(16, 185, 129, 0.85)",
+    gradientFrom: "#10b981",
+    gradientVia: "#14b8a6",
+    gradientTo: "#06b6d4",
+  },
+  ocean: {
+    primary: "#0ea5e9",
+    hover: "#0284c7",
+    active: "#0369a1",
+    text: "#38bdf8",
+    subtle: "rgba(14, 165, 233, 0.18)",
+    border: "rgba(14, 165, 233, 0.42)",
+    glow: "rgba(14, 165, 233, 0.85)",
+    gradientFrom: "#0ea5e9",
+    gradientVia: "#38bdf8",
+    gradientTo: "#6366f1",
+  },
+  rose: {
+    primary: "#ec4899",
+    hover: "#db2777",
+    active: "#be185d",
+    text: "#f472b6",
+    subtle: "rgba(236, 72, 153, 0.18)",
+    border: "rgba(236, 72, 153, 0.42)",
+    glow: "rgba(236, 72, 153, 0.85)",
+    gradientFrom: "#ec4899",
+    gradientVia: "#f43f5e",
+    gradientTo: "#a855f7",
+  },
+  amber: {
+    primary: "#eab308",
+    hover: "#ca8a04",
+    active: "#a16207",
+    text: "#facc15",
+    subtle: "rgba(234, 179, 8, 0.18)",
+    border: "rgba(234, 179, 8, 0.45)",
+    glow: "rgba(234, 179, 8, 0.85)",
+    gradientFrom: "#eab308",
+    gradientVia: "#f59e0b",
+    gradientTo: "#ea580c",
+  },
+  sunset: {
+    primary: "#f97316",
+    hover: "#ea580c",
+    active: "#c2410c",
+    text: "#fb923c",
+    subtle: "rgba(249, 115, 22, 0.18)",
+    border: "rgba(249, 115, 22, 0.42)",
+    glow: "rgba(249, 115, 22, 0.85)",
+    gradientFrom: "#f97316",
+    gradientVia: "#fb7185",
+    gradientTo: "#e11d48",
+  },
+  lime: {
+    primary: "#84cc16",
+    hover: "#65a30d",
+    active: "#4d7c0f",
+    text: "#a3e635",
+    subtle: "rgba(132, 204, 22, 0.18)",
+    border: "rgba(132, 204, 22, 0.42)",
+    glow: "rgba(132, 204, 22, 0.85)",
+    gradientFrom: "#84cc16",
+    gradientVia: "#a3e635",
+    gradientTo: "#10b981",
+  },
+  monochrome: {
+    // Fallback/alias transparente que mapeia para Cyber Lime
+    primary: "#84cc16",
+    hover: "#65a30d",
+    active: "#4d7c0f",
+    text: "#a3e635",
+    subtle: "rgba(132, 204, 22, 0.18)",
+    border: "rgba(132, 204, 22, 0.42)",
+    glow: "rgba(132, 204, 22, 0.85)",
+    gradientFrom: "#84cc16",
+    gradientVia: "#a3e635",
+    gradientTo: "#10b981",
+  },
+};
 
 export interface AppSettings {
   // Aba 1: Áudio & Reprodução
@@ -57,7 +191,11 @@ export const SettingsService = {
           motionCoverEnabled: motion,
         };
       }
-      return { ...DEFAULT_SETTINGS, ...JSON.parse(saved) };
+      const parsed = JSON.parse(saved);
+      if (parsed.visualizerStyle === "wave") {
+        parsed.visualizerStyle = "blocks";
+      }
+      return { ...DEFAULT_SETTINGS, ...parsed };
     } catch {
       return { ...DEFAULT_SETTINGS };
     }
@@ -115,27 +253,22 @@ export const SettingsService = {
 
     const root = document.documentElement;
 
-    // Tema de Cores e Acento (Item 3.2: TetPlayer Ruby, Cyber Indigo, Emerald Wave, Ocean Blue, Pure Dark OLED)
+    // Tema de Cores e Acento (Ruby, Cyber Indigo, Emerald Wave, Ocean Blue, Neon Rose, Solar Gold, Sunset Orange, Cyber Lime)
     const currentTheme = settings.accentTheme || "ruby";
     root.setAttribute("data-theme", currentTheme);
 
-    const themePalettes: Record<AccentTheme, { primary: string; glow: string }> = {
-      ruby: { primary: "#ef4444", glow: "rgba(239, 68, 68, 0.85)" },
-      indigo: { primary: "#8b5cf6", glow: "rgba(139, 92, 246, 0.85)" },
-      emerald: { primary: "#10b981", glow: "rgba(16, 185, 129, 0.85)" },
-      ocean: { primary: "#0ea5e9", glow: "rgba(14, 165, 233, 0.85)" },
-      monochrome: { primary: "#f4f4f5", glow: "rgba(244, 244, 245, 0.7)" },
-    };
-
-    const palette = themePalettes[currentTheme] || themePalettes.ruby;
+    const palette = THEME_PALETTES[currentTheme] || THEME_PALETTES.ruby;
+    root.style.setProperty("--accent", palette.primary);
     root.style.setProperty("--accent-primary", palette.primary);
+    root.style.setProperty("--accent-hover", palette.hover);
+    root.style.setProperty("--accent-active", palette.active);
+    root.style.setProperty("--accent-text", palette.text);
+    root.style.setProperty("--accent-subtle", palette.subtle);
+    root.style.setProperty("--accent-border", palette.border);
     root.style.setProperty("--accent-glow", palette.glow);
-
-    if (currentTheme === "monochrome") {
-      root.classList.add("theme-monochrome-oled");
-    } else {
-      root.classList.remove("theme-monochrome-oled");
-    }
+    root.style.setProperty("--accent-gradient-from", palette.gradientFrom);
+    root.style.setProperty("--accent-gradient-via", palette.gradientVia);
+    root.style.setProperty("--accent-gradient-to", palette.gradientTo);
 
     // Intensidade da Aurora Boreal (0% a 100%)
     const opacityMultiplier = Math.max(0, Math.min(100, settings.auroraGlowIntensity)) / 100;

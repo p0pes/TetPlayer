@@ -71,5 +71,10 @@ export function handleArtworkError(
       : currentSrc.replace("sddefault.jpg", "hqdefault.jpg");
   } else if (videoId && !currentSrc.includes("hqdefault.jpg")) {
     img.src = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+  } else {
+    // Fallback terminal: todas as resoluções falharam (vídeo privado, apagado ou 404)
+    img.style.display = "none";
+    img.setAttribute("data-artwork-failed", "true");
   }
 }
+

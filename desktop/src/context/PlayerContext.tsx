@@ -127,7 +127,7 @@ export function PlayerProvider({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Crossfade suave sincronizado com o SettingsService
-  const [crossfadeSeconds, setCrossfadeSeconds] = useState<number>(() => {
+  const [crossfadeSeconds, setCrossfadeSecondsState] = useState<number>(() => {
     return SettingsService.getSetting("crossfadeSeconds");
   });
 
@@ -135,12 +135,16 @@ export function PlayerProvider({
   useEffect(() => {
     return SettingsService.subscribe((settings, key) => {
       if (!key || key === "crossfadeSeconds") {
-        setCrossfadeSeconds(settings.crossfadeSeconds);
+        setCrossfadeSecondsState(settings.crossfadeSeconds);
       }
       if (!key || key === "isAutoplayRadio") {
         dispatchQueue({ type: "SET_AUTOPLAY_RADIO", payload: settings.isAutoplayRadio });
       }
     });
+  }, []);
+
+  const setCrossfadeSeconds = useCallback((secs: number) => {
+    SettingsService.updateSetting("crossfadeSeconds", secs);
   }, []);
 
   // Modo Mini Player Flutuante (Sugestão 2.1)
@@ -354,13 +358,18 @@ export function PlayerProvider({
     dispatchQueue({ type: "CYCLE_REPEAT_MODE" });
   }
 
-  function cycleCrossfade() {
-    setCrossfadeSeconds((prev) => {
-      const next = prev === 0 ? 2 : prev === 2 ? 3 : prev === 3 ? 5 : 0;
-      SettingsService.updateSetting("crossfadeSeconds", next);
-      return next;
-    });
-  }
+  const cycleCrossfade = useCallback(() => {
+    const current = SettingsService.getSetting("crossfadeSeconds") ?? 0;
+    // Ciclo ordenado e determinístico: Off (0s) -> 2s -> 3s -> 5s -> 8s -> 12s -> Off (0s)
+    const PRESETS = [0, 2, 3, 5, 8, 12];
+    const currentIndex = PRESETS.indexOf(current);
+    const next =
+      currentIndex >= 0 && currentIndex < PRESETS.length - 1
+        ? PRESETS[currentIndex + 1]
+        : PRESETS[0];
+
+    SettingsService.updateSetting("crossfadeSeconds", next);
+  }, []);
 
   function handlePlayFromQueue(idx: number) {
     const queue = activeQueueRef.current;

@@ -35,6 +35,28 @@ describe("TimelineScrubber", () => {
     expect(handleSeek).toHaveBeenCalledWith(45);
   });
 
+  it("deve adiar o seek durante o arrasto e disparar apenas no pointerUp", () => {
+    const handleSeek = vi.fn();
+    renderScrubberWithProgress(10, 100, false, handleSeek);
+
+    const input = screen.getByTestId("scrubber-range-input") as HTMLInputElement;
+
+    // Inicia arrasto
+    fireEvent.pointerDown(input);
+    expect(handleSeek).not.toHaveBeenCalled();
+
+    // Movimentos intermediários de arrasto
+    fireEvent.change(input, { target: { value: "30" } });
+    fireEvent.change(input, { target: { value: "50" } });
+    fireEvent.change(input, { target: { value: "70" } });
+    expect(handleSeek).not.toHaveBeenCalled();
+
+    // Solta o cursor (pointerUp)
+    fireEvent.pointerUp(input);
+    expect(handleSeek).toHaveBeenCalledTimes(1);
+    expect(handleSeek).toHaveBeenCalledWith(70);
+  });
+
   it("deve respeitar a prop disabled quando nenhuma faixa estiver ativa", () => {
     renderScrubberWithProgress(0, 0, true);
 
@@ -42,3 +64,4 @@ describe("TimelineScrubber", () => {
     expect(input).toBeDisabled();
   });
 });
+

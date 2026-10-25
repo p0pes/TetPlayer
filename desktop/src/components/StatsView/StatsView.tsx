@@ -72,16 +72,16 @@ export const StatsView = React.memo(function StatsView({ onPlayTrack }: StatsVie
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12 animate-in fade-in duration-200">
       {/* Header do TetStats */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-6 rounded-2xl bg-gradient-to-r from-red-950/50 via-[#191c28] to-[#12141c] border border-red-900/30 shadow-xl">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-6 rounded-2xl bg-gradient-to-r from-[var(--accent-subtle)] via-[#191c28] to-[#12141c] border border-[var(--accent-border)] shadow-xl">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-red-400 uppercase tracking-wider bg-red-950/80 px-2.5 py-1 rounded-md border border-red-800/40 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-red-400" />
-              TetStats • Seu Resumo Pessoal
+            <span className="text-xs font-bold text-[var(--accent-text)] uppercase tracking-wider bg-[var(--accent-subtle)] px-2.5 py-1 rounded-md border border-[var(--accent-border)] flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-[var(--accent-text)]" />
+              Resumo Semanal
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
-            <Flame className="w-7 h-7 text-red-500 fill-current" />
+            <Flame className="w-7 h-7 text-[var(--accent)] fill-current" />
             Estatísticas de Reprodução
           </h1>
           <p className="text-xs text-[#8c91a4]">
@@ -96,7 +96,7 @@ export const StatsView = React.memo(function StatsView({ onPlayTrack }: StatsVie
               onClick={() => setTimeframe(7)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 timeframe === 7
-                  ? "bg-red-600 text-white shadow-md shadow-red-950/60"
+                  ? "bg-[var(--accent)] text-white shadow-md shadow-[var(--accent-glow)]"
                   : "text-[#8c91a4] hover:text-white"
               }`}
             >
@@ -106,7 +106,7 @@ export const StatsView = React.memo(function StatsView({ onPlayTrack }: StatsVie
               onClick={() => setTimeframe(30)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 timeframe === 30
-                  ? "bg-red-600 text-white shadow-md shadow-red-950/60"
+                  ? "bg-[var(--accent)] text-white shadow-md shadow-[var(--accent-glow)]"
                   : "text-[#8c91a4] hover:text-white"
               }`}
             >
@@ -116,7 +116,7 @@ export const StatsView = React.memo(function StatsView({ onPlayTrack }: StatsVie
               onClick={() => setTimeframe(null)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 timeframe === null
-                  ? "bg-red-600 text-white shadow-md shadow-red-950/60"
+                  ? "bg-[var(--accent)] text-white shadow-md shadow-[var(--accent-glow)]"
                   : "text-[#8c91a4] hover:text-white"
               }`}
             >
@@ -127,7 +127,7 @@ export const StatsView = React.memo(function StatsView({ onPlayTrack }: StatsVie
           <button
             onClick={handleClearStats}
             title="Limpar Histórico de Estatísticas"
-            className="p-2 rounded-xl text-[#71778c] hover:text-red-400 hover:bg-red-950/40 border border-[#232736] transition-colors cursor-pointer"
+            className="p-2 rounded-xl text-[#71778c] hover:text-[var(--accent-text)] hover:bg-[var(--accent-subtle)] border border-[#232736] transition-colors cursor-pointer"
           >
             <Trash2 className="w-4 h-4" />
           </button>
@@ -136,7 +136,7 @@ export const StatsView = React.memo(function StatsView({ onPlayTrack }: StatsVie
             <button
               onClick={() => setIsShareModalOpen(true)}
               title="Compartilhar Cartão de Resumo nas Redes"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-red-600 hover:bg-red-500 shadow-md shadow-red-950/60 border border-red-500/30 transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-[var(--accent)] hover:opacity-90 shadow-md shadow-[var(--accent-glow)] border border-[var(--accent-border)] transition-all cursor-pointer"
             >
               <Share2 className="w-3.5 h-3.5" />
               <span>Compartilhar</span>
@@ -147,7 +147,7 @@ export const StatsView = React.memo(function StatsView({ onPlayTrack }: StatsVie
 
       {isLoading ? (
         <div className="h-64 flex flex-col items-center justify-center gap-3 text-[#71778c]">
-          <Loader2 className="w-8 h-8 animate-spin text-red-500" />
+          <Loader2 className="w-8 h-8 animate-spin text-[var(--accent)]" />
           <p className="text-sm">Carregando métricas do SQLite...</p>
         </div>
       ) : !stats || stats.total_plays === 0 ? (
@@ -165,7 +165,7 @@ export const StatsView = React.memo(function StatsView({ onPlayTrack }: StatsVie
             <div className="p-4 rounded-2xl bg-[#141724] border border-[#212638] space-y-1 shadow-lg">
               <div className="flex items-center justify-between text-[#71778c]">
                 <span className="text-xs font-semibold uppercase">Reproduções</span>
-                <Music className="w-4 h-4 text-red-400" />
+                <Music className="w-4 h-4 text-[var(--accent-text)]" />
               </div>
               <p className="text-2xl font-black text-white">{stats.total_plays}</p>
               <p className="text-[11px] text-[#8c91a4]">músicas tocadas</p>
@@ -207,7 +207,7 @@ export const StatsView = React.memo(function StatsView({ onPlayTrack }: StatsVie
             <div className="lg:col-span-5 space-y-3">
               <div className="flex items-center justify-between px-1">
                 <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                  <Users className="w-4 h-4 text-red-400" />
+                  <Users className="w-4 h-4 text-[var(--accent-text)]" />
                   Top Artistas Mais Ouvidos
                 </h3>
               </div>
@@ -244,7 +244,7 @@ export const StatsView = React.memo(function StatsView({ onPlayTrack }: StatsVie
                         </div>
                       </div>
 
-                      <span className="text-xs font-mono text-red-400 font-semibold bg-red-950/50 px-2 py-1 rounded-md border border-red-900/40 shrink-0">
+                      <span className="text-xs font-mono text-[var(--accent-text)] font-semibold bg-[var(--accent-subtle)] px-2 py-1 rounded-md border border-[var(--accent-border)] shrink-0">
                         {artist.play_count} plays
                       </span>
                     </div>
@@ -257,7 +257,7 @@ export const StatsView = React.memo(function StatsView({ onPlayTrack }: StatsVie
             <div className="lg:col-span-7 space-y-3">
               <div className="flex items-center justify-between px-1">
                 <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                  <Flame className="w-4 h-4 text-red-500" />
+                  <Flame className="w-4 h-4 text-[var(--accent)]" />
                   Top Músicas Mais Tocadas
                 </h3>
               </div>
@@ -269,7 +269,7 @@ export const StatsView = React.memo(function StatsView({ onPlayTrack }: StatsVie
                     className="p-2.5 rounded-xl bg-[#12141c] border border-[#1f232e] hover:border-[#2f3548] hover:bg-[#161924] transition-all flex items-center justify-between group"
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <span className="w-6 text-center text-xs font-mono text-[#5e6479] group-hover:text-red-400 shrink-0">
+                      <span className="w-6 text-center text-xs font-mono text-[#5e6479] group-hover:text-[var(--accent-text)] shrink-0">
                         {idx + 1}
                       </span>
 
@@ -284,7 +284,7 @@ export const StatsView = React.memo(function StatsView({ onPlayTrack }: StatsVie
                       </div>
 
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-bold text-white truncate group-hover:text-red-300">
+                        <p className="text-xs font-bold text-white truncate group-hover:text-[var(--accent-text)]">
                           {track.title}
                         </p>
                         <p className="text-[11px] text-[#8c91a4] truncate">
@@ -309,7 +309,7 @@ export const StatsView = React.memo(function StatsView({ onPlayTrack }: StatsVie
                           })
                         }
                         title={`Tocar ${track.title}`}
-                        className="w-8 h-8 rounded-full bg-red-600 hover:bg-red-500 text-white flex items-center justify-center shadow-md shadow-red-950/60 transition-transform active:scale-95 cursor-pointer"
+                        className="w-8 h-8 rounded-full bg-[var(--accent)] hover:opacity-90 text-white flex items-center justify-center shadow-md shadow-[var(--accent-glow)] transition-transform active:scale-95 cursor-pointer"
                       >
                         <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
                       </button>

@@ -152,7 +152,7 @@ export function MiniPlayer() {
           isDraggingTabRef.current = false;
         }}
         title="TetPlayer Mini - Clique para expandir ou arraste para cima/baixo"
-        className={`w-full h-full bg-[#0c0e17] hover:bg-[#151928] border border-[#2b3042] hover:border-red-500/60 flex flex-col items-center justify-between py-2.5 shadow-2xl cursor-pointer group transition-colors select-none relative ${
+        className={`w-full h-full bg-[#0c0e17] hover:bg-[#151928] border border-[#2b3042] hover:border-[var(--accent)] flex flex-col items-center justify-between py-2.5 shadow-2xl cursor-pointer group transition-colors select-none relative ${
           isDocked === "left"
             ? "border-l-0"
             : "border-r-0"
@@ -170,7 +170,7 @@ export function MiniPlayer() {
         {/* Indicador de reprodução (topo) */}
         <div className="flex items-center justify-center z-10 pt-0.5 pointer-events-none">
           {isPlaying ? (
-            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.9)]" />
+            <div className="w-2 h-2 rounded-full bg-[var(--accent)] animate-pulse shadow-[0_0_8px_var(--accent-glow)]" />
           ) : (
             <div className="w-1.5 h-1.5 rounded-full bg-[#5e6479]" />
           )}
@@ -186,7 +186,7 @@ export function MiniPlayer() {
         </div>
 
         {/* Mini barra de espectro de áudio / nota musical (base) */}
-        <div className="flex items-center justify-center text-[#71778c] group-hover:text-red-400 transition-colors z-10 pb-0.5 pointer-events-none">
+        <div className="flex items-center justify-center text-[#71778c] group-hover:text-[var(--accent-text)] transition-colors z-10 pb-0.5 pointer-events-none">
           {isPlaying ? (
             <SpectrumVisualizer isPlaying={isPlaying} variant="mini" barCount={3} />
           ) : (
@@ -219,7 +219,7 @@ export function MiniPlayer() {
           data-tauri-drag-region
           className="flex items-center gap-1.5 pointer-events-none select-none"
         >
-          <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+          <div className="w-2 h-2 rounded-full bg-[var(--accent)] animate-pulse" />
           <span className="text-[10px] font-bold text-[#8c91a4] tracking-wider uppercase">
             Mini Player
           </span>
@@ -286,7 +286,7 @@ export function MiniPlayer() {
               handleClose(e);
             }}
             title="Fechar"
-            className="p-1 rounded text-[#71778c] hover:text-red-400 hover:bg-red-950/40 transition-colors cursor-pointer"
+            className="p-1 rounded text-[#71778c] hover:text-[var(--accent-text)] hover:bg-[var(--accent-subtle)] transition-colors cursor-pointer"
           >
             <X className="w-3 h-3" />
           </button>
@@ -340,7 +340,7 @@ export function MiniPlayer() {
             disabled={!currentTrack}
             title={isPlaying ? "Pausar" : "Tocar"}
             aria-label={isPlaying ? "Pausar" : "Tocar"}
-            className="w-8 h-8 rounded-full bg-red-600 hover:bg-red-500 text-white flex items-center justify-center shadow-md shadow-red-950/70 transition-transform active:scale-95 disabled:opacity-40 cursor-pointer"
+            className="w-8 h-8 rounded-full bg-[var(--accent)] hover:opacity-90 text-white flex items-center justify-center shadow-md shadow-[var(--accent-glow)] transition-transform active:scale-95 disabled:opacity-40 cursor-pointer"
           >
             {isPlaying ? (
               <Pause className="w-3.5 h-3.5 fill-current" />
@@ -379,7 +379,7 @@ export function MiniPlayer() {
               value={isMuted ? 0 : volume}
               onChange={handleVolumeChange}
               aria-label="Volume no Mini Player"
-              className="w-12 h-1 bg-[#232733] rounded-full accent-red-500 cursor-pointer opacity-70 hover:opacity-100 transition-opacity"
+              className="w-12 h-1 bg-[#232733] rounded-full accent-[var(--accent)] cursor-pointer opacity-70 hover:opacity-100 transition-opacity"
             />
           </div>
         </div>
@@ -396,7 +396,7 @@ export function MiniPlayer() {
           onChange={(e) => handleSeekTo(parseFloat(e.target.value))}
           disabled={!currentTrack}
           aria-label="Linha do tempo"
-          className="flex-1 h-1 bg-[#232733] rounded-full accent-red-500 cursor-pointer"
+          className="flex-1 h-1 bg-[#232733] rounded-full accent-[var(--accent)] cursor-pointer"
         />
         <span>{formatTime(duration)}</span>
       </div>

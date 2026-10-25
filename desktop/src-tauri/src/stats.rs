@@ -340,6 +340,13 @@ pub fn delete_cache_entry(key: &str) -> Result<(), String> {
     Ok(())
 }
 
+pub fn clear_all_cache() -> Result<(), String> {
+    let conn = init_db()?;
+    conn.execute("DELETE FROM app_cache", [])
+        .map_err(|e| format!("Falha ao limpar cache SQLite: {e}"))?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -373,5 +380,15 @@ mod tests {
         let restored = decompress_payload(legacy);
         assert_eq!(restored, legacy);
     }
+
+    #[test]
+    fn test_clear_all_cache_lifecycle() {
+        let _ = set_cache_entry("test_temp_key", "temporary_val");
+        assert!(get_cache_entry("test_temp_key").unwrap().is_some());
+        let res = clear_all_cache();
+        assert!(res.is_ok());
+        assert!(get_cache_entry("test_temp_key").unwrap().is_none());
+    }
 }
+
 

@@ -116,6 +116,11 @@ fn delete_from_db_cache(key: String) -> Result<(), String> {
     stats::delete_cache_entry(&key)
 }
 
+#[tauri::command]
+fn clear_all_db_cache() -> Result<(), String> {
+    stats::clear_all_cache()
+}
+
 // Window commands
 #[tauri::command]
 fn show_main_window(window: tauri::Window) {
@@ -581,6 +586,7 @@ pub fn run() {
             save_to_db_cache,
             get_from_db_cache,
             delete_from_db_cache,
+            clear_all_db_cache,
             minimize_window,
             hide_to_tray,
             toggle_maximize_window,

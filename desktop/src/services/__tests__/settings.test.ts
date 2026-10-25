@@ -54,7 +54,7 @@ describe("SettingsService", () => {
     SettingsService.updateSetting("accentTheme", "indigo");
     expect(SettingsService.getSetting("accentTheme")).toBe("indigo");
 
-    SettingsService.updateSetting("accentTheme", "monochrome");
-    expect(SettingsService.getSetting("accentTheme")).toBe("monochrome");
+    SettingsService.updateSetting("accentTheme", "lime");
+    expect(SettingsService.getSetting("accentTheme")).toBe("lime");
   });
 });

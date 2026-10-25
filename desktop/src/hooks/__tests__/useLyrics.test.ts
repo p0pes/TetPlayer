@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { parseLrc, formatTime } from "../useLyrics";
+import {
+  parseLrc,
+  formatTime,
+  getCachedLyrics,
+  setCachedLyrics,
+  clearLyricsCache,
+  MAX_LYRICS_CACHE_ENTRIES,
+} from "../useLyrics";
 
 describe("useLyrics utils", () => {
   describe("formatTime", () => {
@@ -79,4 +86,38 @@ describe("useLyrics utils", () => {
       expect(result[0]).toEqual({ time: 12, text: "Começo da letra" });
     });
   });
+
+  describe("Lyrics LRU Cache", () => {
+    it("deve armazenar e recuperar letras do cache", () => {
+      clearLyricsCache();
+      const mockData = { synced: "[00:10.00]Olá", plain: "Olá", source: "lrclib" };
+      setCachedLyrics("vid-1", mockData);
+
+      expect(getCachedLyrics("vid-1")).toEqual(mockData);
+      expect(getCachedLyrics("inexistente")).toBeUndefined();
+    });
+
+    it("deve respeitar a capacidade máxima de cache (LRU eviction)", () => {
+      clearLyricsCache();
+      for (let i = 0; i < MAX_LYRICS_CACHE_ENTRIES + 10; i++) {
+        setCachedLyrics(`track-${i}`, { synced: "", plain: `Letra ${i}`, source: "lrclib" });
+      }
+
+      // Os primeiros 10 devem ter sido descartados por LRU
+      expect(getCachedLyrics("track-0")).toBeUndefined();
+      expect(getCachedLyrics("track-9")).toBeUndefined();
+      // Os mais recentes devem continuar presentes
+      expect(getCachedLyrics(`track-${MAX_LYRICS_CACHE_ENTRIES + 9}`)).toBeDefined();
+    });
+
+    it("deve limpar todas as entradas com clearLyricsCache", () => {
+      clearLyricsCache();
+      setCachedLyrics("vid-test", { synced: "", plain: "Teste", source: "lrclib" });
+      expect(getCachedLyrics("vid-test")).toBeDefined();
+
+      clearLyricsCache();
+      expect(getCachedLyrics("vid-test")).toBeUndefined();
+    });
+  });
 });
+

@@ -63,7 +63,7 @@ export const PlayerBar = memo(function PlayerBar() {
           title={isDrawerOpen ? "Recolher gaveta [Shift+Up / Esc]" : "Abrir gaveta de reprodução (Fila & Letras) [Shift+Up]"}
           className={`p-1.5 sm:p-2 rounded-xl border transition-all cursor-pointer shrink-0 ${
             isDrawerOpen
-              ? "bg-red-600 text-white border-red-500 shadow-lg shadow-red-950/60"
+              ? "bg-[var(--accent)] text-white border-[var(--accent-border)] shadow-lg shadow-[var(--accent-glow)]"
               : "bg-[#171a24] text-[#8c91a4] hover:text-white hover:bg-[#202534] border-[#252a3a]"
           }`}
         >
@@ -98,7 +98,7 @@ export const PlayerBar = memo(function PlayerBar() {
           title={isDrawerOpen ? "Recolher gaveta de reprodução" : "Abrir gaveta de reprodução"}
         >
           <div className="flex items-center gap-1.5">
-            <p className="text-xs font-semibold text-white truncate hover:text-red-400 transition-colors">
+            <p className="text-xs font-semibold text-white truncate hover:text-[var(--accent-text)] transition-colors">
               {currentTrack?.title || "Nenhuma faixa selecionada"}
             </p>
           </div>
@@ -119,13 +119,13 @@ export const PlayerBar = memo(function PlayerBar() {
             title={`Modo Aleatório [S] (${isShuffle ? "Ativado" : "Desativado"})`}
             className={`p-1.5 sm:p-2 rounded-lg transition-all cursor-pointer relative shrink-0 ${
               isShuffle
-                ? "text-red-400 bg-red-950/40 border border-red-800/50 shadow-[0_0_10px_rgba(239,68,68,0.25)]"
+                ? "text-[var(--accent-text)] bg-[var(--accent-subtle)] border border-[var(--accent-border)] shadow-[0_0_10px_var(--accent-glow)]"
                 : "text-[#71778c] hover:text-white hover:bg-[#1a1d28]"
             }`}
           >
             <Shuffle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             {isShuffle && (
-              <span className="w-1 h-1 rounded-full bg-red-400 absolute bottom-1 left-1/2 -translate-x-1/2" />
+              <span className="w-1 h-1 rounded-full bg-[var(--accent)] absolute bottom-1 left-1/2 -translate-x-1/2" />
             )}
           </button>
 
@@ -186,7 +186,7 @@ export const PlayerBar = memo(function PlayerBar() {
             }`}
             className={`p-1.5 sm:p-2 rounded-lg transition-all cursor-pointer relative shrink-0 ${
               repeatMode !== "off"
-                ? "text-red-400 bg-red-950/40 border border-red-800/50 shadow-[0_0_10px_rgba(239,68,68,0.25)]"
+                ? "text-[var(--accent-text)] bg-[var(--accent-subtle)] border border-[var(--accent-border)] shadow-[0_0_10px_var(--accent-glow)]"
                 : "text-[#71778c] hover:text-white hover:bg-[#1a1d28]"
             }`}
           >
@@ -196,7 +196,7 @@ export const PlayerBar = memo(function PlayerBar() {
               <Repeat className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             )}
             {repeatMode !== "off" && (
-              <span className="w-1 h-1 rounded-full bg-red-400 absolute bottom-1 left-1/2 -translate-x-1/2" />
+              <span className="w-1 h-1 rounded-full bg-[var(--accent)] absolute bottom-1 left-1/2 -translate-x-1/2" />
             )}
           </button>
 
@@ -208,13 +208,13 @@ export const PlayerBar = memo(function PlayerBar() {
             title={`Autoplay Infinito / Rádio Contínua (${isAutoplayRadio ? "Ativado" : "Desativado"})`}
             className={`p-1.5 sm:p-2 rounded-lg transition-all cursor-pointer relative shrink-0 ${
               isAutoplayRadio
-                ? "text-red-400 bg-red-950/40 border border-red-800/50 shadow-[0_0_10px_rgba(239,68,68,0.25)]"
+                ? "text-[var(--accent-text)] bg-[var(--accent-subtle)] border border-[var(--accent-border)] shadow-[0_0_10px_var(--accent-glow)]"
                 : "text-[#71778c] hover:text-white hover:bg-[#1a1d28]"
             }`}
           >
             <Radio className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             {isAutoplayRadio && (
-              <span className="w-1 h-1 rounded-full bg-red-400 absolute bottom-1 left-1/2 -translate-x-1/2" />
+              <span className="w-1 h-1 rounded-full bg-[var(--accent)] absolute bottom-1 left-1/2 -translate-x-1/2" />
             )}
           </button>
         </div>
@@ -247,7 +247,7 @@ export const PlayerBar = memo(function PlayerBar() {
           title="Fila de Reprodução [Q]"
           className={`p-1.5 sm:p-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-medium disabled:opacity-30 shrink-0 ${
             isDrawerOpen && nowPlayingTab === "queue"
-              ? "bg-red-600 text-white shadow-lg shadow-red-950/50 border border-red-500"
+              ? "bg-[var(--accent)] text-white shadow-lg shadow-[var(--accent-glow)] border border-[var(--accent-border)]"
               : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
           }`}
         >
@@ -264,7 +264,7 @@ export const PlayerBar = memo(function PlayerBar() {
           title="Letras Sincronizadas [L]"
           className={`p-1.5 sm:p-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-medium disabled:opacity-30 shrink-0 ${
             isDrawerOpen && nowPlayingTab === "lyrics"
-              ? "bg-red-600 text-white shadow-lg shadow-red-950/50 border border-red-500"
+              ? "bg-[var(--accent)] text-white shadow-lg shadow-[var(--accent-glow)] border border-[var(--accent-border)]"
               : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
           }`}
         >
@@ -298,7 +298,7 @@ export const PlayerBar = memo(function PlayerBar() {
             value={isMuted ? 0 : volume}
             onChange={handleVolumeChange}
             aria-label="Volume de reprodução"
-            className="w-14 sm:w-16 md:w-20 h-1 bg-[#232733] rounded-full accent-red-500 cursor-pointer"
+            className="w-14 sm:w-16 md:w-20 h-1 bg-[#232733] rounded-full accent-[var(--accent)] cursor-pointer"
           />
         </div>
       </div>

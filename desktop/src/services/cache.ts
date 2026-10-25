@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { Playlist, Track } from "../types";
+import { clearLyricsCache } from "../hooks/useLyrics";
 
 const PLAYLISTS_CACHE_KEY = "tetplayer_cache_playlists";
 const PLAYLIST_TRACKS_CACHE_PREFIX = "tetplayer_cache_tracks_";
@@ -185,9 +186,24 @@ export const LocalCacheService = {
         }
       });
       saveLruList([]);
+
+      // Limpa cache na tabela app_cache do SQLite nativo
+      try {
+        await invoke("clear_all_db_cache");
+      } catch (err) {
+        console.warn("Falha ao limpar cache SQLite nativo:", err);
+      }
+
+      // Limpa cache em memória de letras sincronizadas
+      try {
+        clearLyricsCache();
+      } catch {
+        // ignore
+      }
     } catch (err) {
       console.warn("Erro ao limpar cache local:", err);
     }
   },
 };
+
 
