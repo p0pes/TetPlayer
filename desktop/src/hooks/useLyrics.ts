@@ -37,10 +37,10 @@ export function formatTime(seconds: number): string {
 export function parseLrc(lrcText: string): LyricLine[] {
   const lines = lrcText.split("\n");
   const result: LyricLine[] = [];
-  const timeRegex = /\[(\d{2}):(\d{2})(?:\.(\d{2,3}))?\]/g;
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
+    const timeRegex = /\[(\d{2}):(\d{2})(?:\.(\d{2,3}))?\]/g;
     const matches = Array.from(line.matchAll(timeRegex));
     if (matches.length === 0) continue;
 
@@ -169,6 +169,14 @@ export function useLyrics({
   const isProgrammaticScrollRef = useRef(false);
   const programmaticScrollTimeoutRef = useRef<number | null>(null);
 
+  // Cleanup de timeouts pendentes ao desmontar
+  useEffect(() => {
+    return () => {
+      if (programmaticScrollTimeoutRef.current) window.clearTimeout(programmaticScrollTimeoutRef.current);
+      if (userScrollTimeoutRef.current) window.clearTimeout(userScrollTimeoutRef.current);
+    };
+  }, []);
+
   // Autoscroll Suave e Otimizado da Linha Ativa
   useEffect(() => {
     const isLyricsActive = (isNowPlayingOpen && nowPlayingTab === "lyrics") || showLyrics;
@@ -190,7 +198,7 @@ export function useLyrics({
 
       programmaticScrollTimeoutRef.current = window.setTimeout(() => {
         isProgrammaticScrollRef.current = false;
-      }, 550);
+      }, 700);
 
       setIsUserScrolledAway(false);
     }
@@ -216,7 +224,7 @@ export function useLyrics({
         });
         setTimeout(() => {
           isProgrammaticScrollRef.current = false;
-        }, 550);
+        }, 700);
       }
     }, 4500);
   }
@@ -229,10 +237,48 @@ export function useLyrics({
       const container = lyricsContainerRef.current;
       const activeEl = activeLyricRef.current;
       const targetScroll = activeEl.offsetTop - container.clientHeight / 2 + activeEl.clientHeight / 2;
+      isProgrammaticScrollRef.current = true;
       container.scrollTo({
         top: Math.max(0, targetScroll),
         behavior: "smooth",
       });
+      setTimeout(() => {
+        isProgrammaticScrollRef.current = false;
+      }, 700);
+    }
+  }
+
+  function handleLyricClick(time: number, onSeek: (time: number) => void) {
+    userScrollingLyricsRef.current = false;
+    setIsUserScrolledAway(false);
+    if (userScrollTimeoutRef.current) window.clearTimeout(userScrollTimeoutRef.current);
+
+    onSeek(time);
+
+    if (lyricsContainerRef.current) {
+      const container = lyricsContainerRef.current;
+      isProgrammaticScrollRef.current = true;
+      if (programmaticScrollTimeoutRef.current) {
+        window.clearTimeout(programmaticScrollTimeoutRef.current);
+      }
+
+      const targetIdx = parsedLyrics.findIndex((l) => l.time === time);
+      if (targetIdx !== -1) {
+        setActiveLyricIndex(targetIdx);
+        const lineElements = container.querySelectorAll<HTMLElement>("[data-lyric-time]");
+        const targetEl = lineElements[targetIdx];
+        if (targetEl) {
+          const targetScroll = targetEl.offsetTop - container.clientHeight / 2 + targetEl.clientHeight / 2;
+          container.scrollTo({
+            top: Math.max(0, targetScroll),
+            behavior: "smooth",
+          });
+        }
+      }
+
+      programmaticScrollTimeoutRef.current = window.setTimeout(() => {
+        isProgrammaticScrollRef.current = false;
+      }, 700);
     }
   }
 
@@ -247,5 +293,6 @@ export function useLyrics({
     activeLyricRef,
     handleLyricsContainerScroll,
     handleRecenterLyrics,
+    handleLyricClick,
   };
 }

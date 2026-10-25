@@ -142,6 +142,46 @@ pub fn generate_sapisid_hash(sapisid: &str, origin: &str) -> String {
     format!("SAPISIDHASH {now}_{hash}")
 }
 
+/// Verifica se um cookie é estritamente relevante para a autenticação e sessão do YouTube Music.
+/// Descarta cookies de outros serviços Google (ex: Docs, Drive, Gmail, Ads, Cloud)
+/// que chegam a acumular 70KB+ e disparam o erro HTTP 413 (Payload Too Large).
+pub fn is_relevant_youtube_cookie(name: &str) -> bool {
+    matches!(
+        name,
+        "SAPISID"
+            | "__Secure-1PAPISID"
+            | "__Secure-3PAPISID"
+            | "APISID"
+            | "SSID"
+            | "HSID"
+            | "SID"
+            | "__Secure-1PSID"
+            | "__Secure-3PSID"
+            | "LOGIN_INFO"
+            | "VISITOR_INFO1_LIVE"
+            | "VISITOR_PRIVACY_METADATA"
+            | "YSC"
+            | "PREF"
+            | "wide"
+            | "SIDCC"
+            | "__Secure-1PSIDCC"
+            | "__Secure-3PSIDCC"
+            | "__Secure-1PSIDTS"
+            | "__Secure-3PSIDTS"
+            | "__Secure-ROLLOUT_TOKEN"
+            | "__Secure-OSID"
+            | "SOCS"
+            | "CONSENT"
+            | "DEVICE_INFO"
+            | "GPS"
+    )
+}
+
+/// Valida se o valor do cookie é ASCII válido para uso em cabeçalhos HTTP
+pub fn is_valid_cookie_val(v: &str) -> bool {
+    !v.is_empty() && v.bytes().all(|b| b >= 0x20 && b <= 0x7E && b != b';')
+}
+
 // Extração de cookies do Mozilla Firefox (em texto puro no cookies.sqlite)
 pub fn extract_firefox_session() -> Option<AuthSession> {
     let app_data = std::env::var("APPDATA").ok()?;
@@ -194,7 +234,9 @@ pub fn extract_firefox_session() -> Option<AuthSession> {
             Ok((name, value))
         }) {
             for r in mapped.flatten() {
-                cookies.insert(r.0, r.1);
+                if is_relevant_youtube_cookie(&r.0) && is_valid_cookie_val(&r.1) {
+                    cookies.insert(r.0, r.1);
+                }
             }
         }
 
@@ -208,7 +250,9 @@ pub fn extract_firefox_session() -> Option<AuthSession> {
                 Ok((name, value))
             }) {
                 for r in mapped.flatten() {
-                    cookies.insert(r.0, r.1);
+                    if is_relevant_youtube_cookie(&r.0) && is_valid_cookie_val(&r.1) {
+                        cookies.insert(r.0, r.1);
+                    }
                 }
             }
         }
@@ -290,8 +334,13 @@ pub fn extract_cookies_from_profile(
     let mut cookies = HashMap::new();
     for row in rows.flatten() {
         let (name, enc_val) = row;
+        if !is_relevant_youtube_cookie(&name) {
+            continue;
+        }
         if let Ok(decrypted) = decrypt_aes_gcm(master_key, &enc_val) {
-            cookies.insert(name, decrypted);
+            if is_valid_cookie_val(&decrypted) {
+                cookies.insert(name, decrypted);
+            }
         }
     }
 
@@ -372,4 +421,31 @@ pub fn find_youtube_session() -> AuthSession {
     }
 
     AuthSession::default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_relevant_youtube_cookie_filter() {
+        assert!(is_relevant_youtube_cookie("SAPISID"));
+        assert!(is_relevant_youtube_cookie("__Secure-3PAPISID"));
+        assert!(is_relevant_youtube_cookie("LOGIN_INFO"));
+        assert!(is_relevant_youtube_cookie("VISITOR_INFO1_LIVE"));
+
+        // Cookies irrelevantes/ruidosos de outros serviços Google que devem ser filtrados
+        assert!(!is_relevant_youtube_cookie("ST-1099qfh"));
+        assert!(!is_relevant_youtube_cookie("__Host-GMAIL_SCH_GML"));
+        assert!(!is_relevant_youtube_cookie("django_language"));
+        assert!(!is_relevant_youtube_cookie("ACCOUNT_CHOOSER"));
+        assert!(!is_relevant_youtube_cookie("_GRECAPTCHA"));
+    }
+
+    #[test]
+    fn test_valid_cookie_val() {
+        assert!(is_valid_cookie_val("valid_value_123_abc"));
+        assert!(!is_valid_cookie_val(""));
+        assert!(!is_valid_cookie_val("val;with;semicolon"));
+    }
 }

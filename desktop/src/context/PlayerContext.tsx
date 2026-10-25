@@ -285,16 +285,15 @@ export function PlayerProvider({
   }
 
   function toggleNowPlaying() {
-    setIsNowPlayingOpen((prev) => {
-      if (!prev && mainScrollRef.current) {
-        playlistScrollPosRef.current = mainScrollRef.current.scrollTop;
-      }
-      return !prev;
-    });
+    if (isNowPlayingOpen || showLyrics) {
+      closeNowPlaying();
+    } else {
+      openNowPlaying(nowPlayingTab);
+    }
   }
 
   function toggleShowLyrics() {
-    if (isNowPlayingOpen && nowPlayingTab === "lyrics") {
+    if ((isNowPlayingOpen || showLyrics) && nowPlayingTab === "lyrics") {
       closeNowPlaying();
     } else {
       openNowPlaying("lyrics");
@@ -302,7 +301,7 @@ export function PlayerProvider({
   }
 
   function toggleShowQueue() {
-    if (isNowPlayingOpen && nowPlayingTab === "queue") {
+    if ((isNowPlayingOpen || showLyrics) && nowPlayingTab === "queue") {
       closeNowPlaying();
     } else {
       openNowPlaying("queue");
@@ -681,9 +680,9 @@ export function PlayerProvider({
   return (
     <PlayerContext.Provider value={contextValue}>
       <PlaybackProgressProvider currentTime={currentTime} duration={duration}>
-        {/* Hidden YouTube Iframe Player mantido PERMANENTEMENTE no DOM raiz para zero interrupções */}
+        {/* Hidden YouTube Iframe Player mantido PERMANENTEMENTE no DOM raiz com pipeline ativo para evitar background throttling */}
         <div
-          className="fixed -top-[9999px] -left-[9999px] pointer-events-none opacity-0 w-1 h-1 overflow-hidden"
+          className="fixed bottom-0 right-0 pointer-events-none opacity-[0.001] w-48 h-48 -z-50 overflow-hidden"
           aria-hidden="true"
         >
           <div id="yt-player-frame" />

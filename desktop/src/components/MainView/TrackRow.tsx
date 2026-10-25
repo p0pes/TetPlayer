@@ -65,8 +65,10 @@ export const TrackRow = React.memo(function TrackRow({
         <div className="w-11 h-11 rounded-lg bg-[#1a1d28] overflow-hidden shrink-0 flex items-center justify-center relative">
           {track.artwork_url || track.id ? (
             <img
-              src={upgradeArtworkQuality(track.artwork_url, track.id)}
+              src={upgradeArtworkQuality(track.artwork_url, track.id, "thumb")}
               alt={track.title}
+              loading="lazy"
+              decoding="async"
               referrerPolicy="no-referrer"
               onError={(e) => handleArtworkError(e, track.id)}
               className="w-full h-full object-cover"

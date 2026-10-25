@@ -17,6 +17,7 @@ export function LyricsView() {
     activeLyricRef,
     handleLyricsContainerScroll,
     handleRecenterLyrics,
+    handleLyricClick,
   } = useLyrics({
     currentTrack,
     currentTime,
@@ -73,8 +74,9 @@ export function LyricsView() {
               return (
                 <div
                   key={`${line.time}-${idx}`}
+                  data-lyric-time={line.time}
                   ref={isActive ? activeLyricRef : null}
-                  onClick={() => handleSeekTo(line.time)}
+                  onClick={() => handleLyricClick(line.time, handleSeekTo)}
                   className={`py-2 px-4 rounded-xl transition-[transform,opacity,color] duration-200 ease-out will-change-transform cursor-pointer select-none ${
                     isActive
                       ? "text-2xl md:text-3xl font-bold text-white scale-[1.03] [text-shadow:0_0_20px_rgba(255,255,255,0.45)]"

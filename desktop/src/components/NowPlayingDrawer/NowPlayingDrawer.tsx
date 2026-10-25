@@ -2,7 +2,6 @@ import {
   ListMusic,
   Mic2,
   Sliders,
-  ChevronDown,
 } from "lucide-react";
 import { usePlayer } from "../../context/PlayerContext";
 import { QueueView } from "../QueueView/QueueView";
@@ -15,7 +14,6 @@ export function NowPlayingDrawer() {
     currentTrack,
     nowPlayingTab,
     setNowPlayingTab,
-    closeNowPlaying,
     activeQueue,
     crossfadeSeconds,
     cycleCrossfade,
@@ -24,7 +22,7 @@ export function NowPlayingDrawer() {
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative bg-[#0b0c10]/95 backdrop-blur-2xl animate-in fade-in duration-200">
-      {/* Header da Gaveta: Tabs (Fila / Letras), Crossfade e Fechar */}
+      {/* Header da Gaveta: Tabs (Fila / Letras), Crossfade */}
       <div className="h-14 px-3 sm:px-4 md:px-6 border-b border-[#1f232e] flex items-center justify-between gap-2 sm:gap-4 shrink-0 bg-[#0e1017]/80 backdrop-blur-md z-20">
         {/* Esquerda: Identificador da faixa atual */}
         <div className="flex items-center gap-2 sm:gap-3 w-[28%] min-w-0 max-w-[260px]">
@@ -90,7 +88,7 @@ export function NowPlayingDrawer() {
           </div>
         </div>
 
-        {/* Direita: Configuração de Crossfade e Fechar Gaveta */}
+        {/* Direita: Configuração de Crossfade */}
         <div className="flex items-center justify-end gap-1.5 sm:gap-2 shrink-0 w-[28%] min-w-0 max-w-[260px]">
           <button
             type="button"
@@ -105,16 +103,6 @@ export function NowPlayingDrawer() {
             <Sliders className="w-3.5 h-3.5 text-red-400 shrink-0" />
             <span className="hidden lg:inline">Crossfade:</span>
             <span className="font-mono">{crossfadeSeconds > 0 ? `${crossfadeSeconds}s` : "Off"}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={closeNowPlaying}
-            title="Recolher Gaveta [Esc]"
-            aria-label="Recolher gaveta"
-            className="p-1.5 h-8 w-8 flex items-center justify-center rounded-xl text-[#8c91a4] hover:text-white hover:bg-[#1f2433] border border-[#232735] transition-colors cursor-pointer shrink-0"
-          >
-            <ChevronDown className="w-4 h-4" />
           </button>
         </div>
       </div>

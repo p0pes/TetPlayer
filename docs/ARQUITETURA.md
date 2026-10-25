@@ -73,12 +73,15 @@ graph TD
 ```text
 TetPlayer/
 ├── docs/
+│   ├── README.md                <- Central e índice de documentação
 │   ├── ARQUITETURA.md           <- Este documento com especificações técnicas
-│   └── mockup_preview.html      <- Mockup interativo da UI (PC e Celular)
+│   ├── mockup_preview.html      <- Mockup interativo da UI (PC e Celular)
+│   ├── desktop/                 <- Documentação específica Desktop (SUGESTOES.md, CORRECOES.md)
+│   └── mobile/                  <- [Futuro] Documentação específica Mobile
 │
-├── Agents/                      <- Diretrizes de desenvolvimento e revisão de código
-│   ├── code_writer.md           <- Regras para implementação sem quebras e com UI impecável
-│   └── reviwer.md               <- Regras para auditoria estática e revisões
+├── .agents/                     <- Governança de agentes, regras e skills (Antigravity)
+│   ├── rules/code_writer.md     <- Regra permanente de implementação sênior com zero regressões
+│   └── skills/reviewer/SKILL.md <- Skill de auditoria estática, segurança e UX inspection
 │
 ├── desktop/                     <- Aplicação Desktop (Tauri + Rust + React/TypeScript)
 │   ├── src-tauri/               <- Backend Rust

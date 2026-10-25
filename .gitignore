@@ -57,3 +57,7 @@ desktop.ini
 *.key
 cookies_dump.json
 temp_cookies.db*
+
+# Graphify knowledge graph outputs
+graphify-out/
+**/graphify-out/

@@ -39,6 +39,11 @@ export function useYouTubePlayer({
   const [loadingTrackId, setLoadingTrackId] = useState<string | null>(null);
 
   // Refs para acesso dentro do loop de sincronização sem stale closures
+  const isPlayingRef = useRef(isPlaying);
+  isPlayingRef.current = isPlaying;
+  const isSeekingRef = useRef(false);
+  const seekTimeoutRef = useRef<number | null>(null);
+
   const volumeRef = useRef(volume);
   const isMutedRef = useRef(isMuted);
   const crossfadeSecondsRef = useRef(crossfadeSeconds);
@@ -106,7 +111,10 @@ export function useYouTubePlayer({
       }
     }, 80);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (seekTimeoutRef.current) window.clearTimeout(seekTimeoutRef.current);
+    };
   }, [isPlayerReady]);
 
   function initYouTubePlayer() {
@@ -157,14 +165,25 @@ export function useYouTubePlayer({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onStateChange: (event: any) => {
           if (event.data === 1) { // PLAYING
+            isSeekingRef.current = false;
             setIsPlaying(true);
             setLoadingTrackId(null);
             ytPlayerRef.current.setPlaybackRate(1.0);
             const dur = ytPlayerRef.current.getDuration();
             if (dur) setDuration(dur);
           } else if (event.data === 2) { // PAUSED
+            // Se o YouTube pausar temporariamente durante a busca e o app devia estar tocando:
+            if (isSeekingRef.current && isPlayingRef.current) {
+              try {
+                ytPlayerRef.current.playVideo();
+              } catch {
+                // ignore
+              }
+              return;
+            }
             setIsPlaying(false);
           } else if (event.data === 0) { // ENDED -> Autoplay next
+            isSeekingRef.current = false;
             setIsPlaying(false);
             onTrackEndedRef.current();
           }
@@ -223,7 +242,23 @@ export function useYouTubePlayer({
     const clamped = Math.max(0, Math.min(seconds, duration || 99999));
     setCurrentTime(clamped);
     if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === "function") {
+      const wasPlaying = isPlayingRef.current;
+      isSeekingRef.current = true;
+      if (seekTimeoutRef.current) window.clearTimeout(seekTimeoutRef.current);
+      seekTimeoutRef.current = window.setTimeout(() => {
+        isSeekingRef.current = false;
+      }, 1200);
+
       ytPlayerRef.current.seekTo(clamped, true);
+
+      if (wasPlaying) {
+        try {
+          ytPlayerRef.current.playVideo();
+        } catch {
+          // ignore
+        }
+        setIsPlaying(true);
+      }
     }
   }
 

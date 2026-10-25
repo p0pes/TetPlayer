@@ -63,7 +63,30 @@ fn build_headers(session: &AuthSession, client_name: &str) -> HeaderMap {
 
     if session.is_authenticated {
         if !session.cookie_header.is_empty() {
-            if let Ok(val) = HeaderValue::from_str(&session.cookie_header) {
+            // Filtro defensivo: descarta cookies não essenciais para evitar cabeçalhos > 8KB e HTTP 413
+            let clean_cookie: String = session
+                .cookie_header
+                .split("; ")
+                .filter_map(|part| {
+                    let mut kv = part.splitn(2, '=');
+                    let k = kv.next()?;
+                    let v = kv.next()?;
+                    if crate::auth::is_relevant_youtube_cookie(k) && crate::auth::is_valid_cookie_val(v) {
+                        Some(format!("{k}={v}"))
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("; ");
+
+            let cookie_to_use = if clean_cookie.is_empty() {
+                &session.cookie_header
+            } else {
+                &clean_cookie
+            };
+
+            if let Ok(val) = HeaderValue::from_str(cookie_to_use) {
                 headers.insert(COOKIE, val);
             }
         }
@@ -103,9 +126,17 @@ pub async fn search_music(session: &AuthSession, query: &str) -> Result<Vec<Trac
         .await
         .map_err(|e| format!("Erro na requisição de busca: {e}"))?;
 
-    let json_val: Value = resp
-        .json()
+    let status = resp.status();
+    if !status.is_success() {
+        return Err(format!("YouTube Music retornou status {status} na busca"));
+    }
+
+    let text = resp
+        .text()
         .await
+        .map_err(|e| format!("Erro ao ler corpo da busca: {e}"))?;
+
+    let json_val: Value = serde_json::from_str(&text)
         .map_err(|e| format!("Erro ao parsear resposta da busca: {e}"))?;
 
     let mut tracks = Vec::new();
@@ -142,9 +173,17 @@ pub async fn get_home_recommendations(session: &AuthSession) -> Result<Vec<Track
         .await
         .map_err(|e| format!("Erro ao carregar página inicial: {e}"))?;
 
-    let json_val: Value = resp
-        .json()
+    let status = resp.status();
+    if !status.is_success() {
+        return Err(format!("YouTube Music retornou status {status} na página inicial"));
+    }
+
+    let text = resp
+        .text()
         .await
+        .map_err(|e| format!("Erro ao ler corpo da página inicial: {e}"))?;
+
+    let json_val: Value = serde_json::from_str(&text)
         .map_err(|e| format!("Erro no parse da página inicial: {e}"))?;
 
     let mut tracks = Vec::new();
@@ -190,8 +229,10 @@ pub async fn get_user_playlists(session: &AuthSession) -> Result<Vec<Playlist>, 
     });
 
     if let Ok(resp) = client.post(url).headers(headers.clone()).json(&payload).send().await {
-        if let Ok(json_val) = resp.json::<Value>().await {
-            extract_user_playlists_from_value(&json_val, &mut playlists);
+        if resp.status().is_success() {
+            if let Ok(json_val) = resp.json::<Value>().await {
+                extract_user_playlists_from_value(&json_val, &mut playlists);
+            }
         }
     }
 
@@ -233,9 +274,17 @@ pub async fn get_playlist_tracks(session: &AuthSession, playlist_id: &str) -> Re
         .await
         .map_err(|e| format!("Erro ao carregar faixas da playlist: {e}"))?;
 
-    let json_val: Value = resp
-        .json()
+    let status = resp.status();
+    if !status.is_success() {
+        return Err(format!("YouTube Music retornou status {status} ao carregar playlist"));
+    }
+
+    let text = resp
+        .text()
         .await
+        .map_err(|e| format!("Erro ao ler corpo da resposta da playlist: {e}"))?;
+
+    let json_val: Value = serde_json::from_str(&text)
         .map_err(|e| format!("Erro ao parsear resposta da playlist: {e}"))?;
 
     let mut tracks = Vec::new();
@@ -839,4 +888,30 @@ async fn fetch_ytm_lyrics(session: &AuthSession, video_id: &str) -> Result<Optio
     }
 
     Ok(extract_shelf_lyrics(&br_json))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::auth::find_youtube_session;
+
+    #[tokio::test]
+    async fn test_fetch_liked() {
+        let session = find_youtube_session();
+        if session.is_authenticated {
+            assert!(
+                session.cookie_header.len() < 8192,
+                "Cabeçalho de cookies não deve exceder 8KB para evitar HTTP 413 (tamanho atual: {})",
+                session.cookie_header.len()
+            );
+
+            let res = get_playlist_tracks(&session, "VLLM").await;
+            assert!(res.is_ok(), "Falha ao carregar faixas de VLLM: {:?}", res.err());
+            let tracks = res.unwrap();
+            assert!(!tracks.is_empty(), "Deveria ter retornado faixas da playlist curtidas");
+
+            let playlists_res = get_user_playlists(&session).await;
+            assert!(playlists_res.is_ok(), "Falha ao buscar playlists: {:?}", playlists_res.err());
+        }
+    }
 }

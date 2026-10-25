@@ -1,9 +1,9 @@
 # 🚀 Guia Estratégico de Sugestões, Otimizações e Novas Features — TetPlayer Desktop
 
-> **Data de Elaboração / Última Revisão:** 24 de Outubro de 2026  
+> **Data de Elaboração / Última Revisão:** 25 de Outubro de 2026  
 > **Auditor Técnico:** Especialista em Arquitetura de Software, UX/UI e Sistemas de Mídia (`reviwer.md`)  
-> **Documento de Referência:** [`Agents/SUGESTOES.md`](file:///d:/progrmação/programas/TetPlayer/Agents/SUGESTOES.md)  
-> **Status:** 🟢 **37 Itens Concluídos e Validados no Histórico Consolidado (Release v1.0.0)** | 💡 **Sugestões Futuras v1.1+ Mapeadas**  
+> **Documento de Referência:** [`docs/desktop/SUGESTOES.md`](file:///d:/progrmação/programas/TetPlayer/docs/desktop/SUGESTOES.md)  
+> **Status:** 🟢 **41 Itens Concluídos e Validados no Histórico Consolidado (Release v1.0.0+)** | 💡 **24 Sugestões Futuras v1.1+ Mapeadas (incl. pesquisa de mercado e preparação para app público)**  
 > **Objetivo:** Fornecer um roadmap técnico, moderno e categorizado para elevar o TetPlayer Desktop ao estado da arte em reprodutores de mídia para desktop.
 
 ---
@@ -23,59 +23,180 @@ O **TetPlayer Desktop** opera sobre uma fundação de alta performance combinand
 │ Interface do Usuário           │ React 19 + TypeScript + Lucide        │
 │ Estilização & Ambient Glow     │ Tailwind CSS v4 + GPU Dynamic Aurora  │
 │ Provedor de Letras             │ LRCLIB API + Fallback YTM InnerTube   │
-│ Controles Globais              │ Windows SMTC (MediaSession) + Tray    │
+│ Controles Globais              │ Windows SMTC + GlobalShortcut + Tray  │
 │ Persistência Local             │ SQLite Embutido (TetStats + AppCache) │
 │ Resiliência de Rede            │ Exponential Backoff Retry + Offline   │
 │ Atualizações Contínuas         │ GitHub Releases / Main Branch Checker │
 └────────────────────────────────┴───────────────────────────────────────┘
 ```
 
-Abaixo encontram-se as **sugestões ativas em aberto** (Eixos 2, 3 e 4), seguidas pelo **Histórico Consolidado** com todos os 27 itens já implementados e validados na base de código (incluindo todo o Eixo 1: Performance, Arquitetura e Engenharia de Código).
+Abaixo encontram-se a **pesquisa de mercado**, as **24 sugestões ativas em aberto** para a versão **v1.1+** e o **Histórico Consolidado** com todos os 41 itens já implementados, testados e validados na base de código.
 
 ---
 
-## 💡 SUGESTÕES ATIVAS EM ABERTO (Roadmap em Andamento)
+## 🔎 Pesquisa de Mercado: O que Usuários Pedem em Clientes de Música Desktop
+
+> [!NOTE]
+> Levantamento feito em 25/10/2026 a partir de discussões do r/YoutubeMusic, dos plugins mais usados do cliente open-source [th-ch/youtube-music](https://github.com/th-ch/youtube-music), de clientes alternativos de YouTube Music (OuterTune, Metrolist, ViMusic) e das funções mais pedidas no Spotify Desktop. Cada demanda foi cruzada com o código atual do TetPlayer.
+
+| Demanda recorrente dos usuários | Onde aparece | Situação no TetPlayer |
+|---|---|---|
+| App nativo leve, sem "cara de aba do navegador" | Reddit (queixa nº 1 do app oficial) | ✅ Já atendido (Tauri + Rust) |
+| Teclas de mídia globais, bandeja, mini player | Reddit, th-ch | ✅ Já atendido |
+| Letras sincronizadas | Reddit, th-ch | ✅ Já atendido (melhorias em 3.2 / 3.3) |
+| Buscar uma música **dentro** de uma playlist e ordenar | Reddit (muito citado) | ❌ Não existe → **2.2** |
+| Curtir/descurtir e ver se a faixa já está curtida | Reddit | ❌ Não existe → **2.3** |
+| Criar, editar e modificar playlists (adicionar, remover, renomear, reordenar) | Reddit, Spotify | ❌ Não existe → **2.4** |
+| Voltar de onde parou ao reabrir o app | Clientes alternativos | ❌ Não existe → **2.5** |
+| Notificação nativa ao trocar de faixa | th-ch (plugin Notifications) | ❌ Não existe → **2.6** |
+| Bloquear músicas/artistas da rádio e recomendações | Reddit, Spotify | ❌ Não existe → **2.7** |
+| Botões Voltar/Avançar de navegação | th-ch (plugin Navigation), Reddit | ❌ Não existe → **2.8** |
+| Volume pela roda do mouse com passos precisos | th-ch (plugin Precise Volume) | ❌ Não existe → **2.9** |
+| Feed de lançamentos e biblioteca de álbuns/artistas | Reddit, Spotify | ❌ Não existe → **2.10** |
+| Sleep timer | Clientes alternativos | ❌ Não existe → **2.1** |
+| Discord Rich Presence | th-ch, Reddit | ❌ Não existe → **4.1** |
+| Equalizador / normalização real de volume | Clientes alternativos, audiófilos | ⚠️ Só um limitador simples acima de 85% → **4.2** |
+| Scrobbling Last.fm / ListenBrainz | th-ch (plugin Last.fm) | ❌ Não existe → **4.3** |
+| Pular intros/trechos não musicais (SponsorBlock) | th-ch (plugin SponsorBlock) | ❌ Não existe → **4.4** |
+| Controlar pelo celular / Stream Deck (estilo Spotify Connect) | Reddit, th-ch (API Server) | ❌ Não existe → **4.5** |
+| Botões de mídia na miniatura da barra de tarefas | th-ch (Taskbar Media Control) | ❌ Não existe → **4.6** |
+| Importar playlists do Spotify / CSV | Clientes alternativos | ❌ Não existe → **4.7** |
+| Download de músicas/playlists para escuta offline | Clientes alternativos (muito pedido) | ❌ Não existe → **4.8** |
+| Login próprio com Google via Webview (independente de navegador) | Apps desktop públicos (th-ch, Spotube) | ❌ Usa extração local de cookies → **4.9** |
+| Atualização in-app automática (buscar nas configs, download em 1 clique) | Apps desktop modernos (Spotify, Discord, th-ch) | ⚠️ Checagem existe, mas download abre navegador → **4.10** |
+
+---
+
+## 💡 SUGESTÕES ATIVAS EM ABERTO (Roadmap v1.1+)
+
+> [!TIP]
+> Os números das sugestões que já existiam (2.1, 3.1–3.3, 4.1, 4.2) foram mantidos para não confundir as referências. As novas vindas da pesquisa começam em **1.1**, **2.2** e **4.3**.
+
+---
+
+### Eixo 1: Fundação Técnica do Motor de Áudio
+
+#### 1.1 Motor de Áudio Nativo (Substituir o Iframe do YouTube por Stream Direto)
+* **Status:** `[Em Avaliação / Pré-requisito Técnico]` 🔬
+* **Impacto:** `[Muito Alto]` | **Esforço:** `[Alto]` | **Risco:** `[Alto]`
+* **Por que importa:**  
+  Hoje o áudio sai de um **iframe oculto do YouTube** ([`useYouTubePlayer.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useYouTubePlayer.ts)). O navegador não deixa a Web Audio API acessar o som de um iframe de outro domínio. Isso bloqueia três pedidos da pesquisa:
+  - **Equalizador real (4.2):** não dá para aplicar filtros no áudio do iframe.
+  - **Crossfade com sobreposição:** com um único player, só existe fade-out + fade-in, nunca as duas músicas tocando juntas.
+  - **Gapless verdadeiro:** sempre há o tempo de carregar o próximo vídeo.
+* **Proposta:**  
+  Obter a URL do stream de áudio pelo endpoint InnerTube `/player` no backend Rust e tocar num elemento `<audio>` (ou dois, para crossfade), passando por um grafo Web Audio (`GainNode`, `BiquadFilterNode`).
+* **Riscos:**  
+  O YouTube protege os streams com assinatura cifrada e tokens (PO Token), que mudam com frequência. Clientes como OuterTune e yt-dlp precisam de manutenção constante por isso. Recomenda-se um protótipo isolado antes de qualquer decisão, mantendo o iframe como fallback.
 
 ---
 
 ### Eixo 2: Experiência do Usuário (UX) & Ergonomia de Reprodução
 
-#### 2.1 Reordenação da Fila via Drag & Drop (Arrastar para Reordenar)
-* **Status:** `[Em Aberto / Alta Prioridade]` 💡
-* **Impacto:** `[Alto]` | **Esforço:** `[Médio]`
-* **Descrição Conceitual:**  
-  Permitir ao usuário pegar qualquer música da lista "A Seguir" na gaveta de reprodução [`QueueView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/QueueView/QueueView.tsx) e arrastá-la livremente para cima ou para baixo para personalizar a sequência de reprodução.
-* **Funcionalidades:**
-  - Alça tátil de arrasto (*grip icon*) ao passar o mouse sobre cada item.
-  - Feedback visual suave com animação fluida de transição de posição.
-  - Sincronização automática com a fila ativa no [`PlayerContext.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/context/PlayerContext.tsx).
-
----
-
-#### 2.2 Sleep Timer (Temporizador de Suspensão com Fade-Out)
+#### 2.1 Sleep Timer (Temporizador de Suspensão com Fade-Out Gradual)
 * **Status:** `[Em Aberto / Alta Prioridade]` 💡
 * **Impacto:** `[Médio]` | **Esforço:** `[Baixo]`
 * **Descrição Conceitual:**  
   Ideal para usuários que gostam de dormir ou estudar ouvindo música no desktop.
 * **Funcionalidades:**
   - Menu rápido para programar pausa automática em: *15 min*, *30 min*, *45 min*, *1 hora* ou *Ao finalizar a faixa atual*.
-  - Ao chegar ao término do tempo, o TetPlayer executa um fade-out gradual e suave de áudio ao longo de 20 segundos, pausando sem paradas bruscas.
+  - Ao chegar ao término do tempo, o TetPlayer executa um fade-out gradual e suave de volume ao longo de 20 segundos, pausando sem paradas bruscas.
 
 ---
 
-#### 2.3 Paleta de Comandos Global / Busca Rápida (`Ctrl+K` / `Cmd+K`)
-* **Status:** `[Em Aberto]` 💡
-* **Impacto:** `[Muito Alto / Produtividade]` | **Esforço:** `[Médio]`
-* **Descrição Conceitual:**  
-  Uma barra flutuante centralizada estilo Spotlight/Raycast aberta pelo atalho `Ctrl+K`. Permite ao usuário digitar qualquer termo e navegar instantaneamente para playlists, músicas recentes, configurações ou executar ações rápidas (e.g. "Alternar Mini Player", "Limpar Fila", "Abrir Estatísticas", "Pausar").
+#### 2.2 Busca e Ordenação Dentro de Playlists
+* **Status:** `[Em Aberto / Essencial]` 💡
+* **Impacto:** `[Alto]` | **Esforço:** `[Baixo]`
+* **Origem:** Uma das queixas mais repetidas no r/YoutubeMusic: numa playlist de 500 músicas não há como procurar uma faixa.
+* **Funcionalidades:**
+  - Campo de filtro no topo de [`PlaylistDetailView`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/) que filtra por título, artista e álbum em tempo real (no cliente, sobre as faixas já carregadas).
+  - Ordenação por: ordem original, título, artista, duração.
+  - Atalho `Ctrl+F` para focar o filtro. Compatível com a lista virtualizada existente.
 
 ---
 
-#### 2.4 Crossfade Suave Configurável entre Faixas
+#### 2.3 Curtir / Descurtir Sincronizado com o YouTube Music
+* **Status:** `[Em Aberto / Essencial]` 💡
+* **Impacto:** `[Alto]` | **Esforço:** `[Baixo / Médio]`
+* **Origem:** Usuários reclamam de não saber se uma música já está curtida sem abrir menus.
+* **Funcionalidades:**
+  - Botão de coração no [`PlayerBar`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Player/PlayerBar.tsx), no Mini Player e no menu de contexto.
+  - Comandos Rust usando os endpoints InnerTube `like/like`, `like/dislike` e `like/removelike` com o `videoId`, reaproveitando a sessão autenticada de [`ytm.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/ytm.rs).
+  - "Descurtir" pula a faixa na hora e ajuda o algoritmo da rádio.
+
+---
+
+#### 2.4 Edição e Modificação Avançada de Playlists (Criar, Adicionar, Remover, Renomear e Reordenar)
+* **Status:** `[Em Aberto / Essencial]` 💡
+* **Impacto:** `[Alto]` | **Esforço:** `[Médio]`
+* **Origem:** Hoje o TetPlayer apenas lê playlists existentes. Para um cliente completo e público, o gerenciamento bidirecional direto com a nuvem do YouTube Music é indispensável.
+* **Funcionalidades & Arquitetura:**
+  - **Menu de Contexto Completo:** Opção *"Adicionar à playlist…"* no [`TrackContextMenu`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/ContextMenu/TrackContextMenu.tsx), exibindo a lista das playlists do usuário com busca rápida e botão *"Criar nova playlist"*.
+  - **Criação de Playlist Nativa:** Modal para criar playlist com Título, Descrição e Nível de Privacidade (Pública, Não Listada, Privada) chamando o endpoint InnerTube `/playlist/create`.
+  - **Edição em `PlaylistDetailView`:**
+    - Botão de remover faixa da playlist atual (`ACTION_REMOVE_VIDEO_BY_VIDEO_ID` ou `setVideoId`).
+    - Opção de renomear e alterar descrição da playlist (`ACTION_SET_PLAYLIST_NAME` / `ACTION_SET_PLAYLIST_DESCRIPTION`).
+    - Reordenação de faixas via drag & drop refletida no YouTube Music (`ACTION_MOVE_VIDEO_AFTER`).
+  - **Salvar Fila Atual:** Botão *"Salvar fila de reprodução como playlist"* na bandeja Now Playing.
+  - **Invalidação Reativa de Cache:** Atualização instantânea da biblioteca e da tabela `app_cache` do SQLite após qualquer mutação.
+
+---
+
+#### 2.5 Restaurar a Sessão ao Reabrir o App
+* **Status:** `[Em Aberto / Essencial]` 💡
+* **Impacto:** `[Alto]` | **Esforço:** `[Baixo]`
+* **Funcionalidades:**
+  - Salvar periodicamente a fila, o índice atual, a posição na música e o modo shuffle/repeat na tabela `app_cache` do SQLite (já existente).
+  - Ao abrir, restaurar tudo **pausado** na posição exata. Configuração para desativar.
+
+---
+
+#### 2.6 Notificações Nativas de Troca de Faixa
 * **Status:** `[Em Aberto]` 💡
-* **Impacto:** `[Alto / Experiência Sonora]` | **Esforço:** `[Médio]`
-* **Descrição Conceitual:**  
-  Transição musical contínua através de atenuação cruzada de volume (crossfade de 1 a 6 segundos configurável nas preferências), eliminando pausas e silêncios secos entre músicas em playlists de festas, treinos e estudos.
+* **Impacto:** `[Médio]` | **Esforço:** `[Baixo]`
+* **Funcionalidades:**
+  - Toast do Windows com capa, título e artista via `tauri-plugin-notification`.
+  - Exibida só quando a janela não está em foco (evita poluição). Liga/desliga nas configurações.
+
+---
+
+#### 2.7 Bloquear Faixas e Artistas da Rádio / Autoplay ("Não Tocar Isto")
+* **Status:** `[Em Aberto]` 💡
+* **Impacto:** `[Médio / Alto]` | **Esforço:** `[Baixo / Médio]`
+* **Origem:** Pedido constante no Spotify e YouTube Music: músicas indesejadas que voltam sempre na rádio.
+* **Funcionalidades:**
+  - Opções "Não tocar esta música" e "Não tocar este artista" no menu de contexto.
+  - Lista de bloqueio local no SQLite, aplicada ao anexar faixas da rádio no [`playerReducer`](file:///d:/progrmação/programas/TetPlayer/desktop/src/context/playerReducer.ts) e ao avançar a fila.
+  - Tela para revisar e desbloquear itens nas configurações.
+
+---
+
+#### 2.8 Navegação Voltar / Avançar com Histórico
+* **Status:** `[Em Aberto]` 💡
+* **Impacto:** `[Médio]` | **Esforço:** `[Baixo]`
+* **Funcionalidades:**
+  - Pilha de navegação entre telas (biblioteca, playlist, busca, estatísticas) com botões ← → na barra de título.
+  - Suporte aos botões laterais do mouse e `Alt+←` / `Alt+→` (sem conflito com `←`/`→`, que hoje fazem seek).
+
+---
+
+#### 2.9 Volume pela Roda do Mouse com Passos Precisos
+* **Status:** `[Em Aberto]` 💡
+* **Impacto:** `[Baixo / Médio]` | **Esforço:** `[Baixo]`
+* **Funcionalidades:**
+  - Rolar o mouse sobre o controle de volume (e sobre o Mini Player) ajusta o volume.
+  - Tamanho do passo configurável (1%, 2%, 5%) e tooltip com a porcentagem atual.
+
+---
+
+#### 2.10 Feed de Lançamentos e Biblioteca Expandida (Álbuns, Artistas, Curtidas)
+* **Status:** `[Em Aberto]` 💡
+* **Impacto:** `[Alto]` | **Esforço:** `[Médio]`
+* **Origem:** Usuários que seguem muitos artistas querem uma lista confiável de novidades.
+* **Funcionalidades:**
+  - Aba "Novidades" com lançamentos via browse InnerTube (`FEmusic_new_releases`).
+  - Abas de biblioteca para álbuns salvos, artistas inscritos e músicas curtidas.
+  - Página de artista com discografia organizada por álbuns.
 
 ---
 
@@ -93,25 +214,31 @@ Abaixo encontram-se as **sugestões ativas em aberto** (Eixos 2, 3 e 4), seguida
 
 ---
 
-#### 3.2 Temas de Cores Customizáveis (Accent Themes & Modo Dark OLED)
-* **Status:** `[Implementado e Validado]` ✅
-* **Impacto:** `[Médio / Personalização]` | **Esforço:** `[Baixo]`
-* **Localização:** [`desktop/src/services/settings.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/settings.ts), [`desktop/src/components/SettingsModal/SettingsModal.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/SettingsModal/SettingsModal.tsx) e [`desktop/src/index.css`](file:///d:/progrmação/programas/TetPlayer/desktop/src/index.css).
-* **Presets de Acento Implementados:**
-  - 🔴 **TetPlayer Ruby (Padrão):** Vermelho vibrante (`#ef4444`) com detalhes carmesim e brilho dinâmico.
-  - 🟣 **Cyber Indigo:** Violeta elétrico (`#8b5cf6`) com detalhes neon roxo e aura temática.
-  - 🟢 **Emerald Wave:** Verde esmeralda analógico (`#10b981`) com atmosfera retrô vintage.
-  - 🔵 **Ocean Blue:** Azul safira e turquesa profundo (`#0ea5e9`) com iluminação aquática límpida.
-  - 🖤 **Monochrome Pure OLED:** Fundo 100% preto absoluto (`#000000`) com detalhes em cinza titânio e branco puro (`#f4f4f5`), glow desativado automaticamente (0%) para máximo contraste e eficiência energética em telas OLED.
-* **Solução Implementada:** Integrado diretamente na Aba de Aparência do Modal de Configurações (`Ctrl+,`), persistido no `SettingsService` e propagado ao DOM via atributos CSS `data-theme`, classes `.theme-monochrome-oled` e variáveis dinâmicas `--accent-primary` e `--accent-glow`.
-
----
-
-#### 3.3 Suporte a Letras Sincronizadas Palavra-por-Palavra (Syllable / Word-by-Word Sync)
+#### 3.2 Suporte a Letras Sincronizadas Palavra-por-Palavra (Syllable / Word-by-Word Sync)
 * **Status:** `[Em Aberto]` 💡
 * **Impacto:** `[Alto / Visual]` | **Esforço:** `[Médio]`
 * **Descrição Conceitual:**  
   Quando fornecido pelo LRCLIB ou InnerTube (`karaoke lyrics format`), iluminar individualmente cada sílaba/palavra conforme ela é entoada pelo vocalista, replicando a consagrada experiência do Apple Music Sing e Spotify Karaoke.
+
+---
+
+#### 3.3 Animação Cinematográfica e Scroll Fluido na Troca de Letras (Smooth Kinetic Seek & Spring Easing)
+* **Status:** `[Em Aberto / Alta Prioridade]` 💡
+* **Impacto:** `[Alto / Experiência Visual & Polimento]` | **Esforço:** `[Médio]`
+* **Diagnóstico do Problema Atual:**  
+  Atualmente, no módulo [`useLyrics.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useLyrics.ts) e [`LyricsView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/LyricsView/LyricsView.tsx), quando o usuário salta trechos da música (seek na barra de reprodução / scrubber) ou clica diretamente em uma estrofe da letra, a rolagem pula de forma seca e abrupta para a nova posição. A chamada nativa `container.scrollTo({ behavior: "smooth" })` do navegador é interrompida por re-renders rápidos de sincronização de playback ou gera um teletransporte rígido sem inércia quando o salto temporal é grande. Além disso, a alternância entre a linha anterior e a nova linha cantada ocorre com cortes visuais secos, sem transição orgânica de escala, brilho e profundidade.
+* **Solução Proposta & Funcionalidades Técnicas:**
+  - **Interpolação de Scroll Cinética Baseada em Física (Kinetic Spring / Cubic-Bezier Damping):**
+    - Implementar uma interpolação de rolagem com física suave via `requestAnimationFrame` com curva de aceleração e frenagem (*ease-out cubic / exponential damping* estilo Apple Music), calculando a distância relativa entre o ponto atual de rolagem e a linha de destino.
+    - Em saltos curtos (passagem normal entre estrofes), o deslize é sutil e contínuo (~300ms a 400ms); em saltos longos (usuário pulando 1 a 3 minutos na música), a animação ganha velocidade inicial proporcional e desacelera suavemente ao se aproximar da estrofe de destino, eliminando engasgos e teletransportes rígidos.
+  - **Transição de Tipografia e Profundidade de Campo (Staggered Focus Morphing):**
+    - Suavizar a transição de estado da linha ativa com transições CSS bem calibradas:
+      - A linha que perde o foco esmaece suavemente em opacidade e tamanho (`scale(1.05) → scale(1)` e `opacity: 1 → 0.45` ao longo de 250ms).
+      - A linha recém-atingida ganha destaque progressivo com leve expansão elástica e iluminação gradual do texto (`drop-shadow` suave e tom de destaque).
+  - **Tratamento Inteligente de Seek e Arrasto Rápido na Linha do Tempo:**
+    - Ao arrastar rapidamente o scrubber, debouncar micro-rolagens concorrentes para evitar trepidação visual na tela; congelar a animação até a estabilização do cursor (~80ms a 120ms) e então executar a aterrissagem suave e fluida na letra correspondente.
+  - **Efeito de Motion Soft Blur em Saltos Rápidos:**
+    - Aplicar um efeito sutil de desfoque de movimento (*blur(1px~2px)* transitório) nas estrofes intermediárias durante a rolagem de alta velocidade, aterrissando com 100% de nitidez na frase exata.
 
 ---
 
@@ -135,30 +262,121 @@ Abaixo encontram-se as **sugestões ativas em aberto** (Eixos 2, 3 e 4), seguida
 * **Soluções de Áudio:**
   - **Normalização de Volume Inteligente (Loudness Normalization):** Suaviza as diferenças de decibéis entre faixas de épocas e gêneros distintos.
   - **Equalizador Gráfico de 10 Bandas:** Com sliders de 32Hz a 16kHz e predefinições (Bass Boost, Treble, Acústico, Rock, Pop, Vocais Claras).
+* **Observações técnicas (após análise do código):**
+  - A opção "Normalização de Volume" atual em [`useYouTubePlayer.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useYouTubePlayer.ts) é só um limitador: reduz pela metade o que passar de 85% do volume. Não iguala o volume entre faixas.
+  - **Normalização real já é possível sem trocar o motor:** a resposta do endpoint InnerTube `/player` traz o valor de loudness da faixa (`loudnessDb`). Basta buscá-lo no Rust e ajustar o `setVolume` do iframe por faixa.
+  - **O equalizador depende do item 1.1** (motor de áudio nativo), porque o áudio do iframe não pode ser processado.
 
 ---
 
-#### 4.3 Exportação e Compartilhamento de Estatísticas ("TetStats Share Cards")
+#### 4.3 Scrobbling para Last.fm e ListenBrainz
 * **Status:** `[Em Aberto]` 💡
-* **Impacto:** `[Alto / Engajamento]` | **Esforço:** `[Baixo / Médio]`
-* **Descrição Conceitual:**  
-  Geração automática de cartões visuais em imagem PNG de alta resolução a partir do painel [`StatsView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/StatsView/StatsView.tsx) (Top Artistas, Músicas mais ouvidas e horas totais), prontos para compartilhar nas redes sociais (Twitter/X, Instagram, Discord).
+* **Impacto:** `[Médio / Alto para entusiastas]` | **Esforço:** `[Médio]`
+* **Origem:** Plugin Last.fm é um dos mais usados no th-ch/youtube-music.
+* **Funcionalidades:**
+  - Login no Last.fm (fluxo de autenticação desktop) e token do ListenBrainz nas configurações.
+  - "Now Playing" ao iniciar a faixa e scrobble seguindo a regra padrão (faixa com mais de 30s, tocada por metade da duração ou 4 minutos).
+  - Fila offline de scrobbles no SQLite, reenviada quando a internet voltar (reaproveitando `retryWithBackoff`).
 
 ---
 
-#### 4.4 Suporte a Teclas de Mídia Globais e Atalhos de Teclado no Sistema
-* **Status:** `[Em Aberto]` 💡
-* **Impacto:** `[Alto / Ergonomia]` | **Esforço:** `[Baixo via Tauri globalShortcut]`
-* **Descrição Conceitual:**  
-  Registrar teclas multimídia do teclado físico (`Play/Pause`, `Next`, `Previous`, `Stop`) via plugin nativo `tauri-plugin-global-shortcut`, garantindo que o controle funcione mesmo quando o TetPlayer estiver em segundo plano, minimizado na bandeja ou enquanto o usuário joga em tela cheia.
-
----
-
-#### 4.5 Histórico de Faixas Tocadas com Opção de Desfazer ("Tocar Anterior da Fila")
+#### 4.4 Pular Trechos Não Musicais Automaticamente (SponsorBlock)
 * **Status:** `[Em Aberto]` 💡
 * **Impacto:** `[Médio]` | **Esforço:** `[Baixo]`
-* **Descrição Conceitual:**  
-  Histórico visual de faixas reproduzidas na sessão com navegação reversa confiável, permitindo voltar faixas com restauração imediata do contexto da playlist anterior.
+* **Origem:** Plugin SponsorBlock do th-ch/youtube-music. Videoclipes costumam ter intros faladas, cenas e outros sem música.
+* **Funcionalidades:**
+  - Consulta à API pública do [SponsorBlock](https://sponsor.ajay.app) pela categoria `music_offtopic` usando o `videoId`.
+  - Seek automático ao entrar num segmento marcado, com aviso discreto "Trecho não musical pulado".
+  - Liga/desliga nas configurações. Os segmentos também ajustam o cálculo do crossfade.
+
+---
+
+#### 4.5 Controle Remoto pelo Celular e Stream Deck (Servidor Local)
+* **Status:** `[Em Aberto]` 💡
+* **Impacto:** `[Alto]` | **Esforço:** `[Médio / Alto]`
+* **Origem:** Usuários sentem falta de algo como o Spotify Connect. O th-ch oferece um "API Server" para Stream Deck.
+* **Funcionalidades:**
+  - Servidor HTTP + WebSocket na rede local, desligado por padrão.
+  - Página web leve aberta no celular via QR Code: capa, play/pause, próxima, volume, fila.
+  - Pareamento por token e acesso só pela rede local, por segurança.
+  - Mesma API usada por Stream Deck e automações.
+
+---
+
+#### 4.6 Botões de Mídia na Miniatura da Barra de Tarefas do Windows
+* **Status:** `[Em Aberto]` 💡
+* **Impacto:** `[Médio]` | **Esforço:** `[Médio]`
+* **Funcionalidades:**
+  - Botões Anterior / Play-Pause / Próxima na prévia ao passar o mouse sobre o ícone da barra de tarefas (API `ITaskbarList3` via crate `windows` no Rust).
+  - Progresso da música desenhado no próprio ícone da barra de tarefas.
+
+---
+
+#### 4.7 Importação de Playlists de Outros Serviços (Spotify / CSV / M3U)
+* **Status:** `[Em Aberto]` 💡
+* **Impacto:** `[Médio / Alto para quem está migrando]` | **Esforço:** `[Médio]`
+* **Depende de:** 2.4 (criar playlists).
+* **Funcionalidades:**
+  - Importar arquivos CSV (ex.: exportados pelo Exportify) ou M3U.
+  - Busca automática de cada faixa no YouTube Music, com tela de revisão para correspondências duvidosas.
+  - Criação da playlist final na conta do usuário.
+
+---
+
+#### 4.8 Downloads de Músicas e Playlists para Reprodução Offline (Biblioteca Local & Modo Híbrido)
+* **Status:** `[Em Aberto / Alto Impacto]` 💡
+* **Impacto:** `[Muito Alto para Usuários]` | **Esforço:** `[Alto]`
+* **Origem:** Funcionalidade mais requisitada em clientes alternativos (Spotube, RiMusic, ViMusic, Metrolist). Permite ouvir músicas em viagens, conexões lentas ou sem internet.
+* **Arquitetura Técnica:**
+  - **Pipeline de Download:**
+    - Backend Rust obtém os streams de áudio através do endpoint `/player` (ou via módulo nativo com assinatura decifrada).
+    - Download em chunks assíncronos via `reqwest` com barra de progresso em tempo real.
+    - Gravação em formato de alta fidelidade (`.m4a` / AAC ou `.opus` / OGG Vorbis).
+  - **Injeção de Metadados e Capa (Tagging ID3):**
+    - Embutir automaticamente metadados completos: título, artista principal, artistas participantes, álbum, ano de lançamento, número da faixa e capa em alta resolução (extraída de `artwork_url`).
+  - **Armazenamento e Indexação Local:**
+    - Arquivos salvos em diretório dedicado (`%APPDATA%/TetPlayer/Music/` ou customizável nas configurações).
+    - Registro e indexação no SQLite local em tabela dedicada `downloads (video_id, title, artist, file_path, file_size, downloaded_at)`.
+  - **Reprodução Híbrida Inteligente:**
+    - Antes de iniciar o streaming de qualquer música, o player verifica se o `video_id` consta nos arquivos baixados. Se positivo, reproduz diretamente do arquivo local (`convertFileSrc` do Tauri) com latência 0ms e sem consumo de dados.
+    - Se o app detectar ausência de conexão à internet, chaveia automaticamente a interface para o modo *"Biblioteca Offline"*.
+  - **Distribuição e Cuidados de Lançamento:**
+    - Em apps de código aberto distribuídos fora de lojas oficiais (GitHub Releases, instaladores `.exe` / `.msi`), a funcionalidade de download opera sob responsabilidade do usuário final (modelo consagrado pelo *yt-dlp*, *Spotube* e *NewPipe*).
+
+---
+
+#### 4.9 Login Próprio com Conta Google (Webview Isolada / In-App Session)
+* **Status:** `[Em Aberto / Essencial para Distribuição Pública]` 💡
+* **Impacto:** `[Muito Alto para Adoção]` | **Esforço:** `[Médio]`
+* **Origem:** Preparação do TetPlayer para lançamento público e empacotamento universal, eliminando a dependência de cookies de navegadores externos.
+* **Problema Resolvido:**
+  - O método atual raspa cookies de navegadores instalados no Windows (Chrome/Edge/Brave). Embora prático, isso aciona alertas de segurança/falsos positivos em antivírus, falha caso o usuário utilize navegadores não-Chromium ou modo anônimo, e é vulnerável a mitigações do sistema operacional como o *App-Bound Encryption* do Chrome 127+.
+* **Solução Técnica (Padrão da Indústria):**
+  - **Janela Webview Dedicada:** Ao clicar em *"Conectar Conta Google"* nas configurações ou tela inicial, o Tauri instancia uma janela Webview isolada (`tauri::WebviewWindowBuilder`) carregando `https://accounts.google.com`.
+  - **Fluxo Seguro e Oficial:** O usuário interage diretamente com a interface oficial do Google, com suporte pleno a 2FA, autenticação por chave física (FIDO/Passkey) e gerenciadores de senha.
+  - **Interceptação Limpa de Sessão:** Ao detectar o redirecionamento final com sucesso para `https://music.youtube.com`, o Tauri intercepta os cabeçalhos de cookies da própria janela embutida, extrai `SAPISID`, `SSID` e cookies essenciais, e armazena com segurança criptografada no banco local do app.
+  - **Experiência Plug-and-Play:** Qualquer usuário em qualquer máquina (Windows, Linux, macOS) consegue fazer login em segundos, sem necessidade de ter navegadores específicos instalados ou sincronizados.
+
+---
+
+#### 4.10 Sistema Completo de Auto-Update In-App (Busca Manual nas Configurações, Download em 1 Clique e CI/CD via GitHub Actions)
+* **Status:** `[Em Aberto / Alta Prioridade]` 💡
+* **Impacto:** `[Alto / Retenção e UX]` | **Esforço:** `[Médio]`
+* **Origem:** O app já possui checagem de versão ao inicializar via [`updater.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/updater.ts), porém o usuário precisa abrir o navegador manualmente para baixar o novo executável e não há botão de checagem manual nas Configurações.
+* **Arquitetura Técnica Proposta:**
+  - **Checagem Manual nas Configurações (`SettingsModal`):**
+    - Na aba *"Sobre"*, adicionar botão *"Verificar Atualizações Agora"* com estados reativos:
+      - 🔄 *Verificando atualizações no GitHub...*
+      - ✅ *Você está usando a versão mais recente (v1.0.0)*
+      - 🚀 *Nova versão vX.X.X disponível! [Atualizar Agora]*
+  - **Fluxo de CI/CD via GitHub Actions (Vinculado à branch `main`):**
+    - Criação do workflow `.github/workflows/release.yml`.
+    - A cada push na branch `main` com bump de versão (ou criação de tag de release), os runners do GitHub compilam automaticamente o instalador do Windows (`TetPlayer-setup.exe` / `.msi`), geram as assinaturas digitais e publicam o manifesto `latest.json`.
+    - Permite que qualquer atualização mergeada na branch `main` chegue compilada e pronta para instalação em segundos para o usuário final, sem exigir ferramentas de build no computador do usuário.
+  - **Download e Instalação In-App com Tauri Updater (`@tauri-apps/plugin-updater`):**
+    - O app consome o endpoint `latest.json` do repositório oficial.
+    - Ao confirmar no [`UpdateModal.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/UpdateModal/UpdateModal.tsx) ou nas Configurações, o plugin faz o download do pacote com barra de progresso visual (0% a 100%).
+    - Ao concluir, substitui os binários locais com integridade verificada e aciona `relaunch()` para reiniciar o TetPlayer instantaneamente na nova versão, sem exigir que o usuário baixe instaladores ou saia do aplicativo.
 
 ---
 
@@ -206,21 +424,49 @@ Abaixo encontram-se as **sugestões ativas em aberto** (Eixos 2, 3 e 4), seguida
   [x] Temas de acento customizáveis e modo Pure Dark OLED (Eixo 3.2)
   [x] Teclas multimídia globais de mídia e teclado via tauri-plugin-global-shortcut (Eixo 4.4)
   [x] Cartões de compartilhamento social em PNG das estatísticas TetStats (Eixo 4.3)
+  [x] Transição suave e crossfade contínuo entre faixas (Eixo 2.4)
+  [x] Histórico de faixas tocadas "Músicas que Já Passaram" (Eixo 4.5)
+  [x] Sincronização determinística do ciclo de vida da gaveta e toggle reativo
+  [x] Unificação e simplificação da interface do drawer (fim de setas duplicadas)
   [x] Fechamento e Unificação de Release v1.0.0 Oficial (Desktop README + Tauri)
 
-  FASE 4: ECOSSISTEMA, SOCIAL & PRÓXIMAS SPRINTS (Versão 1.1+) 🔮
+  FASE 4A: ESSENCIAIS DA PESQUISA (v1.1) 🎯
   ────────────────────────────────────────────────────────────────────────
-  [ ] Sleep Timer com fade-out gradual de áudio (Eixo 2.3)
-  [ ] Discord Rich Presence com status, capa e links em tempo real (Eixo 4.1)
-  [ ] Paleta de Comandos Global (Ctrl+K / Cmd+K) (Eixo 2.4)
-  [ ] Equalizador Gráfico de 10 Bandas & Normalização de Volume (Eixo 4.2)
-  [ ] Crossfade suave contínuo entre faixas (Eixo 2.5)
-  [ ] Modo Cinema / Tela Cheia Imersivo (Sem Karaokê) (Eixo 3.1)
+  [ ] Busca e ordenação dentro de playlists (2.2)
+  [ ] Curtir / descurtir sincronizado com o YouTube Music (2.3)
+  [ ] Edição e modificação avançada de playlists: criar, adicionar, remover, renomear (2.4)
+  [ ] Login próprio com conta Google via Webview embutida (4.9)
+  [ ] Auto-Update in-app com botão nas configs e download em 1 clique (4.10)
+  [ ] Restaurar sessão ao reabrir o app (2.5)
+  [ ] Sleep Timer com fade-out gradual (2.1)
+  [ ] Normalização real de volume via loudnessDb (parte de 4.2)
+
+  FASE 4B: ALTO VALOR & INTEGRAÇÕES (v1.2) 🔗
+  ────────────────────────────────────────────────────────────────────────
+  [ ] Discord Rich Presence (4.1)
+  [ ] Bloquear faixas e artistas da rádio (2.7)
+  [ ] Feed de lançamentos e biblioteca expandida (2.10)
+  [ ] Scrobbling Last.fm / ListenBrainz (4.3)
+  [ ] SponsorBlock para trechos não musicais (4.4)
+  [ ] Notificações nativas de troca de faixa (2.6)
+  [ ] Navegação Voltar / Avançar (2.8)
+  [ ] Volume pela roda do mouse (2.9)
+  [ ] Animação fluida na troca de letras (3.3)
+
+  FASE 4C: DIFERENCIAIS & APOSTAS TÉCNICAS (v1.3+) 🔮
+  ────────────────────────────────────────────────────────────────────────
+  [ ] Modo Tela Cheia Imersivo com Karaokê (3.1)
+  [ ] Letras palavra por palavra (3.2)
+  [ ] Downloads de músicas/playlists e modo offline com reprodução híbrida (4.8)
+  [ ] Controle remoto pelo celular / Stream Deck (4.5)
+  [ ] Botões de mídia na barra de tarefas do Windows (4.6)
+  [ ] Importação de playlists do Spotify / CSV (4.7)
+  [ ] Protótipo do motor de áudio nativo (1.1) → libera Equalizador (4.2)
 ```
 
 ---
 
-## ✅ HISTÓRICO CONSOLIDADO: 22 Sugestões e Otimizações Concluídas
+## ✅ HISTÓRICO CONSOLIDADO: 41 Sugestões e Otimizações Concluídas
 
 > [!NOTE]
 > Todos os itens abaixo foram concebidos como sugestões estratégicas e foram **integralmente implementados, compilados e validados** no código do TetPlayer Desktop. Eles formam a memória técnica e evolutiva do produto.
@@ -557,12 +803,52 @@ Abaixo encontram-se as **sugestões ativas em aberto** (Eixos 2, 3 e 4), seguida
 
 ---
 
-## 📌 Conclusão & Próximos Passos (TetPlayer v1.0.0 Concluído)
+### 38. Transição Musical Suave e Crossfade Contínuo entre Faixas (Sugestão 2.4)
+* **Status:** `[Implementado e Validado]` ✅
+* **Localização:** [`desktop/src/services/settings.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/settings.ts), [`desktop/src/components/SettingsModal/SettingsModal.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/SettingsModal/SettingsModal.tsx), [`desktop/src/hooks/useYouTubePlayer.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useYouTubePlayer.ts), [`desktop/src/context/PlayerContext.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/context/PlayerContext.tsx) e [`desktop/src/components/NowPlayingDrawer/NowPlayingDrawer.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/NowPlayingDrawer/NowPlayingDrawer.tsx).
+* **Implementação Concluída:**
+  - Adicionado suporte a crossfade configurável de 0s a 12s, persistido no `SettingsService` e no `localStorage`.
+  - Controle interativo presente na aba de Áudio do `SettingsModal` com predefinições rápidas (Desligado, 2s, 3s, 5s) e botão de alternância cíclica rápida (`cycleCrossfade`) integrado diretamente no cabeçalho superior da gaveta de reprodução (`NowPlayingDrawer`).
+  - No loop de timeline de alta frequência (`useYouTubePlayer.ts`), o volume faz **fade-out** nos segundos finais configurados e **fade-in** no início da próxima faixa.
+  - Limitação conhecida: como existe um único player (iframe), as duas músicas não tocam sobrepostas. Um crossfade com sobreposição real depende do item 1.1.
 
-Com a entrega dos itens **34 (Drag & Drop na Fila)**, **35 (Teclas Globais de Mídia no SO)**, **36 (Share Cards do TetStats)** e **37 (Unificação SemVer v1.0.0 & README Oficial)**, o TetPlayer consolida **37 melhorias arquiteturais, funcionais e estéticas** no histórico consolidado.
+---
 
-A versão **1.0.0** está oficialmente fechada e pronta para uso em produção. Para a futura milestone **v1.1+**, os itens mapeados são:
-1. **Sleep Timer com Fade-Out Gradual** (ergonomia de desligamento automático).
-2. **Discord Rich Presence (RPC)** (integração social para exibir faixa no perfil do Discord).
-3. **Paleta de Comandos Global (`Ctrl+K`)** (busca rápida e atalhos estilo Spotlight).
-4. **Modo Cinema / Tela Cheia Imersivo** (focado na arte e aurora, sem karaokê).
+### 39. Histórico de Faixas Tocadas com Reexecução Imediata ("Músicas que Já Passaram") (Sugestão 4.5)
+* **Status:** `[Implementado e Validado]` ✅
+* **Localização:** [`desktop/src/components/QueueView/QueueView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/QueueView/QueueView.tsx) e [`desktop/src/context/PlayerContext.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/context/PlayerContext.tsx).
+* **Implementação Concluída:**
+  - Implementada a seção "Músicas que Já Passaram" no topo da gaveta de fila (`QueueView`), exibindo a contagem exata de faixas anteriores da sessão atual.
+  - Painel expansível/retrátil com memória de estado (`showPastTracks`), permitindo ao usuário clicar em qualquer faixa anterior para reexecução imediata (`handlePlayFromQueue`), além de suporte completo ao menu de contexto em cada item histórico.
+
+---
+
+### 40. Resolução de Desalinhamento de Estado e Sincronização do Ciclo de Vida da Gaveta de Reprodução
+* **Status:** `[Implementado e Validado]` ✅
+* **Localização:** [`desktop/src/context/PlayerContext.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/context/PlayerContext.tsx), [`desktop/src/components/Player/PlayerBar.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Player/PlayerBar.tsx) e [`desktop/src/hooks/useKeyboardShortcuts.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useKeyboardShortcuts.ts).
+* **Implementação Concluída:**
+  - Corrigido o bug onde clicar na seta para recolher a gaveta desativava apenas `isNowPlayingOpen`, deixando `showLyrics` como `true`, o que impedia o fechamento do drawer e congelava o comportamento da seta inferior (só voltando a funcionar ao clicar no botão de letras).
+  - Unificada a função `toggleNowPlaying()` no `PlayerContext`: agora avalia o estado combinado `(isNowPlayingOpen || showLyrics)`. Se aberta, dispara `closeNowPlaying()` (resetando deterministicamente ambos os estados e restaurando a posição de scroll da playlist via `useLayoutEffect`); se fechada, dispara `openNowPlaying(nowPlayingTab)`.
+  - `toggleShowLyrics` e `toggleShowQueue` passaram a considerar o mesmo estado combinado.
+  - O atalho `Shift+Up` herda a correção por chamar `toggleNowPlaying()`. O `Escape` já usava `closeNowPlaying()`, que reseta os dois estados. O arquivo `useKeyboardShortcuts.ts` não precisou ser alterado.
+
+---
+
+### 41. Unificação de Controles e Fim de Duplicações Visuais no Drawer
+* **Status:** `[Implementado e Validado]` ✅
+* **Localização:** [`desktop/src/components/Player/PlayerBar.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Player/PlayerBar.tsx) e [`desktop/src/components/NowPlayingDrawer/NowPlayingDrawer.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/NowPlayingDrawer/NowPlayingDrawer.tsx).
+* **Implementação Concluída:**
+  - O botão de abertura e fechamento da gaveta reside exclusivamente na sua posição ergonômica natural no rodapé do player ([PlayerBar.tsx](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Player/PlayerBar.tsx), ao lado esquerdo da capa do álbum).
+  - O botão alterna reativamente entre `ChevronUp` (cinza escuro quando fechado) e `ChevronDown` (destacado em vermelho quando aberto), mantendo feedback visual imediato.
+  - No cabeçalho superior da gaveta ([NowPlayingDrawer.tsx](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/NowPlayingDrawer/NowPlayingDrawer.tsx)), a seta duplicada foi removida, deixando apenas o controle de Crossfade no canto direito. Isso resultou em uma interface minimalista, limpa e com zero ambiguidades de navegação.
+
+---
+
+## 📌 Conclusão & Próximos Passos (TetPlayer v1.0.0+ Concluído)
+
+Com a consolidação dos itens **38 (Crossfade Suave entre Faixas)**, **39 (Histórico de Músicas Anteriores no QueueView)**, **40 (Correção Determinística de Estado da Gaveta)** e **41 (Unificação de Controles e Topo Limpo do Drawer)**, o TetPlayer atinge a marca de **41 melhorias arquiteturais, funcionais e estéticas** validadas e testadas com excelência.
+
+A versão **1.0.0** está estável. Para a milestone **v1.1+**, são **22 sugestões em aberto**, priorizadas na matriz acima:
+- **Fase 4A (essenciais):** busca em playlists, curtir/descurtir, gerenciar playlists, restaurar sessão, sleep timer e normalização real de volume. São as lacunas mais citadas pelos usuários e todas têm esforço baixo a médio.
+- **Fase 4B (integrações):** Discord, Last.fm, SponsorBlock, bloqueio de faixas, lançamentos e melhorias de navegação.
+- **Fase 4C (apostas):** karaokê imersivo, controle remoto, importação de playlists e o motor de áudio nativo, que é a chave para equalizador e crossfade com sobreposição.

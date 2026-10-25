@@ -1,4 +1,4 @@
-import { memo, useCallback } from "react";
+import { memo, useCallback, useState } from "react";
 import { usePlaybackProgress } from "../../context/PlayerContext";
 import { formatTime } from "../../hooks/useLyrics";
 
@@ -17,13 +17,28 @@ export const TimelineScrubber = memo(function TimelineScrubber({
   onSeek,
 }: TimelineScrubberProps) {
   const { currentTime, duration } = usePlaybackProgress();
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragValue, setDragValue] = useState(0);
+
+  const displayTime = isDragging ? dragValue : currentTime;
 
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      onSeek(parseFloat(e.target.value));
+      const val = parseFloat(e.target.value);
+      setDragValue(val);
+      onSeek(val);
     },
     [onSeek]
   );
+
+  const handlePointerDown = useCallback(() => {
+    setIsDragging(true);
+    setDragValue(currentTime);
+  }, [currentTime]);
+
+  const handlePointerUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
 
   return (
     <div
@@ -31,14 +46,17 @@ export const TimelineScrubber = memo(function TimelineScrubber({
       className="w-full flex items-center gap-3 text-[10px] text-[#71778c] font-mono select-none"
     >
       <span data-testid="scrubber-current-time" className="w-8 text-right">
-        {formatTime(currentTime)}
+        {formatTime(displayTime)}
       </span>
       <input
         type="range"
         min={0}
         max={duration || 100}
-        value={currentTime}
+        value={displayTime}
         onChange={handleInputChange}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
         disabled={disabled}
         aria-label="Posição da música na linha do tempo"
         data-testid="scrubber-range-input"

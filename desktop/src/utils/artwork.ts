@@ -4,32 +4,46 @@ import React from "react";
  * Eleva a resolução das capas do YouTube Music e YouTube para alta definição (800x800 ou HD 720p/1080p).
  * Elimina o aspecto borrado de miniaturas comprimidas (w60-h60, w120-h120, hqdefault).
  */
-export function upgradeArtworkQuality(url?: string | null, videoId?: string): string {
+export function upgradeArtworkQuality(
+  url?: string | null,
+  videoId?: string,
+  variant: "high" | "thumb" = "high"
+): string {
   if (!url) {
-    return videoId ? `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg` : "";
+    if (!videoId) return "";
+    return variant === "thumb"
+      ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
+      : `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`;
   }
 
   let clean = url.startsWith("//") ? `https:${url}` : url;
 
   // 1. Google User Content / GGPHT / YouTube Music CDN:
-  // Transforma sufixos como =w60-h60-p-l90-rj ou =s120 em =w800-h800-l90-rj
   if (clean.includes("googleusercontent.com") || clean.includes("ggpht.com")) {
     const lastEqIndex = clean.lastIndexOf("=");
     if (lastEqIndex !== -1) {
       const suffix = clean.substring(lastEqIndex);
       if (suffix.startsWith("=w") || suffix.startsWith("=s")) {
-        clean = clean.substring(0, lastEqIndex) + "=w800-h800-l90-rj";
+        const replacement = variant === "thumb" ? "=w120-h120-l90-rj" : "=w800-h800-l90-rj";
+        clean = clean.substring(0, lastEqIndex) + replacement;
       }
     }
   }
 
   // 2. YouTube Video Thumbnails (i.ytimg.com / img.youtube.com):
-  // Substitui hqdefault (480x360 com letterbox) por maxresdefault (1280x720 Full HD)
   if (clean.includes("i.ytimg.com/vi/") || clean.includes("img.youtube.com/vi/")) {
-    clean = clean
-      .replace("/hqdefault.jpg", "/maxresdefault.jpg")
-      .replace("/mqdefault.jpg", "/maxresdefault.jpg")
-      .replace("/default.jpg", "/maxresdefault.jpg");
+    if (variant === "thumb") {
+      clean = clean
+        .replace("/maxresdefault.jpg", "/hqdefault.jpg")
+        .replace("/sddefault.jpg", "/hqdefault.jpg")
+        .replace("/mqdefault.jpg", "/hqdefault.jpg")
+        .replace("/default.jpg", "/hqdefault.jpg");
+    } else {
+      clean = clean
+        .replace("/hqdefault.jpg", "/maxresdefault.jpg")
+        .replace("/mqdefault.jpg", "/maxresdefault.jpg")
+        .replace("/default.jpg", "/maxresdefault.jpg");
+    }
   }
 
   return clean;

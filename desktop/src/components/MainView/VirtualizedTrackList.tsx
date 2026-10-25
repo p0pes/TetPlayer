@@ -71,12 +71,21 @@ function VirtualContainer({
   parentRef,
 }: VirtualizedTrackListProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const [scrollMargin, setScrollMargin] = React.useState(0);
+
+  React.useLayoutEffect(() => {
+    if (containerRef.current) {
+      setScrollMargin(containerRef.current.offsetTop);
+    }
+  }, []);
+
   const rowVirtualizer = useVirtualizer({
     count: tracks.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 72,
+    estimateSize: () => 76,
     overscan: 6,
-    scrollMargin: containerRef.current?.offsetTop ?? 0,
+    scrollMargin,
+    getItemKey: (index) => tracks[index]?.id ?? index,
   });
 
   return (
@@ -97,13 +106,13 @@ function VirtualContainer({
           <div
             key={`${track.id}-${virtualRow.index}`}
             data-index={virtualRow.index}
-            ref={rowVirtualizer.measureElement}
             style={{
               position: "absolute",
               top: 0,
               left: 0,
               width: "100%",
-              transform: `translateY(${virtualRow.start - (rowVirtualizer.options.scrollMargin ?? 0)}px)`,
+              height: `${virtualRow.size}px`,
+              transform: `translate3d(0, ${virtualRow.start - scrollMargin}px, 0)`,
               paddingBottom: "8px",
             }}
           >

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { AlertCircle } from "lucide-react";
+import { listen } from "@tauri-apps/api/event";
+import { AlertCircle, AlertTriangle } from "lucide-react";
 import { Playlist, Track, AuthSession, ActiveTab } from "./types";
 import { LocalCacheService } from "./services/cache";
 import { PlayerProvider, usePlayer } from "./context/PlayerContext";
@@ -144,6 +145,32 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
 
   // Verificação de Atualizações no GitHub (branch main)
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+
+  // Alerta de aplicativo já em execução (Single Instance)
+  const [singleInstanceNotice, setSingleInstanceNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen<string>("app-already-running", (event) => {
+      setSingleInstanceNotice(
+        event.payload || "O TetPlayer já está em execução! Sua janela ativa foi restaurada."
+      );
+    }).then((fn) => {
+      unlisten = fn;
+    });
+
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!singleInstanceNotice) return;
+    const timer = setTimeout(() => {
+      setSingleInstanceNotice(null);
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [singleInstanceNotice]);
 
   useEffect(() => {
     // Hidratação a partir do banco de dados SQLite nativo
@@ -382,6 +409,26 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
 
           {/* Área Central */}
           <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
+            {singleInstanceNotice && (
+              <div
+                role="status"
+                aria-live="polite"
+                className="m-6 mb-0 bg-amber-950/80 border border-amber-600/80 text-amber-200 text-xs px-4 py-3 rounded-xl flex items-center gap-3 shrink-0 shadow-xl shadow-amber-950/50 backdrop-blur-md"
+              >
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                <div className="flex-1">
+                  <p className="font-semibold text-white">Aplicativo já em execução</p>
+                  <p className="text-[11px] text-amber-300/90">{singleInstanceNotice}</p>
+                </div>
+                <button
+                  onClick={() => setSingleInstanceNotice(null)}
+                  className="text-amber-400 hover:text-white text-xs underline cursor-pointer"
+                >
+                  Entendi
+                </button>
+              </div>
+            )}
+
             {errorMessage && (
               <div className="m-6 mb-0 bg-red-950/40 border border-red-800/60 text-red-300 text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 shrink-0">
                 <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />

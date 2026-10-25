@@ -441,7 +441,17 @@ pub fn run() {
         })
         .build();
 
+    let single_instance_plugin = tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        if let Some(window) = app.get_webview_window("main") {
+            let _ = window.show();
+            let _ = window.unminimize();
+            let _ = window.set_focus();
+        }
+        let _ = app.emit("app-already-running", "O TetPlayer já está aberto em segundo plano!");
+    });
+
     tauri::Builder::default()
+        .plugin(single_instance_plugin)
         .plugin(tauri_plugin_opener::init())
         .plugin(shortcut_plugin)
         .manage(AppState {

@@ -36,6 +36,7 @@ export const PlayerBar = memo(function PlayerBar() {
     toggleMiniPlayer,
     isNowPlayingOpen,
     nowPlayingTab,
+    showLyrics,
     toggleNowPlaying,
     toggleShuffle,
     cycleRepeatMode,
@@ -49,22 +50,24 @@ export const PlayerBar = memo(function PlayerBar() {
     toggleShowLyrics,
   } = usePlayer();
 
+  const isDrawerOpen = isNowPlayingOpen || showLyrics;
+
   return (
     <footer className="h-20 shrink-0 border-t border-[#1f232e] bg-[#0e1017]/95 backdrop-blur-md px-3 sm:px-4 md:px-6 flex items-center justify-between gap-2 sm:gap-4 md:gap-6 z-40">
       {/* Faixa Atual e Botão da Gaveta de Reprodução */}
       <div className="flex items-center gap-2 sm:gap-3 w-[28%] min-w-0 max-w-[280px]">
-        {/* Seta na Barra de Baixo para Abrir a Gaveta */}
+        {/* Seta na Barra de Baixo para Abrir / Recolher a Gaveta */}
         <button
           onClick={toggleNowPlaying}
-          aria-label={isNowPlayingOpen ? "Recolher gaveta de reprodução" : "Abrir gaveta de reprodução"}
-          title={isNowPlayingOpen ? "Recolher gaveta [Shift+Up / Esc]" : "Abrir gaveta de reprodução (Fila & Letras) [Shift+Up]"}
+          aria-label={isDrawerOpen ? "Recolher gaveta de reprodução" : "Abrir gaveta de reprodução"}
+          title={isDrawerOpen ? "Recolher gaveta [Shift+Up / Esc]" : "Abrir gaveta de reprodução (Fila & Letras) [Shift+Up]"}
           className={`p-1.5 sm:p-2 rounded-xl border transition-all cursor-pointer shrink-0 ${
-            isNowPlayingOpen
+            isDrawerOpen
               ? "bg-red-600 text-white border-red-500 shadow-lg shadow-red-950/60"
               : "bg-[#171a24] text-[#8c91a4] hover:text-white hover:bg-[#202534] border-[#252a3a]"
           }`}
         >
-          {isNowPlayingOpen ? (
+          {isDrawerOpen ? (
             <ChevronDown className="w-4 h-4 transition-transform" />
           ) : (
             <ChevronUp className="w-4 h-4 transition-transform group-hover:-translate-y-0.5" />
@@ -74,7 +77,7 @@ export const PlayerBar = memo(function PlayerBar() {
         <div
           onClick={toggleNowPlaying}
           className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-[#171a24] border border-[#232733] overflow-hidden shrink-0 flex items-center justify-center cursor-pointer group relative shadow-md"
-          title="Abrir gaveta de reprodução"
+          title={isDrawerOpen ? "Recolher gaveta de reprodução" : "Abrir gaveta de reprodução"}
         >
           {currentTrack?.artwork_url || currentTrack?.id ? (
             <img
@@ -92,7 +95,7 @@ export const PlayerBar = memo(function PlayerBar() {
         <div
           onClick={toggleNowPlaying}
           className="min-w-0 flex-1 overflow-hidden cursor-pointer"
-          title="Abrir gaveta de reprodução"
+          title={isDrawerOpen ? "Recolher gaveta de reprodução" : "Abrir gaveta de reprodução"}
         >
           <div className="flex items-center gap-1.5">
             <p className="text-xs font-semibold text-white truncate hover:text-red-400 transition-colors">
@@ -240,10 +243,10 @@ export const PlayerBar = memo(function PlayerBar() {
           onClick={toggleShowQueue}
           disabled={!currentTrack}
           aria-label="Exibir fila de reprodução"
-          aria-pressed={isNowPlayingOpen && nowPlayingTab === "queue"}
+          aria-pressed={isDrawerOpen && nowPlayingTab === "queue"}
           title="Fila de Reprodução [Q]"
           className={`p-1.5 sm:p-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-medium disabled:opacity-30 shrink-0 ${
-            isNowPlayingOpen && nowPlayingTab === "queue"
+            isDrawerOpen && nowPlayingTab === "queue"
               ? "bg-red-600 text-white shadow-lg shadow-red-950/50 border border-red-500"
               : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
           }`}
@@ -257,10 +260,10 @@ export const PlayerBar = memo(function PlayerBar() {
           onClick={toggleShowLyrics}
           disabled={!currentTrack}
           aria-label="Exibir letras sincronizadas"
-          aria-pressed={isNowPlayingOpen && nowPlayingTab === "lyrics"}
+          aria-pressed={isDrawerOpen && nowPlayingTab === "lyrics"}
           title="Letras Sincronizadas [L]"
           className={`p-1.5 sm:p-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-medium disabled:opacity-30 shrink-0 ${
-            isNowPlayingOpen && nowPlayingTab === "lyrics"
+            isDrawerOpen && nowPlayingTab === "lyrics"
               ? "bg-red-600 text-white shadow-lg shadow-red-950/50 border border-red-500"
               : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
           }`}
