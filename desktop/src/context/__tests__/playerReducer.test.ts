@@ -141,4 +141,48 @@ describe("playerReducer (FSM da Fila e Reprodução)", () => {
     expect(nextState.activeQueue).toHaveLength(3);
     expect(nextState.activeQueue.map((t) => t.id)).toEqual(["1", "2", "3"]);
   });
+
+  it("deve reordenar a fila via REORDER_QUEUE e manter o currentQueueIndex sincronizado com a faixa tocando", () => {
+    const state: QueueState = {
+      ...createInitialQueueState(),
+      activeQueue: [mockTrack1, mockTrack2, mockTrack3],
+      originalQueue: [mockTrack1, mockTrack2, mockTrack3],
+      currentTrack: mockTrack2,
+      currentQueueIndex: 1,
+    };
+
+    // Move a faixa 3 (índice 2) para a posição da faixa 1 (índice 0)
+    const reordered = playerReducer(state, {
+      type: "REORDER_QUEUE",
+      payload: { fromIndex: 2, toIndex: 0 },
+    });
+
+    // Nova ordem: [mockTrack3, mockTrack1, mockTrack2]
+    expect(reordered.activeQueue.map((t) => t.id)).toEqual(["3", "1", "2"]);
+    // A faixa 2 agora está no índice 2
+    expect(reordered.currentQueueIndex).toBe(2);
+    expect(reordered.currentTrack?.id).toBe("2");
+  });
+
+  it("não deve alterar o estado se os índices de REORDER_QUEUE forem inválidos ou iguais", () => {
+    const state: QueueState = {
+      ...createInitialQueueState(),
+      activeQueue: [mockTrack1, mockTrack2],
+      originalQueue: [mockTrack1, mockTrack2],
+      currentTrack: mockTrack1,
+      currentQueueIndex: 0,
+    };
+
+    const same = playerReducer(state, {
+      type: "REORDER_QUEUE",
+      payload: { fromIndex: 0, toIndex: 0 },
+    });
+    expect(same).toBe(state);
+
+    const outOfBounds = playerReducer(state, {
+      type: "REORDER_QUEUE",
+      payload: { fromIndex: 0, toIndex: 99 },
+    });
+    expect(outOfBounds).toBe(state);
+  });
 });

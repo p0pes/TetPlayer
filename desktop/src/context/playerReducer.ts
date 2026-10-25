@@ -31,7 +31,8 @@ export type QueueAction =
   | { type: "APPEND_RADIO_TRACKS"; payload: { tracks: Track[] } }
   | { type: "INSERT_NEXT"; payload: { track: Track } }
   | { type: "ADD_TO_END"; payload: { track: Track } }
-  | { type: "SET_TRACK_INDEX"; payload: { index: number } };
+  | { type: "SET_TRACK_INDEX"; payload: { index: number } }
+  | { type: "REORDER_QUEUE"; payload: { fromIndex: number; toIndex: number } };
 
 /**
  * Embaralha um array via algoritmo Fisher-Yates de forma pura
@@ -384,6 +385,45 @@ export function playerReducer(state: QueueState, action: QueueAction): QueueStat
         ...state,
         currentQueueIndex: index,
         currentTrack: state.activeQueue[index],
+      };
+    }
+
+    case "REORDER_QUEUE": {
+      const { fromIndex, toIndex } = action.payload;
+      if (
+        fromIndex < 0 ||
+        fromIndex >= state.activeQueue.length ||
+        toIndex < 0 ||
+        toIndex >= state.activeQueue.length ||
+        fromIndex === toIndex
+      ) {
+        return state;
+      }
+
+      const newActiveQueue = [...state.activeQueue];
+      const [movedItem] = newActiveQueue.splice(fromIndex, 1);
+      newActiveQueue.splice(toIndex, 0, movedItem);
+
+      // Recalcula o índice atual baseado no ID da faixa tocando
+      let newCurrentIndex = state.currentQueueIndex;
+      if (state.currentTrack) {
+        const foundIdx = newActiveQueue.findIndex((t) => t.id === state.currentTrack?.id);
+        if (foundIdx !== -1) {
+          newCurrentIndex = foundIdx;
+        }
+      }
+
+      // Se não estiver em modo shuffle, sincroniza com a fila original
+      let newOriginalQueue = state.originalQueue;
+      if (!state.isShuffle && state.originalQueue.length === state.activeQueue.length) {
+        newOriginalQueue = [...newActiveQueue];
+      }
+
+      return {
+        ...state,
+        activeQueue: newActiveQueue,
+        originalQueue: newOriginalQueue,
+        currentQueueIndex: newCurrentIndex,
       };
     }
 

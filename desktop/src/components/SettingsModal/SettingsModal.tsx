@@ -773,7 +773,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <h3 className="text-xl font-extrabold text-white tracking-tight">TetPlayer Desktop</h3>
                   <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 font-mono text-xs text-white">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                    <span>Versão Instalada: <strong>v0.2.0</strong></span>
+                    <span>Versão Instalada: <strong>v1.0.0 (Release Oficial)</strong></span>
                   </div>
                 </div>
 

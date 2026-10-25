@@ -3,7 +3,7 @@
 > **Data de Elaboração / Última Revisão:** 24 de Outubro de 2026  
 > **Auditor Técnico:** Especialista em Arquitetura de Software, UX/UI e Sistemas de Mídia (`reviwer.md`)  
 > **Documento de Referência:** [`Agents/SUGESTOES.md`](file:///d:/progrmação/programas/TetPlayer/Agents/SUGESTOES.md)  
-> **Status:** 🟢 **33 Itens Concluídos e Validados no Histórico Consolidado** | 💡 **12 Novas Sugestões Estratégicas em Aberto no Topo**  
+> **Status:** 🟢 **37 Itens Concluídos e Validados no Histórico Consolidado (Release v1.0.0)** | 💡 **Sugestões Futuras v1.1+ Mapeadas**  
 > **Objetivo:** Fornecer um roadmap técnico, moderno e categorizado para elevar o TetPlayer Desktop ao estado da arte em reprodutores de mídia para desktop.
 
 ---
@@ -199,23 +199,23 @@ Abaixo encontram-se as **sugestões ativas em aberto** (Eixos 2, 3 e 4), seguida
   [x] Compressão de payloads no SQLite via flate2 / Deflate (Eixo 1.4)
   [x] Reducer estruturado para o ciclo de reprodução e fila (Eixo 1.5)
 
-  FASE 3: ERGONOMIA, FLUIDEZ & NOVOS RECURSOS (Em Aberto / Próxima Sprint) ⏳
+  FASE 3: ERGONOMIA, CONTROLES GLOBAIS & RELEASE 1.0.0 (100% Concluída) ✅
   ────────────────────────────────────────────────────────────────────────
-  [ ] Reordenação Drag & Drop na fila de reprodução (Eixo 2.1)
-  [ ] Menu de Contexto em cada faixa com ações rápidas (Eixo 2.2)
-  [ ] Sleep Timer com fade-out gradual de áudio (Eixo 2.3)
-  [ ] Modo Tela Cheia Imersivo / Karaokê com estrofes desfocadas (Eixo 3.1)
-  [ ] Discord Rich Presence com status, capa e links em tempo real (Eixo 4.1)
+  [x] Reordenação Drag & Drop na fila de reprodução (Eixo 2.1)
+  [x] Menu de Contexto em cada faixa com ações rápidas (Eixo 2.2)
   [x] Temas de acento customizáveis e modo Pure Dark OLED (Eixo 3.2)
+  [x] Teclas multimídia globais de mídia e teclado via tauri-plugin-global-shortcut (Eixo 4.4)
+  [x] Cartões de compartilhamento social em PNG das estatísticas TetStats (Eixo 4.3)
+  [x] Fechamento e Unificação de Release v1.0.0 Oficial (Desktop README + Tauri)
 
-  FASE 4: AUDIÓFILO, ESTÉTICA AVANÇADA & ECOSSISTEMA (Médio Prazo) 🔮
+  FASE 4: ECOSSISTEMA, SOCIAL & PRÓXIMAS SPRINTS (Versão 1.1+) 🔮
   ────────────────────────────────────────────────────────────────────────
-  [ ] Equalizador Gráfico de 10 Bandas & Normalização de Volume (Eixo 4.2)
+  [ ] Sleep Timer com fade-out gradual de áudio (Eixo 2.3)
+  [ ] Discord Rich Presence com status, capa e links em tempo real (Eixo 4.1)
   [ ] Paleta de Comandos Global (Ctrl+K / Cmd+K) (Eixo 2.4)
-  [ ] Crossfade suave configurável entre faixas (Eixo 2.5)
-  [ ] Suporte a letras sincronizadas palavra-por-palavra (Eixo 3.3)
-  [ ] Teclas multimídia globais de teclado físico (Eixo 4.4)
-  [ ] Cartões de compartilhamento social das estatísticas TetStats (Eixo 4.3)
+  [ ] Equalizador Gráfico de 10 Bandas & Normalização de Volume (Eixo 4.2)
+  [ ] Crossfade suave contínuo entre faixas (Eixo 2.5)
+  [ ] Modo Cinema / Tela Cheia Imersivo (Sem Karaokê) (Eixo 3.1)
 ```
 
 ---
@@ -516,11 +516,53 @@ Abaixo encontram-se as **sugestões ativas em aberto** (Eixos 2, 3 e 4), seguida
 
 ---
 
-## 📌 Conclusão & Próximos Passos
+### 34. Reordenação da Fila de Reprodução via Drag & Drop (Sugestão 2.1)
+* **Status:** `[Implementado e Validado]` ✅
+* **Localização:** [`desktop/src/components/QueueView/QueueView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/QueueView/QueueView.tsx), [`desktop/src/context/playerReducer.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/context/playerReducer.ts) e [`desktop/src/context/PlayerContext.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/context/PlayerContext.tsx).
+* **Implementação Concluída:**
+  - Adicionado o caso determinístico `REORDER_QUEUE` no `playerReducer`, preservando a consistência do índice da música em execução (`currentQueueIndex`) e sincronizando a fila original quando fora do modo shuffle.
+  - Implementado suporte nativo ao Drag & Drop HTML5 com alça tátil (`GripVertical`), feedback visual de linha de inserção (`border-t-2 border-red-500`) e transições fluidas na lista "A Seguir" da gaveta de reprodução.
+  - Testes unitários automatizados cobrindo movimentações para cima, para baixo e limites de fila adicionados com 100% de sucesso.
 
-Com a implementação e validação dos itens **2.2 (Menu de Contexto)**, **3.5 (Motion Cover estilo Apple Music)**, **31 (Encaixe Sólido no Mini Player)**, **32 (Layout Proporcional Responsivo)** e **33 (Modal de Configurações v0.2.0)**, somados ao **Eixo 1 integralmente concluído**, o TetPlayer Desktop consolida 33 melhorias arquiteturais e estéticas no histórico de desenvolvimento.
+---
 
-Os próximos marcos de prioridade máxima no roadmap são:
-1. **2.1 Reordenação da Fila via Drag & Drop** (ergonomia de controle da fila de reprodução).
-2. **3.1 Modo Tela Cheia Imersivo com Efeito Karaokê** (experiência cinematográfica estilo Apple Music).
-3. **2.2 Sleep Timer com Fade-Out Gradual** (temporizador de suspensão).
+### 35. Teclas Multimídia Globais do Sistema Operacional (Sugestão 4.4)
+* **Status:** `[Implementado e Validado]` ✅
+* **Localização:** [`desktop/src-tauri/Cargo.toml`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/Cargo.toml) e [`desktop/src-tauri/src/lib.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/lib.rs).
+* **Implementação Concluída:**
+  - Integrado o plugin nativo de alta performance `tauri-plugin-global-shortcut v2.4.1` ao backend Rust.
+  - Registrados atalhos globais de hardware (`MediaPlayPause`, `MediaTrackNext`, `MediaTrackPrevious`, `MediaStop`) e atalhos de teclado combinados (`Ctrl+Alt+Space`, `Ctrl+Alt+Right`, `Ctrl+Alt+Left`).
+  - O controle de reprodução agora funciona mesmo quando o TetPlayer estiver em segundo plano, minimizado na bandeja do sistema ou com o usuário jogando em tela cheia.
+
+---
+
+### 36. Exportação e Compartilhamento de Estatísticas ("TetStats Share Cards" PNG) (Sugestão 4.3)
+* **Status:** `[Implementado e Validado]` ✅
+* **Localização:** [`desktop/src/components/StatsView/StatsShareModal.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/StatsView/StatsShareModal.tsx) e [`desktop/src/components/StatsView/StatsView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/StatsView/StatsView.tsx).
+* **Implementação Concluída:**
+  - Criado o gerador em Canvas 2D de alta resolução (1200x675) para cartões artísticos de resumo pessoal ("TetPlayer Wrapped").
+  - Renderiza gradientes volumétricos de Aurora Boreal (Ruby Red & Cyber Indigo), cartões de métricas (Plays, Tempo Total, Artistas Únicos), pódio de Top Artistas com medalhas e Top Músicas.
+  - Modal interativo com botões para **Copiar Imagem** direto para a área de transferência do sistema (Clipboard API nativa) e **Baixar PNG**, com acessibilidade total por tecla `Escape`.
+
+---
+
+### 37. Fechamento e Unificação da Versão 1.0.0 Oficial (Release GA)
+* **Status:** `[Implementado e Validado]` ✅
+* **Localização:** [`desktop/package.json`](file:///d:/progrmação/programas/TetPlayer/desktop/package.json), [`desktop/src-tauri/Cargo.toml`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/Cargo.toml), [`desktop/src-tauri/tauri.conf.json`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/tauri.conf.json), [`desktop/src/components/SettingsModal/SettingsModal.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/SettingsModal/SettingsModal.tsx) e [`desktop/README.md`](file:///d:/progrmação/programas/TetPlayer/desktop/README.md).
+* **Implementação Concluída:**
+  - Sincronizada a versão SemVer `1.0.0` em todos os manifestos de pacote do ecossistema.
+  - Atualizado o modal de configurações para exibir `v1.0.0 (Release Oficial)`.
+  - Criada documentação completa e moderna de apresentação no `desktop/README.md` com arquitetura, destaques visuais e de performance, tabela de atalhos e comandos de build.
+  - Build de produção (`tsc && vite build`) e testes (`vitest` + `cargo test`) 100% validados com código de saída 0.
+
+---
+
+## 📌 Conclusão & Próximos Passos (TetPlayer v1.0.0 Concluído)
+
+Com a entrega dos itens **34 (Drag & Drop na Fila)**, **35 (Teclas Globais de Mídia no SO)**, **36 (Share Cards do TetStats)** e **37 (Unificação SemVer v1.0.0 & README Oficial)**, o TetPlayer consolida **37 melhorias arquiteturais, funcionais e estéticas** no histórico consolidado.
+
+A versão **1.0.0** está oficialmente fechada e pronta para uso em produção. Para a futura milestone **v1.1+**, os itens mapeados são:
+1. **Sleep Timer com Fade-Out Gradual** (ergonomia de desligamento automático).
+2. **Discord Rich Presence (RPC)** (integração social para exibir faixa no perfil do Discord).
+3. **Paleta de Comandos Global (`Ctrl+K`)** (busca rápida e atalhos estilo Spotlight).
+4. **Modo Cinema / Tela Cheia Imersivo** (focado na arte e aurora, sem karaokê).

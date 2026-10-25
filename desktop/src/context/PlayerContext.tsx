@@ -5,6 +5,7 @@ import React, {
   useReducer,
   useRef,
   useMemo,
+  useCallback,
   useEffect,
   useLayoutEffect,
   ReactNode,
@@ -70,6 +71,7 @@ interface PlayerContextType {
   handlePlayFromQueue: (idx: number) => void;
   handleRemoveFromQueue: (idx: number, e?: React.MouseEvent) => void;
   handleClearUpcomingQueue: () => void;
+  handleReorderQueue: (fromIndex: number, toIndex: number) => void;
   handleNextTrack: () => void;
   handlePrevTrack: () => void;
   togglePlayPause: () => void;
@@ -379,6 +381,10 @@ export function PlayerProvider({
     dispatchQueue({ type: "CLEAR_UPCOMING_QUEUE" });
   }
 
+  const handleReorderQueue = useCallback((fromIndex: number, toIndex: number) => {
+    dispatchQueue({ type: "REORDER_QUEUE", payload: { fromIndex, toIndex } });
+  }, []);
+
   // Avançar faixa com suporte a Autoplay Infinito & Rádio Contínua (Sugestão 2.6)
   function handleNextTrack() {
     const queue = activeQueueRef.current;
@@ -624,6 +630,7 @@ export function PlayerProvider({
       handlePlayFromQueue,
       handleRemoveFromQueue,
       handleClearUpcomingQueue,
+      handleReorderQueue,
       handleNextTrack,
       handlePrevTrack,
       togglePlayPause,
@@ -665,6 +672,7 @@ export function PlayerProvider({
       upcomingTracks,
       seekTo,
       togglePlayPause,
+      handleReorderQueue,
       openContextMenu,
       closeContextMenu,
     ]

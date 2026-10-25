@@ -10,9 +10,11 @@ import {
   Trash2,
   Loader2,
   Sparkles,
+  Share2,
 } from "lucide-react";
 import { PlaybackStats, Track } from "../../types";
 import { upgradeArtworkQuality, handleArtworkError } from "../../utils/artwork";
+import { StatsShareModal } from "./StatsShareModal";
 
 interface StatsViewProps {
   onPlayTrack: (track: Track) => void;
@@ -22,6 +24,7 @@ export const StatsView = React.memo(function StatsView({ onPlayTrack }: StatsVie
   const [timeframe, setTimeframe] = useState<number | null>(30); // 7, 30, null (tudo)
   const [stats, setStats] = useState<PlaybackStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   useEffect(() => {
     loadStats();
@@ -128,6 +131,17 @@ export const StatsView = React.memo(function StatsView({ onPlayTrack }: StatsVie
           >
             <Trash2 className="w-4 h-4" />
           </button>
+
+          {stats && stats.total_plays > 0 && (
+            <button
+              onClick={() => setIsShareModalOpen(true)}
+              title="Compartilhar Cartão de Resumo nas Redes"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-red-600 hover:bg-red-500 shadow-md shadow-red-950/60 border border-red-500/30 transition-all cursor-pointer"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span>Compartilhar</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -306,6 +320,15 @@ export const StatsView = React.memo(function StatsView({ onPlayTrack }: StatsVie
             </div>
           </div>
         </div>
+      )}
+
+      {stats && stats.total_plays > 0 && (
+        <StatsShareModal
+          stats={stats}
+          timeframe={timeframe}
+          isOpen={isShareModalOpen}
+          onClose={() => setIsShareModalOpen(false)}
+        />
       )}
     </div>
   );

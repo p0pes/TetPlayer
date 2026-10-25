@@ -426,14 +426,47 @@ fn move_docked_tab(
 pub fn run() {
     let initial_session = find_youtube_session();
 
+    let shortcut_plugin = tauri_plugin_global_shortcut::Builder::new()
+        .with_handler(|app, shortcut, event| {
+            if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                let s = shortcut.to_string();
+                if s.contains("MediaPlayPause") || s.contains("MediaStop") || s.contains("Space") {
+                    let _ = app.emit("tray-action", "toggle-play");
+                } else if s.contains("MediaTrackNext") || s.contains("ArrowRight") {
+                    let _ = app.emit("tray-action", "next-track");
+                } else if s.contains("MediaTrackPrevious") || s.contains("ArrowLeft") {
+                    let _ = app.emit("tray-action", "prev-track");
+                }
+            }
+        })
+        .build();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(shortcut_plugin)
         .manage(AppState {
             session: Mutex::new(initial_session),
         })
         .setup(|app| {
             // Inicializar banco de estatísticas SQLite
             let _ = stats::init_db();
+
+            // Registrar atalhos globais de mídia no sistema operacional
+            use tauri_plugin_global_shortcut::GlobalShortcutExt;
+            let shortcuts = [
+                "MediaPlayPause",
+                "MediaTrackNext",
+                "MediaTrackPrevious",
+                "MediaStop",
+                "Ctrl+Alt+Space",
+                "Ctrl+Alt+Right",
+                "Ctrl+Alt+Left",
+            ];
+            for sc in shortcuts {
+                if let Ok(parsed) = sc.parse::<tauri_plugin_global_shortcut::Shortcut>() {
+                    let _ = app.global_shortcut().register(parsed);
+                }
+            }
 
             // Configurar System Tray com Menu de Contexto
             if let Some(default_icon) = app.default_window_icon() {

@@ -1,4 +1,5 @@
-import { ChevronUp, ChevronDown, Play, Pause, Trash2, ListMusic, MoreVertical } from "lucide-react";
+import { useState } from "react";
+import { ChevronUp, ChevronDown, Play, Pause, Trash2, ListMusic, MoreVertical, GripVertical } from "lucide-react";
 import { usePlayer } from "../../context/PlayerContext";
 import { formatTime } from "../../hooks/useLyrics";
 import { upgradeArtworkQuality, handleArtworkError } from "../../utils/artwork";
@@ -16,9 +17,13 @@ export function QueueView() {
     handlePlayFromQueue,
     handleRemoveFromQueue,
     handleClearUpcomingQueue,
+    handleReorderQueue,
     currentQueueIndex,
     openContextMenu,
   } = usePlayer();
+
+  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
@@ -182,15 +187,66 @@ export function QueueView() {
           <div className="space-y-1.5">
             {upcomingTracks.map((track, relativeIdx) => {
               const actualIdx = currentQueueIndex + 1 + relativeIdx;
+              const isBeingDragged = draggedIdx === actualIdx;
+              const isDragOver = dragOverIdx === actualIdx;
+
               return (
                 <div
                   key={`upcoming-${track.id}-${actualIdx}`}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("text/plain", String(actualIdx));
+                    e.dataTransfer.effectAllowed = "move";
+                    setDraggedIdx(actualIdx);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    if (dragOverIdx !== actualIdx) {
+                      setDragOverIdx(actualIdx);
+                    }
+                  }}
+                  onDragLeave={() => {
+                    if (dragOverIdx === actualIdx) {
+                      setDragOverIdx(null);
+                    }
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const fromIdx =
+                      draggedIdx ?? parseInt(e.dataTransfer.getData("text/plain"), 10);
+                    if (!isNaN(fromIdx) && fromIdx !== actualIdx) {
+                      handleReorderQueue(fromIdx, actualIdx);
+                    }
+                    setDraggedIdx(null);
+                    setDragOverIdx(null);
+                  }}
+                  onDragEnd={() => {
+                    setDraggedIdx(null);
+                    setDragOverIdx(null);
+                  }}
                   onClick={() => handlePlayFromQueue(actualIdx)}
                   onContextMenu={(e) => openContextMenu(e, track)}
-                  className="flex items-center justify-between p-2.5 rounded-xl bg-[#141722]/70 hover:bg-[#1c2030] border border-[#1f2433] hover:border-[#2d3448] transition-all cursor-pointer group"
+                  className={`flex items-center justify-between p-2.5 rounded-xl transition-all cursor-pointer group ${
+                    isBeingDragged
+                      ? "opacity-35 scale-[0.98] border-dashed border-red-500/60 bg-[#1e2334]"
+                      : isDragOver
+                      ? "border-t-2 border-t-red-500 bg-[#1c2030] shadow-lg shadow-red-950/40"
+                      : "bg-[#141722]/70 hover:bg-[#1c2030] border border-[#1f2433] hover:border-[#2d3448]"
+                  }`}
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="w-5 text-center text-xs font-mono text-[#71778c] group-hover:text-red-400">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {/* Alça tátil de arrasto */}
+                    <div
+                      className="p-0.5 text-[#52576b] hover:text-[#c4c8d8] cursor-grab active:cursor-grabbing opacity-40 group-hover:opacity-100 transition-opacity shrink-0"
+                      title="Segure e arraste para reordenar"
+                      aria-label="Arrastar para reordenar"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <GripVertical className="w-3.5 h-3.5" />
+                    </div>
+
+                    <span className="w-4 text-center text-xs font-mono text-[#71778c] group-hover:text-red-400 shrink-0">
                       {relativeIdx + 1}
                     </span>
                     <div className="w-10 h-10 rounded-lg bg-[#1a1d27] overflow-hidden shrink-0 border border-[#232838]">
