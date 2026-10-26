@@ -223,7 +223,7 @@ Abaixo encontram-se a **pesquisa de mercado**, as **24 sugestões ativas em aber
 ---
 
 #### 3.3 Animação Cinematográfica e Scroll Fluido na Troca de Letras (Smooth Kinetic Seek & Spring Easing)
-* **Status:** `[Em Aberto / Alta Prioridade]` 💡
+* **Status:** `[Implementado e Validado]` ✅
 * **Impacto:** `[Alto / Experiência Visual & Polimento]` | **Esforço:** `[Médio]`
 * **Diagnóstico do Problema Atual:**  
   Atualmente, no módulo [`useLyrics.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useLyrics.ts) e [`LyricsView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/LyricsView/LyricsView.tsx), quando o usuário salta trechos da música (seek na barra de reprodução / scrubber) ou clica diretamente em uma estrofe da letra, a rolagem pula de forma seca e abrupta para a nova posição. A chamada nativa `container.scrollTo({ behavior: "smooth" })` do navegador é interrompida por re-renders rápidos de sincronização de playback ou gera um teletransporte rígido sem inércia quando o salto temporal é grande. Além disso, a alternância entre a linha anterior e a nova linha cantada ocorre com cortes visuais secos, sem transição orgânica de escala, brilho e profundidade.

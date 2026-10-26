@@ -551,9 +551,25 @@
 
 ---
 
-## 📋 Conclusão da Auditoria (Release v1.1.0 Oficial)
+### 51. Animação Cinematográfica e Scroll Fluido na Troca de Letras (Item 3.3) & Bump v1.2.0
+* **Status:** `[Resolvido]` ✅
+* **Localização:** [`desktop/src/hooks/useLyrics.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useLyrics.ts), [`desktop/src/components/LyricsView/LyricsView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/LyricsView/LyricsView.tsx) e [`desktop/src/hooks/__tests__/useLyrics.test.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/__tests__/useLyrics.test.ts).
+* **Diagnóstico Técnico:**
+  - O autoscroll nativo (`behavior: "smooth"`) causava paradas secas, perda de frames em re-renders de áudio e teletransportes abruptos sem inércia em saltos temporais grandes (seek na linha do tempo ou clique em estrofes distantes).
+  - A troca entre a linha anterior e a linha cantada acontecia com corte rígido, sem efeito de profundidade de campo (*depth-of-field*) ou transição tipográfica orgânica.
+* **Solução Implementada:**
+  - **Motor de Interpolação Cinética (`requestAnimationFrame`):** Desenvolvido algoritmo de amortecimento cúbico (*Spring Ease-Out Damping*) com velocidade calculada dinamicamente com base na distância em pixels (`calculateScrollDuration`).
+  - **Estabilização Inteligente de Seek:** Debounce de 90ms em saltos rápidos de scrubber para evitar trepidação visual durante o arrasto, seguido de aterrissagem suave e fluida.
+  - **Transição de Tipografia e Profundidade de Campo (Staggered Focus Morphing):** Estilização visual em gradiente de distância (linha ativa com glow dual `var(--accent-glow)` + brilho puro, vizinhos imediatos com 75% de opacidade e estrofes distantes com fade progressivo).
+  - **Motion Soft Blur:** Desfoque sutil transitório (`blur-[1.5px]`) aplicado em saltos de alta velocidade, cristalizando com 100% de nitidez ao atingir a estrofe de destino.
+  - **Respeito a `reducedMotion`:** Desativação automática de interpolações longas quando o usuário ativa o modo de economia de bateria.
+  - **Bump Oficial v1.2.0:** Sincronizado para permitir teste direto da funcionalidade de auto-update in-app a partir da versão v1.1.0.
 
-A versão **1.1.0** consolida o salto para um reprodutor moderno e universal:
-- **Zero erros de compilação ou tipos:** `tsc && vite build` e `cargo test` 100% limpos.
-- **Autenticação In-App Universal:** Login oficial com conta Google integrado via Webview nativa sem depender de navegadores externos instalados.
-- **Ciclo de Atualizações Automatizado:** Verificação manual nas Configurações e pipeline CI/CD GitHub Actions para geração de instaladores.
+---
+
+## 📋 Conclusão da Auditoria (Release v1.2.0 Oficial)
+
+A versão **1.2.0** consolida o salto para um reprodutor moderno e universal:
+- **Zero erros de compilação ou tipos:** `tsc && vite build`, 44 testes Vitest e 8 testes Rust 100% verdes.
+- **Experiência Cinematográfica de Letras:** Scroll cinético sedoso com física de amortecimento e profundidade de campo estilo Apple Music.
+- **Validação de Atualizações In-App:** Preparado para atualização transparente com 1 clique a partir da v1.1.0 via GitHub Releases.

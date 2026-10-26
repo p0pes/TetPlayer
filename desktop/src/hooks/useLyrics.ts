@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Track, LyricsData, LyricLine } from "../types";
 import { retryWithBackoff } from "../services/network";
+import { SettingsService } from "../services/settings";
 
 export const MAX_LYRICS_CACHE_ENTRIES = 80;
 const globalLyricsCache = new Map<string, LyricsData>();
@@ -61,6 +62,28 @@ export function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+}
+
+/**
+ * Curva de amortecimento cinético cúbico (Spring Ease-Out Damping estilo Apple Music).
+ * Proporciona aceleração responsiva inicial e frenagem orgânica e sedosa ao se aproximar da estrofe.
+ */
+export function kineticEaseOut(t: number): number {
+  const p = 1 - Math.max(0, Math.min(1, t));
+  return 1 - p * p * p;
+}
+
+/**
+ * Calcula a duração ideal (ms) baseada na distância física em pixels do scroll.
+ * - Passagem contígua de estrofe (~40 a 90px): ~320ms a 380ms
+ * - Salto longo por seek ou clique direto (> 400px): ~500ms a 750ms com aceleração proporcional
+ */
+export function calculateScrollDuration(distance: number, isDirectSeek: boolean): number {
+  const absDist = Math.abs(distance);
+  if (isDirectSeek) {
+    return Math.min(800, Math.max(400, 360 + Math.sqrt(absDist) * 10));
+  }
+  return Math.min(460, Math.max(300, 280 + Math.sqrt(absDist) * 6));
 }
 
 export function parseLrc(lrcText: string): LyricLine[] {
@@ -195,46 +218,135 @@ export function useLyrics({
     }
   }, [currentTime, parsedLyrics]);
 
+  const [isFastScrolling, setIsFastScrolling] = useState(false);
+  const rafIdRef = useRef<number | null>(null);
+  const seekDebounceTimerRef = useRef<number | null>(null);
+  const lastActiveIndexRef = useRef<number>(-1);
   const isProgrammaticScrollRef = useRef(false);
   const programmaticScrollTimeoutRef = useRef<number | null>(null);
 
-  // Cleanup de timeouts pendentes ao desmontar
+  // Motor de Interpolação Cinética Baseada em Física (Item 3.3)
+  const scrollToTargetKinetic = useCallback((targetScroll: number, isDirectSeek: boolean) => {
+    const container = lyricsContainerRef.current;
+    if (!container) return;
+
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
+
+    const startScroll = container.scrollTop;
+    const distance = targetScroll - startScroll;
+
+    // Se a distância for imperceptível, aplica diretamente
+    if (Math.abs(distance) < 2) {
+      container.scrollTop = targetScroll;
+      setIsFastScrolling(false);
+      return;
+    }
+
+    // Respeita modo de redução de movimento para conforto e economia de bateria
+    const isReduced = SettingsService.getSetting("reducedMotion");
+    if (isReduced) {
+      container.scrollTop = targetScroll;
+      setIsFastScrolling(false);
+      return;
+    }
+
+    const duration = calculateScrollDuration(distance, isDirectSeek);
+    const isLargeJump = Math.abs(distance) > 220;
+    if (isLargeJump) {
+      setIsFastScrolling(true);
+    }
+
+    const startTime = performance.now();
+    isProgrammaticScrollRef.current = true;
+
+    const step = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(1, elapsed / duration);
+      const ease = kineticEaseOut(progress);
+
+      container.scrollTop = startScroll + distance * ease;
+
+      // Desliga o motion soft blur na aproximação final (últimos 15% do curso)
+      if (progress > 0.85 && isLargeJump) {
+        setIsFastScrolling(false);
+      }
+
+      if (progress < 1) {
+        rafIdRef.current = requestAnimationFrame(step);
+      } else {
+        container.scrollTop = targetScroll;
+        rafIdRef.current = null;
+        setIsFastScrolling(false);
+
+        if (programmaticScrollTimeoutRef.current) {
+          window.clearTimeout(programmaticScrollTimeoutRef.current);
+        }
+        programmaticScrollTimeoutRef.current = window.setTimeout(() => {
+          isProgrammaticScrollRef.current = false;
+        }, 120);
+      }
+    };
+
+    rafIdRef.current = requestAnimationFrame(step);
+  }, []);
+
+  // Cleanup de timers e frames ao desmontar
   useEffect(() => {
     return () => {
+      if (rafIdRef.current !== null) cancelAnimationFrame(rafIdRef.current);
+      if (seekDebounceTimerRef.current !== null) window.clearTimeout(seekDebounceTimerRef.current);
       if (programmaticScrollTimeoutRef.current) window.clearTimeout(programmaticScrollTimeoutRef.current);
       if (userScrollTimeoutRef.current) window.clearTimeout(userScrollTimeoutRef.current);
     };
   }, []);
 
-  // Autoscroll Suave e Otimizado da Linha Ativa
+  // Autoscroll Cinético Suave e Estabilizado da Linha Ativa (Item 3.3)
   useEffect(() => {
     const isLyricsActive = (isNowPlayingOpen && nowPlayingTab === "lyrics") || showLyrics;
     if (!isLyricsActive || activeLyricIndex === -1 || userScrollingLyricsRef.current) return;
-    if (activeLyricRef.current && lyricsContainerRef.current) {
-      const container = lyricsContainerRef.current;
-      const activeEl = activeLyricRef.current;
-      const targetScroll = activeEl.offsetTop - container.clientHeight / 2 + activeEl.clientHeight / 2;
 
-      isProgrammaticScrollRef.current = true;
-      if (programmaticScrollTimeoutRef.current) {
-        window.clearTimeout(programmaticScrollTimeoutRef.current);
+    const prevIndex = lastActiveIndexRef.current;
+    lastActiveIndexRef.current = activeLyricIndex;
+
+    const isSeekJump = prevIndex !== -1 && Math.abs(activeLyricIndex - prevIndex) > 1;
+
+    const executeScroll = () => {
+      if (activeLyricRef.current && lyricsContainerRef.current) {
+        const container = lyricsContainerRef.current;
+        const activeEl = activeLyricRef.current;
+        const targetScroll = Math.max(
+          0,
+          activeEl.offsetTop - container.clientHeight / 2 + activeEl.clientHeight / 2
+        );
+        scrollToTargetKinetic(targetScroll, isSeekJump);
+        setIsUserScrolledAway(false);
       }
+    };
 
-      container.scrollTo({
-        top: Math.max(0, targetScroll),
-        behavior: "smooth",
-      });
-
-      programmaticScrollTimeoutRef.current = window.setTimeout(() => {
-        isProgrammaticScrollRef.current = false;
-      }, 700);
-
-      setIsUserScrolledAway(false);
+    if (isSeekJump) {
+      // Em saltos rápidos de seek / arrasto da barra, debounça micro-rolagens por 90ms para evitar trepidação
+      if (seekDebounceTimerRef.current !== null) {
+        window.clearTimeout(seekDebounceTimerRef.current);
+      }
+      seekDebounceTimerRef.current = window.setTimeout(executeScroll, 90);
+    } else {
+      // Na progressão contínua das estrofes, o scroll desliza imediatamente a 0ms
+      executeScroll();
     }
-  }, [activeLyricIndex, isNowPlayingOpen, nowPlayingTab, showLyrics]);
+  }, [activeLyricIndex, isNowPlayingOpen, nowPlayingTab, showLyrics, scrollToTargetKinetic]);
 
   function handleLyricsContainerScroll() {
     if (isProgrammaticScrollRef.current) return;
+
+    // Cancela qualquer animação cinética ativa se o usuário interagir manualmente
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+      setIsFastScrolling(false);
+    }
 
     userScrollingLyricsRef.current = true;
     setIsUserScrolledAway(true);
@@ -245,16 +357,11 @@ export function useLyrics({
       if (activeLyricRef.current && lyricsContainerRef.current) {
         const container = lyricsContainerRef.current;
         const activeEl = activeLyricRef.current;
-        const targetScroll = activeEl.offsetTop - container.clientHeight / 2 + activeEl.clientHeight / 2;
-        isProgrammaticScrollRef.current = true;
-        container.scrollTo({
-          top: Math.max(0, targetScroll),
-          behavior: "smooth",
-        });
-        if (programmaticScrollTimeoutRef.current) window.clearTimeout(programmaticScrollTimeoutRef.current);
-        programmaticScrollTimeoutRef.current = window.setTimeout(() => {
-          isProgrammaticScrollRef.current = false;
-        }, 700);
+        const targetScroll = Math.max(
+          0,
+          activeEl.offsetTop - container.clientHeight / 2 + activeEl.clientHeight / 2
+        );
+        scrollToTargetKinetic(targetScroll, false);
       }
     }, 4500);
   }
@@ -266,16 +373,11 @@ export function useLyrics({
     if (activeLyricRef.current && lyricsContainerRef.current) {
       const container = lyricsContainerRef.current;
       const activeEl = activeLyricRef.current;
-      const targetScroll = activeEl.offsetTop - container.clientHeight / 2 + activeEl.clientHeight / 2;
-      isProgrammaticScrollRef.current = true;
-      container.scrollTo({
-        top: Math.max(0, targetScroll),
-        behavior: "smooth",
-      });
-      if (programmaticScrollTimeoutRef.current) window.clearTimeout(programmaticScrollTimeoutRef.current);
-      programmaticScrollTimeoutRef.current = window.setTimeout(() => {
-        isProgrammaticScrollRef.current = false;
-      }, 700);
+      const targetScroll = Math.max(
+        0,
+        activeEl.offsetTop - container.clientHeight / 2 + activeEl.clientHeight / 2
+      );
+      scrollToTargetKinetic(targetScroll, true);
     }
   }
 
@@ -286,30 +388,21 @@ export function useLyrics({
 
     onSeek(time);
 
-    if (lyricsContainerRef.current) {
-      const container = lyricsContainerRef.current;
-      isProgrammaticScrollRef.current = true;
-      if (programmaticScrollTimeoutRef.current) {
-        window.clearTimeout(programmaticScrollTimeoutRef.current);
-      }
-
-      const targetIdx = parsedLyrics.findIndex((l) => l.time === time);
-      if (targetIdx !== -1) {
-        setActiveLyricIndex(targetIdx);
+    const targetIdx = parsedLyrics.findIndex((l) => l.time === time);
+    if (targetIdx !== -1) {
+      setActiveLyricIndex(targetIdx);
+      if (lyricsContainerRef.current) {
+        const container = lyricsContainerRef.current;
         const lineElements = container.querySelectorAll<HTMLElement>("[data-lyric-time]");
         const targetEl = lineElements[targetIdx];
         if (targetEl) {
-          const targetScroll = targetEl.offsetTop - container.clientHeight / 2 + targetEl.clientHeight / 2;
-          container.scrollTo({
-            top: Math.max(0, targetScroll),
-            behavior: "smooth",
-          });
+          const targetScroll = Math.max(
+            0,
+            targetEl.offsetTop - container.clientHeight / 2 + targetEl.clientHeight / 2
+          );
+          scrollToTargetKinetic(targetScroll, true);
         }
       }
-
-      programmaticScrollTimeoutRef.current = window.setTimeout(() => {
-        isProgrammaticScrollRef.current = false;
-      }, 700);
     }
   }
 
@@ -320,6 +413,7 @@ export function useLyrics({
     lyricsError,
     activeLyricIndex,
     isUserScrolledAway,
+    isFastScrolling,
     lyricsContainerRef,
     activeLyricRef,
     handleLyricsContainerScroll,

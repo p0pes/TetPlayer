@@ -6,9 +6,39 @@ import {
   setCachedLyrics,
   clearLyricsCache,
   MAX_LYRICS_CACHE_ENTRIES,
+  kineticEaseOut,
+  calculateScrollDuration,
 } from "../useLyrics";
 
 describe("useLyrics utils", () => {
+  describe("Kinetic Spring & Scroll Easing (Item 3.3)", () => {
+    it("deve retornar 0 no início (t=0) e 1 no fim (t=1)", () => {
+      expect(kineticEaseOut(0)).toBe(0);
+      expect(kineticEaseOut(1)).toBe(1);
+    });
+
+    it("deve ter aceleração inicial e desaceleração progressiva (ease-out)", () => {
+      const mid = kineticEaseOut(0.5);
+      expect(mid).toBeGreaterThan(0.7);
+      expect(mid).toBeLessThan(1);
+    });
+
+    it("deve limitar valores fora do intervalo [0, 1] com segurança", () => {
+      expect(kineticEaseOut(-0.5)).toBe(0);
+      expect(kineticEaseOut(1.5)).toBe(1);
+    });
+
+    it("deve calcular durações dinâmicas proporcionais para passagens normais e saltos de seek", () => {
+      const shortStep = calculateScrollDuration(60, false);
+      const normalStep = calculateScrollDuration(150, false);
+      const directSeekLong = calculateScrollDuration(800, true);
+
+      expect(shortStep).toBeGreaterThanOrEqual(300);
+      expect(normalStep).toBeGreaterThan(shortStep);
+      expect(directSeekLong).toBeGreaterThan(normalStep);
+      expect(directSeekLong).toBeLessThanOrEqual(800);
+    });
+  });
   describe("formatTime", () => {
     it("deve formatar 0 segundos como 0:00", () => {
       expect(formatTime(0)).toBe("0:00");

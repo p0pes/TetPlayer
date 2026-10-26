@@ -13,6 +13,7 @@ export function LyricsView() {
     lyricsError,
     activeLyricIndex,
     isUserScrolledAway,
+    isFastScrolling,
     lyricsContainerRef,
     activeLyricRef,
     handleLyricsContainerScroll,
@@ -70,20 +71,37 @@ export function LyricsView() {
           <div className="py-16 space-y-4">
             {parsedLyrics.map((line, idx) => {
               const isActive = idx === activeLyricIndex;
+              const distance = activeLyricIndex !== -1 ? Math.abs(idx - activeLyricIndex) : 999;
               const isPast = idx < activeLyricIndex;
+
+              // Transição de Tipografia e Profundidade de Campo (Item 3.3 - Staggered Focus Morphing)
+              let depthStyle = "";
+              if (isActive) {
+                depthStyle =
+                  "text-2xl md:text-3xl lg:text-[2.15rem] font-extrabold text-white scale-[1.05] opacity-100 drop-shadow-[0_0_24px_var(--accent-glow)] [text-shadow:0_0_30px_rgba(255,255,255,0.7)]";
+              } else if (distance === 1) {
+                depthStyle = isPast
+                  ? "text-lg md:text-xl font-semibold text-[#cbd5e1] opacity-70 scale-100 hover:text-white hover:opacity-100"
+                  : "text-lg md:text-xl font-semibold text-[#e2e8f0] opacity-80 scale-100 hover:text-white hover:opacity-100";
+              } else if (distance <= 3) {
+                depthStyle = isPast
+                  ? "text-lg md:text-xl font-medium text-[#64748b] opacity-40 scale-[0.98] hover:text-[#94a3b8] hover:opacity-80"
+                  : "text-lg md:text-xl font-medium text-[#94a3b8] opacity-50 scale-[0.98] hover:text-white hover:opacity-85";
+              } else {
+                depthStyle = isPast
+                  ? "text-base md:text-lg font-medium text-[#475569] opacity-20 scale-[0.96] hover:text-[#64748b] hover:opacity-60"
+                  : "text-base md:text-lg font-medium text-[#475569] opacity-25 scale-[0.96] hover:text-[#94a3b8] hover:opacity-60";
+              }
+
+              const blurStyle = isFastScrolling && !isActive ? "blur-[1.5px]" : "blur-0";
+
               return (
                 <div
                   key={`${line.time}-${idx}`}
                   data-lyric-time={line.time}
                   ref={isActive ? activeLyricRef : null}
                   onClick={() => handleLyricClick(line.time, handleSeekTo)}
-                  className={`py-2 px-4 rounded-xl transition-[transform,opacity,color] duration-200 ease-out will-change-transform cursor-pointer select-none ${
-                    isActive
-                      ? "text-2xl md:text-3xl font-bold text-white scale-[1.03] [text-shadow:0_0_20px_rgba(255,255,255,0.45)]"
-                      : isPast
-                      ? "text-lg md:text-xl text-[#51576d] hover:text-[#9ea5bc] font-medium opacity-60 scale-100"
-                      : "text-lg md:text-xl text-[#787f95] hover:text-white font-medium opacity-85 scale-100"
-                  }`}
+                  className={`py-2 px-4 rounded-xl cursor-pointer select-none will-change-transform transition-[transform,opacity,filter,color] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] ${depthStyle} ${blurStyle}`}
                 >
                   {line.text}
                 </div>
