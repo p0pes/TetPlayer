@@ -565,11 +565,24 @@
   - **Respeito a `reducedMotion`:** Desativação automática de interpolações longas quando o usuário ativa o modo de economia de bateria.
   - **Bump Oficial v1.2.0:** Sincronizado para permitir teste direto da funcionalidade de auto-update in-app a partir da versão v1.1.0.
 
+### 52. Efeito Bounce e Mola Elástica na Transição de Letras & Bump v1.2.1
+* **Status:** `[Resolvido]` ✅
+* **Localização:** [`desktop/src/index.css`](file:///d:/progrmação/programas/TetPlayer/desktop/src/index.css), [`desktop/src/components/LyricsView/LyricsView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/LyricsView/LyricsView.tsx), [`desktop/src/hooks/useLyrics.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useLyrics.ts), [`desktop/src/components/TitleBar/TitleBar.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/TitleBar/TitleBar.tsx) e [`desktop/src/hooks/__tests__/useLyrics.test.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/__tests__/useLyrics.test.ts).
+* **Diagnóstico Técnico:**
+  - Embora o scroll cinético houvesse eliminado travamentos, a passagem de uma estrofe para a seguinte ainda parecia rígida devido ao crescimento estático e linear da tipografia (de scale 1.00 para 1.05 em 300ms com curva monotônica).
+  - O scroll contínuo parava de forma seca ao atingir o alvo exato sem nenhuma elasticidade orgânica de acomodação.
+* **Solução Implementada:**
+  - **Keyframes de Spring Bounce (`@keyframes lyric-spring-bounce` & `.animate-lyric-bounce`):** Criada animação física de 5 estágios onde a estrofe ativada se eleva ligeiramente (`translateY(-3px)`), atinge pico elástico de escala (`scale(1.08)`), sofre suave retração amortecida (`scale(1.042)`) e repousa organicamente em `scale(1.05) translateY(0)` ao longo de 540ms com curva cúbica natural.
+  - **Transição Elástica Suave para Estrofes Anteriores:** Transição desacelerada de 500ms com curva `cubic-bezier(0.34, 1.3, 0.64, 1)` para que as linhas passadas e vizinhas recuem suavemente sem solavancos.
+  - **Curva Cinética `kineticSpringBounce` no Scroll:** Desenvolvida função matemática com suave overshoot elástico de ~2.6% no autoscroll de reprodução contínua, permitindo que a janela de letras respire e se acomode com elasticidade física autêntica.
+  - **Badge de Versão Permanente na TitleBar:** Integrada a constante `APP_VERSION` no cabeçalho superior esquerdo da aplicação (`TetPlayer v1.2.1`), permitindo ao usuário conferir a versão instalada imediatamente sem abrir telas de configurações.
+  - **Bump Oficial v1.2.1:** Atualizado em todos os manifestos para permitir o teste in-app da rotina de atualização.
+
 ---
 
-## 📋 Conclusão da Auditoria (Release v1.2.0 Oficial)
+## 📋 Conclusão da Auditoria (Release v1.2.1 Oficial)
 
-A versão **1.2.0** consolida o salto para um reprodutor moderno e universal:
-- **Zero erros de compilação ou tipos:** `tsc && vite build`, 44 testes Vitest e 8 testes Rust 100% verdes.
-- **Experiência Cinematográfica de Letras:** Scroll cinético sedoso com física de amortecimento e profundidade de campo estilo Apple Music.
-- **Validação de Atualizações In-App:** Preparado para atualização transparente com 1 clique a partir da v1.1.0 via GitHub Releases.
+A versão **1.2.1** aperfeiçoa a experiência visual com física elástica natural:
+- **Zero erros de compilação ou tipos:** `tsc && vite build`, 45 testes Vitest e 8 testes Rust 100% verdes.
+- **Efeito Bounce em Letras:** Física elástica de escala e translação vertical na troca de estrofes, com amortecimento cinético no autoscroll.
+- **Identificação Imediata da Versão:** Versão `v1.2.1` estampada na TitleBar e em todos os manifestos do ecossistema.

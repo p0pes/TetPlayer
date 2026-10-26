@@ -7,6 +7,7 @@ import {
   clearLyricsCache,
   MAX_LYRICS_CACHE_ENTRIES,
   kineticEaseOut,
+  kineticSpringBounce,
   calculateScrollDuration,
 } from "../useLyrics";
 
@@ -15,12 +16,22 @@ describe("useLyrics utils", () => {
     it("deve retornar 0 no início (t=0) e 1 no fim (t=1)", () => {
       expect(kineticEaseOut(0)).toBe(0);
       expect(kineticEaseOut(1)).toBe(1);
+      expect(kineticSpringBounce(0)).toBe(0);
+      expect(kineticSpringBounce(1)).toBe(1);
     });
 
     it("deve ter aceleração inicial e desaceleração progressiva (ease-out)", () => {
       const mid = kineticEaseOut(0.5);
       expect(mid).toBeGreaterThan(0.7);
       expect(mid).toBeLessThan(1);
+    });
+
+    it("deve calcular curva kineticSpringBounce com overshoot elástico sutil e orgânico", () => {
+      const peak = kineticSpringBounce(0.7);
+      expect(peak).toBeGreaterThan(1.0);
+      expect(peak).toBeLessThan(1.05);
+      expect(kineticSpringBounce(-0.2)).toBe(0);
+      expect(kineticSpringBounce(1.2)).toBe(1);
     });
 
     it("deve limitar valores fora do intervalo [0, 1] com segurança", () => {

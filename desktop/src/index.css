@@ -298,3 +298,30 @@
 input[type="range"] {
   accent-color: var(--accent);
 }
+
+/* Spring Bounce Animation para Linhas de Letra Sincronizada (Bounce Suave e Orgânico) */
+@keyframes lyric-spring-bounce {
+  0% {
+    transform: scale(0.96) translateY(5px);
+    filter: drop-shadow(0 0 0px var(--accent-glow));
+  }
+  38% {
+    transform: scale(1.08) translateY(-3px);
+    filter: drop-shadow(0 0 28px var(--accent-glow));
+  }
+  68% {
+    transform: scale(1.042) translateY(1.5px);
+  }
+  86% {
+    transform: scale(1.055) translateY(-0.5px);
+  }
+  100% {
+    transform: scale(1.05) translateY(0);
+    filter: drop-shadow(0 0 24px var(--accent-glow));
+  }
+}
+
+.animate-lyric-bounce {
+  animation: lyric-spring-bounce 0.54s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  transform-origin: center center;
+}

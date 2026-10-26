@@ -74,8 +74,22 @@ export function kineticEaseOut(t: number): number {
 }
 
 /**
+ * Curva de amortecimento cinético com suave overshoot elástico (Spring Bounce Easing).
+ * Simula uma física de mola fluida que avança com aceleração orgânica, realiza um leve
+ * overshoot elástico (~2.6%) e assenta suavemente no centro da linha ativa.
+ */
+export function kineticSpringBounce(t: number): number {
+  const clamped = Math.max(0, Math.min(1, t));
+  if (clamped <= 0) return 0;
+  if (clamped >= 1) return 1;
+  const s = 0.85;
+  const p = clamped - 1;
+  return 1 + (s + 1) * p * p * p + s * p * p;
+}
+
+/**
  * Calcula a duração ideal (ms) baseada na distância física em pixels do scroll.
- * - Passagem contígua de estrofe (~40 a 90px): ~320ms a 380ms
+ * - Passagem contígua de estrofe (~40 a 90px): ~340ms a 420ms
  * - Salto longo por seek ou clique direto (> 400px): ~500ms a 750ms com aceleração proporcional
  */
 export function calculateScrollDuration(distance: number, isDirectSeek: boolean): number {
@@ -83,7 +97,7 @@ export function calculateScrollDuration(distance: number, isDirectSeek: boolean)
   if (isDirectSeek) {
     return Math.min(800, Math.max(400, 360 + Math.sqrt(absDist) * 10));
   }
-  return Math.min(460, Math.max(300, 280 + Math.sqrt(absDist) * 6));
+  return Math.min(520, Math.max(340, 300 + Math.sqrt(absDist) * 8));
 }
 
 export function parseLrc(lrcText: string): LyricLine[] {
@@ -265,7 +279,7 @@ export function useLyrics({
     const step = (now: number) => {
       const elapsed = now - startTime;
       const progress = Math.min(1, elapsed / duration);
-      const ease = kineticEaseOut(progress);
+      const ease = isDirectSeek ? kineticEaseOut(progress) : kineticSpringBounce(progress);
 
       container.scrollTop = startScroll + distance * ease;
 

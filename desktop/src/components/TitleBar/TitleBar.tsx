@@ -14,6 +14,7 @@ import {
 import { AuthSession, Playlist, Track, ActiveTab, NowPlayingTab } from "../../types";
 import { useNetworkStatus } from "../../services/network";
 import { SettingsService } from "../../services/settings";
+import { APP_VERSION } from "../../services/updater";
 
 interface TitleBarProps {
   auth: AuthSession | null;
@@ -132,7 +133,10 @@ export const TitleBar = React.memo(function TitleBar({
       >
         <div className="w-3 h-3 rounded-full bg-[var(--accent)] shadow-[0_0_8px_var(--accent-glow)] animate-pulse" />
         <span className="font-bold text-sm text-white tracking-tight flex items-center gap-1.5 pointer-events-none">
-          TetPlayer <span className="text-[9px] bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] px-1.5 py-0.2 rounded font-medium">Desktop</span>
+          TetPlayer{" "}
+          <span className="text-[9px] bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] px-1.5 py-0.5 rounded font-medium tracking-normal">
+            v{APP_VERSION}
+          </span>
         </span>
       </div>
 

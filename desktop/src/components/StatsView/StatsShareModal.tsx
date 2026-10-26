@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Download, Copy, Check, X, Loader2, Share2 } from "lucide-react";
 import { PlaybackStats } from "../../types";
 import { SettingsService, THEME_PALETTES } from "../../services/settings";
+import { APP_VERSION } from "../../services/updater";
 
 interface StatsShareModalProps {
   stats: PlaybackStats;
@@ -134,7 +135,7 @@ export function StatsShareModal({
 
       ctx.fillStyle = "#94a3b8";
       ctx.font = "14px Inter, system-ui, sans-serif";
-      ctx.fillText(`Período: ${timeframeLabel} • Ouvido no TetPlayer Desktop v1.2.0`, 64, 158);
+      ctx.fillText(`Período: ${timeframeLabel} • Ouvido no TetPlayer Desktop v${APP_VERSION}`, 64, 158);
 
       // 5. Linha de Métricas (3 Cards)
       const metrics = [

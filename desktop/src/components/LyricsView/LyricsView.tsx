@@ -74,11 +74,11 @@ export function LyricsView() {
               const distance = activeLyricIndex !== -1 ? Math.abs(idx - activeLyricIndex) : 999;
               const isPast = idx < activeLyricIndex;
 
-              // Transição de Tipografia e Profundidade de Campo (Item 3.3 - Staggered Focus Morphing)
+              // Transição de Tipografia e Profundidade de Campo com Efeito Bounce (Item 3.3)
               let depthStyle = "";
               if (isActive) {
                 depthStyle =
-                  "text-2xl md:text-3xl lg:text-[2.15rem] font-extrabold text-white scale-[1.05] opacity-100 drop-shadow-[0_0_24px_var(--accent-glow)] [text-shadow:0_0_30px_rgba(255,255,255,0.7)]";
+                  "text-2xl md:text-3xl lg:text-[2.15rem] font-extrabold text-white scale-[1.05] opacity-100 drop-shadow-[0_0_24px_var(--accent-glow)] [text-shadow:0_0_30px_rgba(255,255,255,0.7)] animate-lyric-bounce";
               } else if (distance === 1) {
                 depthStyle = isPast
                   ? "text-lg md:text-xl font-semibold text-[#cbd5e1] opacity-70 scale-100 hover:text-white hover:opacity-100"
@@ -101,7 +101,7 @@ export function LyricsView() {
                   data-lyric-time={line.time}
                   ref={isActive ? activeLyricRef : null}
                   onClick={() => handleLyricClick(line.time, handleSeekTo)}
-                  className={`py-2 px-4 rounded-xl cursor-pointer select-none will-change-transform transition-[transform,opacity,filter,color] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] ${depthStyle} ${blurStyle}`}
+                  className={`py-2 px-4 rounded-xl cursor-pointer select-none will-change-transform transition-[transform,opacity,filter,color] duration-500 ease-[cubic-bezier(0.34,1.3,0.64,1)] ${depthStyle} ${blurStyle}`}
                 >
                   {line.text}
                 </div>
