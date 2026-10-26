@@ -310,25 +310,25 @@ input[type="range"] {
   accent-color: var(--accent);
 }
 
-/* Spring Bounce Animation para Linhas de Letra Sincronizada (Bounce Suave e Orgânico) */
+/* Spring Bounce Animation para Linhas de Letra Sincronizada (Bounce Suave e Orgânico sem cortes) */
 @keyframes lyric-spring-bounce {
   0% {
-    transform: scale(0.96) translateY(5px);
+    transform: scale(0.98) translateY(4px);
     filter: drop-shadow(0 0 0px var(--accent-glow));
   }
   38% {
-    transform: scale(1.08) translateY(-3px);
-    filter: drop-shadow(0 0 28px var(--accent-glow));
+    transform: scale(1.025) translateY(-3px);
+    filter: drop-shadow(0 0 20px var(--accent-glow));
   }
   68% {
-    transform: scale(1.042) translateY(1.5px);
+    transform: scale(1.01) translateY(1.5px);
   }
   86% {
-    transform: scale(1.055) translateY(-0.5px);
+    transform: scale(1.018) translateY(-0.5px);
   }
   100% {
-    transform: scale(1.05) translateY(0);
-    filter: drop-shadow(0 0 24px var(--accent-glow));
+    transform: scale(1.015) translateY(0);
+    filter: drop-shadow(0 0 16px var(--accent-glow));
   }
 }
 

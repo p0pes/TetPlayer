@@ -50,7 +50,7 @@ export function LyricsView() {
       <div
         ref={lyricsContainerRef}
         onScroll={handleLyricsContainerScroll}
-        className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-8 space-y-4 text-center relative scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        className="flex-1 overflow-y-auto overflow-x-hidden px-4 sm:px-8 py-8 space-y-4 text-center relative scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
       >
         {isLoadingLyrics ? (
           <div className="h-64 flex flex-col items-center justify-center gap-3 text-[#71778c]">
@@ -68,7 +68,7 @@ export function LyricsView() {
             </p>
           </div>
         ) : parsedLyrics.length > 0 ? (
-          <div className="py-16 space-y-4 max-w-full overflow-hidden">
+          <div className="py-16 space-y-5 max-w-2xl mx-auto w-full px-2 sm:px-4">
             {parsedLyrics.map((line, idx) => {
               const isActive = idx === activeLyricIndex;
               const distance = activeLyricIndex !== -1 ? Math.abs(idx - activeLyricIndex) : 999;
@@ -78,19 +78,19 @@ export function LyricsView() {
               let depthStyle = "";
               if (isActive) {
                 depthStyle =
-                  "text-2xl md:text-3xl lg:text-[2.15rem] font-extrabold text-white scale-[1.05] opacity-100 drop-shadow-[0_0_24px_var(--accent-glow)] [text-shadow:0_0_30px_rgba(255,255,255,0.7)] animate-lyric-bounce";
+                  "text-xl sm:text-2xl md:text-[1.85rem] lg:text-[2rem] font-extrabold text-white scale-[1.015] opacity-100 drop-shadow-[0_0_20px_var(--accent-glow)] [text-shadow:0_0_24px_rgba(255,255,255,0.7)] animate-lyric-bounce";
               } else if (distance === 1) {
                 depthStyle = isPast
-                  ? "text-lg md:text-xl font-semibold text-[#cbd5e1] opacity-70 scale-100 hover:text-white hover:opacity-100"
-                  : "text-lg md:text-xl font-semibold text-[#e2e8f0] opacity-80 scale-100 hover:text-white hover:opacity-100";
+                  ? "text-base sm:text-lg md:text-xl font-semibold text-[#cbd5e1] opacity-70 scale-100 hover:text-white hover:opacity-100"
+                  : "text-base sm:text-lg md:text-xl font-semibold text-[#e2e8f0] opacity-80 scale-100 hover:text-white hover:opacity-100";
               } else if (distance <= 3) {
                 depthStyle = isPast
-                  ? "text-lg md:text-xl font-medium text-[#64748b] opacity-40 scale-[0.98] hover:text-[#94a3b8] hover:opacity-80"
-                  : "text-lg md:text-xl font-medium text-[#94a3b8] opacity-50 scale-[0.98] hover:text-white hover:opacity-85";
+                  ? "text-sm sm:text-base md:text-lg font-medium text-[#64748b] opacity-40 scale-[0.99] hover:text-[#94a3b8] hover:opacity-80"
+                  : "text-sm sm:text-base md:text-lg font-medium text-[#94a3b8] opacity-50 scale-[0.99] hover:text-white hover:opacity-85";
               } else {
                 depthStyle = isPast
-                  ? "text-base md:text-lg font-medium text-[#475569] opacity-20 scale-[0.96] hover:text-[#64748b] hover:opacity-60"
-                  : "text-base md:text-lg font-medium text-[#475569] opacity-25 scale-[0.96] hover:text-[#94a3b8] hover:opacity-60";
+                  ? "text-xs sm:text-sm md:text-base font-medium text-[#475569] opacity-20 scale-[0.98] hover:text-[#64748b] hover:opacity-60"
+                  : "text-xs sm:text-sm md:text-base font-medium text-[#475569] opacity-25 scale-[0.98] hover:text-[#94a3b8] hover:opacity-60";
               }
 
               const blurStyle = isFastScrolling && !isActive ? "blur-[1.5px]" : "blur-0";
@@ -101,7 +101,7 @@ export function LyricsView() {
                   data-lyric-time={line.time}
                   ref={isActive ? activeLyricRef : null}
                   onClick={() => handleLyricClick(line.time, handleSeekTo)}
-                  className={`py-2 px-4 rounded-xl cursor-pointer select-none will-change-transform max-w-full break-words transition-[transform,opacity,filter,color] duration-500 ease-[cubic-bezier(0.34,1.3,0.64,1)] ${depthStyle} ${blurStyle}`}
+                  className={`py-2 px-4 rounded-xl cursor-pointer select-none will-change-transform max-w-full text-balance leading-relaxed transition-[transform,opacity,filter,color] duration-500 ease-[cubic-bezier(0.34,1.3,0.64,1)] ${depthStyle} ${blurStyle}`}
                 >
                   {line.text}
                 </div>
