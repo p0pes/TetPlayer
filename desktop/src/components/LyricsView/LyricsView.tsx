@@ -50,7 +50,7 @@ export function LyricsView() {
       <div
         ref={lyricsContainerRef}
         onScroll={handleLyricsContainerScroll}
-        className="flex-1 overflow-y-auto px-4 py-8 space-y-4 text-center custom-scrollbar relative"
+        className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-8 space-y-4 text-center relative scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
       >
         {isLoadingLyrics ? (
           <div className="h-64 flex flex-col items-center justify-center gap-3 text-[#71778c]">
@@ -68,7 +68,7 @@ export function LyricsView() {
             </p>
           </div>
         ) : parsedLyrics.length > 0 ? (
-          <div className="py-16 space-y-4">
+          <div className="py-16 space-y-4 max-w-full overflow-hidden">
             {parsedLyrics.map((line, idx) => {
               const isActive = idx === activeLyricIndex;
               const distance = activeLyricIndex !== -1 ? Math.abs(idx - activeLyricIndex) : 999;
@@ -101,7 +101,7 @@ export function LyricsView() {
                   data-lyric-time={line.time}
                   ref={isActive ? activeLyricRef : null}
                   onClick={() => handleLyricClick(line.time, handleSeekTo)}
-                  className={`py-2 px-4 rounded-xl cursor-pointer select-none will-change-transform transition-[transform,opacity,filter,color] duration-500 ease-[cubic-bezier(0.34,1.3,0.64,1)] ${depthStyle} ${blurStyle}`}
+                  className={`py-2 px-4 rounded-xl cursor-pointer select-none will-change-transform max-w-full break-words transition-[transform,opacity,filter,color] duration-500 ease-[cubic-bezier(0.34,1.3,0.64,1)] ${depthStyle} ${blurStyle}`}
                 >
                   {line.text}
                 </div>
