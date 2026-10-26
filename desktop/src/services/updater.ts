@@ -1,10 +1,16 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 
-export const APP_VERSION = "1.0.0";
+export const APP_VERSION = "1.1.0";
 export const GITHUB_REPO = "p0pes/TetPlayer";
 const MAIN_BRANCH_PACKAGE_URL = `https://raw.githubusercontent.com/${GITHUB_REPO}/main/desktop/package.json`;
 const RELEASES_API_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
 const RELEASES_WEB_URL = `https://github.com/${GITHUB_REPO}/releases`;
+
+export interface ReleaseAsset {
+  name: string;
+  browser_download_url: string;
+  size: number;
+}
 
 export interface UpdateInfo {
   hasUpdate: boolean;
@@ -13,10 +19,23 @@ export interface UpdateInfo {
   releaseUrl: string;
   releaseNotes?: string;
   publishedAt?: string;
+  downloadUrl?: string;
+  assetName?: string;
+  assetSize?: number;
 }
 
 /**
- * Compara versões no padrão SemVer (ex: "0.1.1" > "0.1.0")
+ * Formata bytes em formato legível (KB, MB, GB)
+ */
+export function formatBytes(bytes?: number): string {
+  if (!bytes || bytes <= 0) return "";
+  const units = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
+}
+
+/**
+ * Compara versões no padrão SemVer (ex: "1.1.0" > "1.0.0")
  * Retorna true se remote for estritamente mais recente que current.
  */
 export function isNewerVersion(remote: string, current: string): boolean {
@@ -40,8 +59,8 @@ export function isNewerVersion(remote: string, current: string): boolean {
 }
 
 /**
- * Checa na branch main do GitHub se há uma versão mais nova.
- * Inclui tratamento de timeout e erros para jamais comprometer a execução do app.
+ * Checa na branch main e nas releases do GitHub se há uma versão mais nova.
+ * Extrai notas de versão, link da release e executável direto para 1-clique.
  */
 export async function checkForAppUpdates(): Promise<UpdateInfo> {
   const defaultResult: UpdateInfo = {
@@ -52,14 +71,18 @@ export async function checkForAppUpdates(): Promise<UpdateInfo> {
   };
 
   try {
-    // 1. Tentar ler diretamente da branch main no GitHub (com cache buster)
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 6000);
 
     let remoteVersion: string | null = null;
     let releaseUrl = RELEASES_WEB_URL;
     let releaseNotes: string | undefined = undefined;
+    let publishedAt: string | undefined = undefined;
+    let downloadUrl: string | undefined = undefined;
+    let assetName: string | undefined = undefined;
+    let assetSize: number | undefined = undefined;
 
+    // 1. Tentar ler diretamente da branch main no GitHub (com cache buster)
     try {
       const mainResponse = await fetch(`${MAIN_BRANCH_PACKAGE_URL}?t=${Date.now()}`, {
         signal: controller.signal,
@@ -76,7 +99,7 @@ export async function checkForAppUpdates(): Promise<UpdateInfo> {
       // Ignora falha na main e tenta fallback
     }
 
-    // 2. Tentar buscar detalhes da release no GitHub (para pegar notas de versão e links de asset se existirem)
+    // 2. Buscar detalhes da release mais recente no GitHub
     try {
       const releaseResponse = await fetch(RELEASES_API_URL, {
         signal: controller.signal,
@@ -91,9 +114,23 @@ export async function checkForAppUpdates(): Promise<UpdateInfo> {
         if (releaseData.body) {
           releaseNotes = releaseData.body;
         }
-        // Se a busca da branch main não retornou, usa a tag_name da release
+        if (releaseData.published_at) {
+          publishedAt = releaseData.published_at;
+        }
         if (!remoteVersion && releaseData.tag_name) {
           remoteVersion = releaseData.tag_name.replace(/^v/i, "");
+        }
+
+        // Procura instalador compatível (.exe, .msi)
+        if (Array.isArray(releaseData.assets)) {
+          const installer = releaseData.assets.find(
+            (a: ReleaseAsset) => a.name.endsWith(".exe") || a.name.endsWith(".msi")
+          );
+          if (installer) {
+            downloadUrl = installer.browser_download_url;
+            assetName = installer.name;
+            assetSize = installer.size;
+          }
         }
       }
     } catch {
@@ -109,6 +146,10 @@ export async function checkForAppUpdates(): Promise<UpdateInfo> {
         latestVersion: remoteVersion,
         releaseUrl,
         releaseNotes,
+        publishedAt,
+        downloadUrl,
+        assetName,
+        assetSize,
       };
     }
 
@@ -120,6 +161,19 @@ export async function checkForAppUpdates(): Promise<UpdateInfo> {
 }
 
 /**
+ * Inicia a atualização em 1-clique abrindo o download do instalador ou a página da release
+ */
+export async function downloadAndInstallUpdate(updateInfo: UpdateInfo): Promise<void> {
+  const targetUrl = updateInfo.downloadUrl || updateInfo.releaseUrl || RELEASES_WEB_URL;
+  try {
+    await openUrl(targetUrl);
+  } catch (err) {
+    console.error("[Updater] Erro ao abrir download de atualização:", err);
+    window.open(targetUrl, "_blank");
+  }
+}
+
+/**
  * Abre o link da release no navegador padrão do sistema
  */
 export async function openReleasePage(url: string): Promise<void> {
@@ -127,7 +181,6 @@ export async function openReleasePage(url: string): Promise<void> {
     await openUrl(url || RELEASES_WEB_URL);
   } catch (err) {
     console.error("[Updater] Erro ao abrir página de download:", err);
-    // Fallback para window.open
     window.open(url || RELEASES_WEB_URL, "_blank");
   }
 }

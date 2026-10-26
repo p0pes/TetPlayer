@@ -2,7 +2,7 @@ pub mod auth;
 pub mod stats;
 pub mod ytm;
 
-use auth::{find_youtube_session, AuthSession};
+use auth::{clear_saved_google_session, load_saved_google_session, save_google_session, AuthSession};
 use stats::PlaybackStats;
 use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
@@ -24,11 +24,174 @@ fn get_auth_status(state: State<'_, AppState>) -> AuthSession {
 }
 
 #[tauri::command]
-fn refresh_auth(state: State<'_, AppState>) -> AuthSession {
-    let session = find_youtube_session();
-    let mut current = state.session.lock().unwrap();
-    *current = session.clone();
-    session
+async fn refresh_auth(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<AuthSession, String> {
+    let mut session = load_saved_google_session().unwrap_or_default();
+    if session.is_authenticated {
+        let (name, email, avatar) = ytm::fetch_account_info(&session).await;
+        if let Some(n) = name {
+            session.user_name = Some(n);
+        }
+        if email.is_some() {
+            session.email = email;
+        }
+        if avatar.is_some() {
+            session.avatar_url = avatar;
+        }
+        let _ = save_google_session(&session);
+    }
+    *state.session.lock().unwrap() = session.clone();
+    let _ = app.emit("auth-changed", &session);
+    Ok(session)
+}
+
+#[tauri::command]
+async fn start_google_login(app: tauri::AppHandle, _state: State<'_, AppState>) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window("google_login") {
+        let _ = win.show();
+        let _ = win.set_focus();
+        return Ok(());
+    }
+
+    let login_url = "https://accounts.google.com/ServiceLogin?service=youtube&continue=https%3A%2F%2Fmusic.youtube.com%2F";
+    let parsed_url = tauri::WebviewUrl::External(
+        login_url.parse().map_err(|e| format!("URL inválida: {e}"))?
+    );
+
+    let window = tauri::WebviewWindowBuilder::new(&app, "google_login", parsed_url)
+        .title("Login com Conta Google — TetPlayer")
+        .inner_size(520.0, 720.0)
+        .min_inner_size(400.0, 500.0)
+        .center()
+        .resizable(true)
+        .visible(true)
+        .build()
+        .map_err(|e| format!("Falha ao criar janela de login do Google: {e}"))?;
+
+    let _ = window.set_focus();
+
+    let app_handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let mut attempts = 0;
+        let mut on_ytm_ticks = 0;
+        while attempts < 750 {
+            tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+            attempts += 1;
+
+            let win = match app_handle.get_webview_window("google_login") {
+                Some(w) => w,
+                None => break, // Usuário fechou a janela de login
+            };
+
+            let current_url = win.url().map(|u| u.to_string()).unwrap_or_default();
+            let is_on_ytm = current_url.contains("music.youtube.com")
+                || (current_url.contains("youtube.com")
+                    && !current_url.contains("accounts.google.com")
+                    && !current_url.contains("accounts.youtube.com"));
+
+            if is_on_ytm {
+                on_ytm_ticks += 1;
+            }
+
+            let cookies_res = win.cookies();
+            if let Ok(cookies) = cookies_res {
+                let mut yt_cookies = std::collections::HashMap::new();
+                let mut google_cookies = std::collections::HashMap::new();
+
+                for c in cookies {
+                    let name = c.name().to_string();
+                    let val = c.value().to_string();
+                    let domain = c.domain().unwrap_or("").to_lowercase();
+                    if auth::is_relevant_youtube_cookie(&name) && auth::is_valid_cookie_val(&val) {
+                        if domain.contains("youtube.com") {
+                            yt_cookies.insert(name, val);
+                        } else {
+                            google_cookies.insert(name, val);
+                        }
+                    }
+                }
+
+                // Cookies do domínio YouTube tem precedência sobre cookies genéricos do Google
+                let mut merged_cookies = google_cookies;
+                for (k, v) in yt_cookies {
+                    merged_cookies.insert(k, v);
+                }
+
+                let has_login_info = merged_cookies.contains_key("LOGIN_INFO");
+                let has_sapisid = merged_cookies.contains_key("SAPISID")
+                    || merged_cookies.contains_key("__Secure-3PAPISID");
+                let has_psid = merged_cookies.contains_key("__Secure-3PSID")
+                    || merged_cookies.contains_key("SID");
+
+                // CRÍTICO: Não fecha a janela prematuramente na tela accounts.google.com!
+                // Requer expressamente:
+                // 1. Navegação completa até music.youtube.com
+                // 2. Presença do cookie LOGIN_INFO (definido pelo YouTube)
+                // 3. Credenciais completas de autenticação (SAPISID + PSID/SID)
+                if is_on_ytm && has_login_info && has_sapisid && has_psid {
+                    let sapisid = merged_cookies
+                        .get("SAPISID")
+                        .or_else(|| merged_cookies.get("__Secure-3PAPISID"))
+                        .cloned();
+
+                    let cookie_header = merged_cookies
+                        .iter()
+                        .map(|(k, v)| format!("{k}={v}"))
+                        .collect::<Vec<_>>()
+                        .join("; ");
+
+                    let mut session = AuthSession {
+                        is_authenticated: true,
+                        user_name: Some("Conta Google".to_string()),
+                        email: None,
+                        avatar_url: None,
+                        cookie_header,
+                        sapisid,
+                        auth_user: Some("0".to_string()),
+                        browser: "Conta Google".to_string(),
+                        profile: "Sessão Integrada".to_string(),
+                    };
+
+                    let (name, email, avatar) = ytm::fetch_account_info(&session).await;
+
+                    // Conclui apenas se a API do YouTube Music validou o perfil
+                    // ou após aguardar estabilização do redirecionamento
+                    if name.is_some() || email.is_some() || on_ytm_ticks >= 4 {
+                        if let Some(n) = name {
+                            session.user_name = Some(n);
+                        }
+                        session.email = email;
+                        session.avatar_url = avatar;
+
+                        let _ = save_google_session(&session);
+
+                        let app_state: State<AppState> = app_handle.state();
+                        *app_state.session.lock().unwrap() = session.clone();
+
+                        let _ = app_handle.emit("auth-changed", &session);
+
+                        let _ = win.close();
+                        break;
+                    }
+                }
+            }
+        }
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn logout_google(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    let _ = clear_saved_google_session();
+    let empty = AuthSession::default();
+    *state.session.lock().unwrap() = empty.clone();
+    let _ = app.emit("auth-changed", &empty);
+
+    if let Some(win) = app.get_webview_window("google_login") {
+        let _ = win.close();
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -429,7 +592,9 @@ fn move_docked_tab(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let initial_session = find_youtube_session();
+    // Inicializar banco de dados SQLite nativo antes de carregar a sessão
+    let _ = stats::init_db();
+    let initial_session = load_saved_google_session().unwrap_or_default();
 
     let shortcut_plugin = tauri_plugin_global_shortcut::Builder::new()
         .with_handler(|app, shortcut, event| {
@@ -574,6 +739,8 @@ pub fn run() {
             show_main_window,
             get_auth_status,
             refresh_auth,
+            start_google_login,
+            logout_google,
             search_tracks,
             get_quick_tracks,
             get_user_playlists,

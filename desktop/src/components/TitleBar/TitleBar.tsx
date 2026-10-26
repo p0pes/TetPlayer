@@ -171,12 +171,12 @@ export const TitleBar = React.memo(function TitleBar({
         {auth?.is_authenticated ? (
           <span className="inline-flex items-center gap-1.5 bg-emerald-950/70 text-emerald-400 border border-emerald-800/50 px-2.5 py-0.5 rounded-full text-xs mr-3 pointer-events-none">
             <CheckCircle2 className="w-3.5 h-3.5" />
-            Sincronizado: {auth.browser}
+            Google: {auth.user_name || "Conectado"}
           </span>
         ) : (
           <span className="inline-flex items-center gap-1.5 bg-amber-950/70 text-amber-300 border border-amber-800/50 px-2.5 py-0.5 rounded-full text-xs mr-3 pointer-events-none">
             <AlertCircle className="w-3.5 h-3.5" />
-            Modo Anônimo
+            Modo Visitante
           </span>
         )}
 

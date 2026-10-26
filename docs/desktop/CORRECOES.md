@@ -522,9 +522,38 @@
 
 ---
 
-## 📋 Conclusão da Auditoria
+### 49. Login Nativo com Conta Google via Webview Embutida (Item 4.9) e Descarte do Scraping de Cookies Externos
+* **Status:** `[Resolvido]` ✅
+* **Localização:** [`desktop/src-tauri/src/auth.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/auth.rs), [`desktop/src-tauri/src/lib.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/lib.rs), [`desktop/src-tauri/src/ytm.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/ytm.rs) e [`desktop/src/components/Sidebar/Sidebar.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Sidebar/Sidebar.tsx).
+* **Diagnóstico Técnico:**
+  - O sistema legado dependia de raspagem de navegadores instalados externamente (arquivos SQLite do Firefox e DPAPI do Chrome/Edge). Esse método causava falhas no Chrome 127+ (devido à App-Bound Encryption), disparava falsos positivos em antivírus e não funcionava se o usuário não tivesse esses navegadores instalados.
+  - Na primeira iteração do novo login nativo via Webview, a janela fechava prematuramente ao detectar cookies em `accounts.google.com`, impedindo que o redirecionamento chegasse ao `music.youtube.com` e emitisse o token `LOGIN_INFO`, resultando em playlists e músicas vazias.
+* **Solução Implementada:**
+  - Descarte completo do código legado de scraping externo em Rust (`browser_cookies.rs` e dependências).
+  - Implementação de janela webview isolada com Tauri v2 (`start_google_login`), com polling que garante a navegação completa até o domínio `music.youtube.com`.
+  - Verificação rigorosa do cookie `LOGIN_INFO` emitido pelo YouTube e priorização de cookies do domínio `youtube.com` sobre cookies genéricos do Google.
+  - Validação ativa via API InnerTube (`fetch_account_info`) garantindo que o perfil (nome, e-mail, avatar) é reconhecido com 100% de sucesso antes do fechamento automático da janela de login.
+  - Purga automática de sessões salvas incompletas ou corrompidas no banco SQLite local.
 
-A base de código do **TetPlayer Desktop** consolidou um salto qualitativo expressivo:
-- **Zero erros de compilação ou tipos:** `tsc --noEmit` e `npm test` (35 testes passando com 100% de sucesso) finalizados com código de saída 0.
-- **Personalização profunda e unificada:** A seleção de qualquer um dos 8 temas de cor transforma imediatamente 100% dos acentos visuais do aplicativo, incluindo o visualizador em 4 variantes (`bars`, `blocks`, `gradient`, `pulse`).
-- **Respeito às regras de arquitetura:** Rigor técnico sem regressões, integridade de componentes acessíveis e registro transparente de novos apontamentos de refinamento no `CORRECOES.md`.
+---
+
+### 50. Sistema de Auto-Update In-App e Pipeline de CI/CD para GitHub Releases (Item 4.10) e Bump v1.1.0
+* **Status:** `[Resolvido]` ✅
+* **Localização:** [`desktop/src/services/updater.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/updater.ts), [`desktop/src/components/UpdateModal/UpdateModal.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/UpdateModal/UpdateModal.tsx), [`desktop/src/components/SettingsModal/SettingsModal.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/SettingsModal/SettingsModal.tsx) e [`.github/workflows/release.yml`](file:///.github/workflows/release.yml).
+* **Diagnóstico Técnico:**
+  - O aplicativo não possuía verificação manual de atualizações nas Configurações, o fluxo de build e empacotamento era exclusivamente manual e não havia automação para entrega contínua na branch `main`.
+* **Solução Implementada:**
+  - Criado o fluxo de verificação sob demanda na aba "Sobre" das Configurações (`SettingsModal`), com estados visuais reativos (Verificando..., Versão Atualizada, Nova Versão Disponível).
+  - Modal interativo de atualização (`UpdateModal`) com notas da versão, link para release oficial e download direto de instaladores `.exe` e `.msi`.
+  - Configuração do pipeline GitHub Actions (`.github/workflows/release.yml`) que compila automaticamente os binários e instaladores NSIS/MSI do Tauri v2 para Windows x64 a cada tag/release na branch `main`.
+  - Bump oficial e unificado do SemVer para `v1.1.0` em todos os manifestos do ecossistema (`package.json`, `Cargo.toml`, `tauri.conf.json`, `updater.ts`).
+  - Suíte completa de 40 testes no Vitest e 8 testes no Rust passando com 100% de sucesso.
+
+---
+
+## 📋 Conclusão da Auditoria (Release v1.1.0 Oficial)
+
+A versão **1.1.0** consolida o salto para um reprodutor moderno e universal:
+- **Zero erros de compilação ou tipos:** `tsc && vite build` e `cargo test` 100% limpos.
+- **Autenticação In-App Universal:** Login oficial com conta Google integrado via Webview nativa sem depender de navegadores externos instalados.
+- **Ciclo de Atualizações Automatizado:** Verificação manual nas Configurações e pipeline CI/CD GitHub Actions para geração de instaladores.

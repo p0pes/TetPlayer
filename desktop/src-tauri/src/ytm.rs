@@ -890,14 +890,49 @@ async fn fetch_ytm_lyrics(session: &AuthSession, video_id: &str) -> Result<Optio
     Ok(extract_shelf_lyrics(&br_json))
 }
 
+/// Busca informações do perfil do usuário autenticado no YouTube Music (Nome, E-mail, Avatar)
+pub async fn fetch_account_info(session: &AuthSession) -> (Option<String>, Option<String>, Option<String>) {
+    if !session.is_authenticated || session.cookie_header.is_empty() {
+        return (None, None, None);
+    }
+
+    let client = reqwest::Client::new();
+    let url = "https://music.youtube.com/youtubei/v1/account/account_menu?prettyPrint=false";
+    let headers = build_headers(session, "WEB_REMIX");
+    let payload = json!({
+        "context": {
+            "client": {
+                "clientName": "WEB_REMIX",
+                "clientVersion": "1.20240401.01.00",
+                "hl": "pt",
+                "gl": "BR"
+            }
+        }
+    });
+
+    if let Ok(resp) = client.post(url).headers(headers).json(&payload).send().await {
+        if resp.status().is_success() {
+            if let Ok(val) = resp.json::<Value>().await {
+                // Tenta extrair o activeAccountHeaderRenderer
+                let header = &val["actions"][0]["openPopupAction"]["popup"]["multiPageMenuRenderer"]["header"]["activeAccountHeaderRenderer"];
+                let name = header["accountName"]["runs"][0]["text"].as_str().map(|s| s.to_string());
+                let email = header["email"]["runs"][0]["text"].as_str().map(|s| s.to_string());
+                let avatar = header["avatar"]["thumbnails"][0]["url"].as_str().map(|s| s.to_string());
+                return (name, email, avatar);
+            }
+        }
+    }
+    (None, None, None)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auth::find_youtube_session;
+    use crate::auth::load_saved_google_session;
 
     #[tokio::test]
     async fn test_fetch_liked() {
-        let session = find_youtube_session();
+        let session = load_saved_google_session().unwrap_or_default();
         if session.is_authenticated {
             assert!(
                 session.cookie_header.len() < 8192,

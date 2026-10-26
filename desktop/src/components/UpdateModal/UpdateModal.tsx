@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
-import { Sparkles, Download, X, ExternalLink, ArrowRight } from "lucide-react";
-import { UpdateInfo, openReleasePage } from "../../services/updater";
+import { Sparkles, Download, X, ExternalLink, ArrowRight, PackageCheck } from "lucide-react";
+import { UpdateInfo, downloadAndInstallUpdate, formatBytes, openReleasePage } from "../../services/updater";
 
 interface UpdateModalProps {
   updateInfo: UpdateInfo;
@@ -9,8 +9,13 @@ interface UpdateModalProps {
 
 export const UpdateModal: React.FC<UpdateModalProps> = ({ updateInfo, onClose }) => {
   const handleUpdateClick = async () => {
-    await openReleasePage(updateInfo.releaseUrl);
+    await downloadAndInstallUpdate(updateInfo);
     onClose();
+  };
+
+  const handleOpenReleasePage = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    await openReleasePage(updateInfo.releaseUrl);
   };
 
   useEffect(() => {
@@ -72,14 +77,29 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ updateInfo, onClose })
           </div>
 
           {/* Texto descritivo */}
-          <p className="text-xs text-zinc-300 leading-relaxed mb-4">
-            Uma nova versão do <strong>TetPlayer</strong> está disponível na branch principal do GitHub.
+          <p className="text-xs text-zinc-300 leading-relaxed mb-3">
+            Uma nova versão do <strong>TetPlayer</strong> está disponível no GitHub.
             Deseja atualizar agora para aproveitar as melhorias e correções mais recentes?
           </p>
 
+          {/* Pacote detectado para download em 1 clique */}
+          {updateInfo.downloadUrl && (
+            <div className="mb-3 p-2.5 rounded-xl bg-indigo-950/40 border border-indigo-800/40 flex items-center justify-between text-xs text-indigo-200">
+              <div className="flex items-center gap-2 truncate">
+                <PackageCheck size={16} className="text-indigo-400 shrink-0" />
+                <span className="font-mono truncate">{updateInfo.assetName || "Instalador do Windows"}</span>
+              </div>
+              {updateInfo.assetSize && (
+                <span className="font-mono text-[11px] text-zinc-400 shrink-0 ml-2">
+                  {formatBytes(updateInfo.assetSize)}
+                </span>
+              )}
+            </div>
+          )}
+
           {/* Notas da Versão (se houver) */}
           {updateInfo.releaseNotes && (
-            <div className="mb-5 bg-black/40 border border-white/5 rounded-xl p-3 text-xs text-zinc-400 max-h-32 overflow-y-auto custom-scrollbar">
+            <div className="mb-4 bg-black/40 border border-white/5 rounded-xl p-3 text-xs text-zinc-400 max-h-32 overflow-y-auto custom-scrollbar">
               <div className="text-[11px] uppercase font-semibold text-zinc-500 tracking-wider mb-1">
                 Novidades:
               </div>
@@ -90,21 +110,33 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ updateInfo, onClose })
           )}
 
           {/* Ações */}
-          <div className="flex items-center justify-end gap-2.5 pt-2">
+          <div className="flex items-center justify-between pt-2">
             <button
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-medium text-zinc-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
+              type="button"
+              onClick={handleOpenReleasePage}
+              className="text-xs text-zinc-400 hover:text-indigo-400 flex items-center gap-1 transition-colors cursor-pointer"
             >
-              Lembrar mais tarde
+              <span>Ver release no GitHub</span>
+              <ExternalLink size={12} />
             </button>
-            <button
-              onClick={handleUpdateClick}
-              className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-gradient-to-r from-indigo-500 hover:from-indigo-600 to-purple-600 hover:to-purple-700 rounded-xl shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 transition-all cursor-pointer"
-            >
-              <Download size={14} />
-              <span>Atualizar Agora</span>
-              <ExternalLink size={12} className="opacity-70" />
-            </button>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-3.5 py-2 text-xs font-medium text-zinc-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
+              >
+                Depois
+              </button>
+              <button
+                type="button"
+                onClick={handleUpdateClick}
+                className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-gradient-to-r from-indigo-500 hover:from-indigo-600 to-purple-600 hover:to-purple-700 rounded-xl shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 transition-all cursor-pointer"
+              >
+                <Download size={14} />
+                <span>Atualizar Agora</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>

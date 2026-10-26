@@ -2,6 +2,8 @@ name: Release & Versionamento
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
   workflow_dispatch:
@@ -44,7 +46,7 @@ jobs:
           projectPath: desktop
           tagName: v__VERSION__
           releaseName: 'TetPlayer v__VERSION__'
-          releaseBody: 'Nova versão oficial do TetPlayer pronta para download.'
+          releaseBody: 'Nova versão oficial do TetPlayer compilada automaticamente pela branch main.'
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

@@ -1,7 +1,10 @@
 export interface AuthSession {
   is_authenticated: boolean;
-  browser: string;
-  profile: string;
+  user_name?: string | null;
+  email?: string | null;
+  avatar_url?: string | null;
+  browser?: string;
+  profile?: string;
   sapisid?: string;
 }
 

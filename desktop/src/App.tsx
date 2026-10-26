@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { AlertCircle, AlertTriangle } from "lucide-react";
@@ -125,6 +125,8 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
   });
   const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false);
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
+  const selectedPlaylistRef = useRef<Playlist | null>(null);
+  selectedPlaylistRef.current = selectedPlaylist;
   const [playlistTracks, setPlaylistTracks] = useState<Track[]>([]);
   const [isLoadingPlaylistTracks, setIsLoadingPlaylistTracks] = useState(false);
 
@@ -241,19 +243,6 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
     }
   }
 
-  const handleRefreshAuth = useCallback(async () => {
-    setIsCheckingAuth(true);
-    try {
-      const res = await invoke<AuthSession>("refresh_auth");
-      setAuth(res);
-      await loadPlaylists();
-    } catch (err) {
-      setErrorMessage(`Erro ao recarregar cookies: ${String(err)}`);
-    } finally {
-      setIsCheckingAuth(false);
-    }
-  }, []);
-
   // Carregamento de Playlists com Stale-While-Revalidate (0ms de espera)
   const loadPlaylists = useCallback(async () => {
     setIsLoadingPlaylists(true);
@@ -267,6 +256,37 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
       setIsLoadingPlaylists(false);
     }
   }, []);
+
+  const handleRefreshAuth = useCallback(async () => {
+    setIsCheckingAuth(true);
+    try {
+      const res = await invoke<AuthSession>("refresh_auth");
+      setAuth(res);
+      await loadPlaylists();
+    } catch (err) {
+      setErrorMessage(`Erro ao atualizar sessão: ${String(err)}`);
+    } finally {
+      setIsCheckingAuth(false);
+    }
+  }, [loadPlaylists]);
+
+  const handleGoogleLogin = useCallback(async () => {
+    try {
+      await invoke("start_google_login");
+    } catch (err) {
+      setErrorMessage(`Erro ao iniciar login do Google: ${String(err)}`);
+    }
+  }, [setErrorMessage]);
+
+  const handleGoogleLogout = useCallback(async () => {
+    try {
+      await invoke("logout_google");
+      setAuth(null);
+      await loadPlaylists();
+    } catch (err) {
+      setErrorMessage(`Erro ao desconectar conta: ${String(err)}`);
+    }
+  }, [loadPlaylists, setErrorMessage]);
 
   // Selecionar Playlist com Stale-While-Revalidate e tolerância offline
   const handleSelectPlaylist = useCallback(async (playlist: Playlist) => {
@@ -302,6 +322,26 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
       setIsLoadingPlaylistTracks(false);
     }
   }, [mainScrollRef, playlistScrollPosRef, setErrorMessage]);
+
+  // Escuta evento de mudança na autenticação (quando o login via Webview do Google conclui)
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen<AuthSession>("auth-changed", (event) => {
+      if (event.payload) {
+        setAuth(event.payload);
+        loadPlaylists();
+        if (selectedPlaylistRef.current) {
+          handleSelectPlaylist(selectedPlaylistRef.current);
+        }
+      }
+    }).then((fn) => {
+      unlisten = fn;
+    });
+
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, [loadPlaylists, handleSelectPlaylist]);
 
   const handleSearch = useCallback(async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -404,6 +444,7 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
             auth={auth}
             isCheckingAuth={isCheckingAuth}
             onRefreshAuth={handleRefreshAuth}
+            onGoogleLogin={handleGoogleLogin}
             onOpenSettings={() => setIsSettingsOpen(true)}
             playlistHistory={playlistHistory}
             pinnedPlaylistIds={pinnedPlaylistIds}
@@ -560,7 +601,9 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
         auth={auth}
         isCheckingAuth={isCheckingAuth}
         onRefreshAuth={handleRefreshAuth}
-        onForceAnonymous={() => setAuth(null)}
+        onGoogleLogin={handleGoogleLogin}
+        onGoogleLogout={handleGoogleLogout}
+        onForceAnonymous={handleGoogleLogout}
       />
     </div>
   );

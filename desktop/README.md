@@ -1,4 +1,4 @@
-# 🎧 TetPlayer Desktop — v1.0.0 (Release Oficial)
+# 🎧 TetPlayer Desktop — v1.1.0 (Release Oficial)
 
 > **O Reprodutor de Música Ultraleve de Alta Fidelidade para Windows.**  
 > Desenvolvido com **Tauri v2 (Rust)**, **React 19**, **TypeScript** e **Tailwind CSS v4**.
@@ -66,7 +66,7 @@ Combinando um backend compilado nativo em **Rust** com o motor de interface acel
 * **Componentes & Ícones:** [Lucide React](https://lucide.dev/)
 * **Virtualização de DOM:** [@tanstack/react-virtual](https://tanstack.com/virtual/latest)
 * **Banco de Dados Local:** SQLite embutido via `rusqlite` com compressão `flate2` (Deflate)
-* **Criptografia & Autenticação:** Windows DPAPI (`CryptUnprotectData`), AES-256-GCM, Sha1
+* **Autenticação Segura:** Login próprio nativo com Conta Google via Webview isolada + SAPISIDHASH
 * **Testes Automatizados:** [Vitest](https://vitest.dev/), Testing Library, `cargo test`
 
 ---

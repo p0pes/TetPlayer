@@ -346,7 +346,7 @@ Abaixo encontram-se a **pesquisa de mercado**, as **24 sugestões ativas em aber
 ---
 
 #### 4.9 Login Próprio com Conta Google (Webview Isolada / In-App Session)
-* **Status:** `[Em Aberto / Essencial para Distribuição Pública]` 💡
+* **Status:** `[Implementado e Validado]` ✅
 * **Impacto:** `[Muito Alto para Adoção]` | **Esforço:** `[Médio]`
 * **Origem:** Preparação do TetPlayer para lançamento público e empacotamento universal, eliminando a dependência de cookies de navegadores externos.
 * **Problema Resolvido:**
@@ -360,7 +360,7 @@ Abaixo encontram-se a **pesquisa de mercado**, as **24 sugestões ativas em aber
 ---
 
 #### 4.10 Sistema Completo de Auto-Update In-App (Busca Manual nas Configurações, Download em 1 Clique e CI/CD via GitHub Actions)
-* **Status:** `[Em Aberto / Alta Prioridade]` 💡
+* **Status:** `[Implementado e Validado]` ✅
 * **Impacto:** `[Alto / Retenção e UX]` | **Esforço:** `[Médio]`
 * **Origem:** O app já possui checagem de versão ao inicializar via [`updater.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/updater.ts), porém o usuário precisa abrir o navegador manualmente para baixar o novo executável e não há botão de checagem manual nas Configurações.
 * **Arquitetura Técnica Proposta:**
@@ -435,8 +435,8 @@ Abaixo encontram-se a **pesquisa de mercado**, as **24 sugestões ativas em aber
   [ ] Busca e ordenação dentro de playlists (2.2)
   [ ] Curtir / descurtir sincronizado com o YouTube Music (2.3)
   [ ] Edição e modificação avançada de playlists: criar, adicionar, remover, renomear (2.4)
-  [ ] Login próprio com conta Google via Webview embutida (4.9)
-  [ ] Auto-Update in-app com botão nas configs e download em 1 clique (4.10)
+  [x] Login próprio com conta Google via Webview embutida (4.9)
+  [x] Auto-Update in-app com botão nas configs e download em 1 clique (4.10)
   [ ] Restaurar sessão ao reabrir o app (2.5)
   [ ] Sleep Timer com fade-out gradual (2.1)
   [ ] Normalização real de volume via loudnessDb (parte de 4.2)

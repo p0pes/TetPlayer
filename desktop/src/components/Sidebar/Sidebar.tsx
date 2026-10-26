@@ -12,6 +12,8 @@ import {
   GripVertical,
   BarChart2,
   Settings,
+  LogIn,
+  User,
 } from "lucide-react";
 import { Playlist, AuthSession, ActiveTab } from "../../types";
 
@@ -26,6 +28,7 @@ interface SidebarProps {
   auth: AuthSession | null;
   isCheckingAuth: boolean;
   onRefreshAuth: () => void;
+  onGoogleLogin?: () => void;
   onOpenSettings?: () => void;
   playlistHistory: Record<string, number>;
   pinnedPlaylistIds: string[];
@@ -43,6 +46,7 @@ export const Sidebar = React.memo(function Sidebar({
   auth,
   isCheckingAuth,
   onRefreshAuth,
+  onGoogleLogin,
   onOpenSettings,
   playlistHistory,
   pinnedPlaylistIds,
@@ -413,20 +417,47 @@ export const Sidebar = React.memo(function Sidebar({
       <div className="pt-3 border-t border-[#1f232e]">
         <div className="bg-[#171a24] p-2.5 rounded-xl border border-[#232836] flex items-center justify-between gap-2.5">
           <div className="flex items-center gap-2 min-w-0">
-            <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-[var(--accent)] to-[var(--accent-hover)] flex items-center justify-center font-bold text-xs text-white shrink-0">
-              P
-            </div>
+            {auth?.is_authenticated ? (
+              auth.avatar_url ? (
+                <img
+                  src={auth.avatar_url}
+                  alt="Avatar"
+                  className="w-7 h-7 rounded-full object-cover shrink-0 border border-emerald-500/50"
+                />
+              ) : (
+                <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-[var(--accent)] to-[var(--accent-hover)] flex items-center justify-center font-bold text-xs text-white shrink-0">
+                  {auth.user_name?.[0] || "G"}
+                </div>
+              )
+            ) : (
+              <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-[#8c91a4] shrink-0">
+                <User className="w-3.5 h-3.5" />
+              </div>
+            )}
             <div className="overflow-hidden min-w-0">
               <p className="text-xs font-semibold text-white truncate">
-                {auth?.is_authenticated ? auth.browser : "Modo Visitante"}
+                {auth?.is_authenticated ? (auth.user_name || "Conta Google") : "Modo Visitante"}
               </p>
-              <p className="text-[10px] text-emerald-400 font-mono truncate">
-                {auth?.is_authenticated ? "Premium Ativo" : "Sem login"}
+              <p className={`text-[10px] font-mono truncate ${auth?.is_authenticated ? "text-emerald-400" : "text-[#8c91a4]"}`}>
+                {auth?.is_authenticated ? (auth.email || "Conectado via Google") : "Sem conta conectada"}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-1 shrink-0">
+            {!auth?.is_authenticated && onGoogleLogin && (
+              <button
+                type="button"
+                onClick={onGoogleLogin}
+                title="Fazer Login com o Google"
+                aria-label="Fazer Login com o Google"
+                className="px-2 py-1 rounded-lg bg-indigo-600/80 hover:bg-indigo-600 text-white text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1 shrink-0 shadow-sm"
+              >
+                <LogIn className="w-3 h-3" />
+                <span>Entrar</span>
+              </button>
+            )}
+
             {onOpenSettings && (
               <button
                 type="button"
@@ -439,16 +470,18 @@ export const Sidebar = React.memo(function Sidebar({
               </button>
             )}
 
-            <button
-              type="button"
-              onClick={onRefreshAuth}
-              disabled={isCheckingAuth}
-              title="Recarregar sessão de cookies"
-              aria-label="Recarregar sessão de cookies"
-              className="p-1 rounded-lg hover:bg-[#232836] text-[#8c91a4] hover:text-white transition-colors cursor-pointer shrink-0"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isCheckingAuth ? "animate-spin text-[var(--accent)]" : ""}`} />
-            </button>
+            {auth?.is_authenticated && (
+              <button
+                type="button"
+                onClick={onRefreshAuth}
+                disabled={isCheckingAuth}
+                title="Atualizar sessão e dados de perfil"
+                aria-label="Atualizar sessão"
+                className="p-1 rounded-lg hover:bg-[#232836] text-[#8c91a4] hover:text-white transition-colors cursor-pointer shrink-0"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isCheckingAuth ? "animate-spin text-[var(--accent)]" : ""}`} />
+              </button>
+            )}
           </div>
         </div>
       </div>

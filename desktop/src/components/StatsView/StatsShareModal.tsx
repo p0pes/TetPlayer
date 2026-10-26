@@ -134,7 +134,7 @@ export function StatsShareModal({
 
       ctx.fillStyle = "#94a3b8";
       ctx.font = "14px Inter, system-ui, sans-serif";
-      ctx.fillText(`Período: ${timeframeLabel} • Ouvido no TetPlayer Desktop v1.0.0`, 64, 158);
+      ctx.fillText(`Período: ${timeframeLabel} • Ouvido no TetPlayer Desktop v1.1.0`, 64, 158);
 
       // 5. Linha de Métricas (3 Cards)
       const metrics = [

@@ -19,6 +19,12 @@ import {
   Flame,
   Music2,
   SlidersHorizontal,
+  LogIn,
+  LogOut,
+  User,
+  ShieldCheck,
+  Download,
+  ExternalLink,
 } from "lucide-react";
 import {
   SettingsService,
@@ -29,6 +35,14 @@ import {
 import { LocalCacheService } from "../../services/cache";
 import { AuthSession } from "../../types";
 import { SpectrumVisualizer } from "../Visualizer/SpectrumVisualizer";
+import {
+  checkForAppUpdates,
+  downloadAndInstallUpdate,
+  formatBytes,
+  openReleasePage,
+  UpdateInfo,
+  APP_VERSION,
+} from "../../services/updater";
 
 export type SettingsTabId = "audio" | "appearance" | "system" | "storage" | "about";
 
@@ -39,6 +53,8 @@ interface SettingsModalProps {
   isCheckingAuth: boolean;
   onRefreshAuth: () => Promise<void>;
   onForceAnonymous?: () => void;
+  onGoogleLogin?: () => Promise<void>;
+  onGoogleLogout?: () => Promise<void>;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -48,12 +64,35 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   isCheckingAuth,
   onRefreshAuth,
   onForceAnonymous,
+  onGoogleLogin,
+  onGoogleLogout,
 }) => {
   const [activeTab, setActiveTab] = useState<SettingsTabId>("audio");
   const [settings, setSettings] = useState<AppSettings>(() => SettingsService.getSettings());
   const [cacheSize, setCacheSize] = useState<string>("Calculando...");
   const [isClearingCache, setIsClearingCache] = useState(false);
   const [cacheClearSuccess, setCacheClearSuccess] = useState(false);
+
+  // Estados reativos do Auto-Update Manual nas Configurações (Item 4.10)
+  const [manualUpdateState, setManualUpdateState] = useState<"idle" | "checking" | "upToDate" | "available">("idle");
+  const [manualUpdateInfo, setManualUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [lastCheckedTime, setLastCheckedTime] = useState<string | null>(null);
+
+  const handleManualCheckUpdates = useCallback(async () => {
+    setManualUpdateState("checking");
+    try {
+      const info = await checkForAppUpdates();
+      setLastCheckedTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+      if (info.hasUpdate) {
+        setManualUpdateInfo(info);
+        setManualUpdateState("available");
+      } else {
+        setManualUpdateState("upToDate");
+      }
+    } catch {
+      setManualUpdateState("upToDate");
+    }
+  }, []);
 
   // Recarrega configurações sempre que o modal abre
   useEffect(() => {
@@ -697,55 +736,88 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             )}
 
             {/* ============================================================== */}
-            {/* ABA 4: SESSÃO & ARMAZENAMENTO                                  */}
+            {/* ABA 4: CONTA GOOGLE & ARMAZENAMENTO (Item 4.9)                 */}
             {/* ============================================================== */}
             {activeTab === "storage" && (
               <div className="space-y-6 animate-in fade-in duration-150">
                 <div>
                   <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-[var(--accent-text)]" />
-                    Sessão do YouTube Music
+                    <ShieldCheck className="w-4 h-4 text-[var(--accent-text)]" />
+                    Conta Google & YouTube Music
                   </h3>
                   <p className="text-xs text-[#8c91a4] mt-1">
-                    Estado dos cookies e credenciais importados do seu navegador para reprodução ilimitada sem anúncios.
+                    Conexão direta através da janela de autenticação segura do Google para sincronização de playlists e reprodução sem limites.
                   </p>
 
-                  <div className="mt-3 p-3.5 rounded-xl bg-[#141724] border border-[#202534] flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-[var(--accent-subtle)] border border-[var(--accent-border)] flex items-center justify-center text-[var(--accent-text)] font-bold">
-                        YTM
-                      </div>
+                  <div className="mt-3 p-4 rounded-xl bg-[#141724] border border-[#202534] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3.5">
+                      {auth?.is_authenticated && auth.avatar_url ? (
+                        <img
+                          src={auth.avatar_url}
+                          alt="Avatar Google"
+                          className="w-11 h-11 rounded-full border border-emerald-500/50 object-cover shadow-md shadow-emerald-950/40"
+                        />
+                      ) : (
+                        <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-[var(--accent)] to-[var(--accent-hover)] flex items-center justify-center font-bold text-white shadow-md shadow-[var(--accent-subtle)] shrink-0">
+                          {auth?.is_authenticated ? (auth?.user_name?.[0] || "G") : <User className="w-5 h-5" />}
+                        </div>
+                      )}
                       <div>
-                        <p className="text-xs font-bold text-white">
-                          {auth?.is_authenticated ? `Sincronizado: ${auth.browser}` : "Modo Visitante / Anônimo"}
-                        </p>
-                        <p className="text-[11px] text-[#8c91a4] mt-0.5">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-bold text-white">
+                            {auth?.is_authenticated ? (auth.user_name || "Conta Google Conectada") : "Modo Visitante / Anônimo"}
+                          </p>
+                          {auth?.is_authenticated && (
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-semibold flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                              Sessão Ativa
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-[#8c91a4] mt-0.5">
                           {auth?.is_authenticated
-                            ? "Sessão ativa com acesso às suas playlists e histórico privado."
-                            : "Apenas playlists públicas e buscas anônimas disponíveis."}
+                            ? (auth.email || "Acesso total às suas playlists, favoritos e histórico do YouTube Music.")
+                            : "Faça login com sua conta do Google para carregar suas músicas curtidas e biblioteca."}
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={onRefreshAuth}
-                        disabled={isCheckingAuth}
-                        className="px-3 py-1.5 rounded-lg bg-[#1e2334] hover:bg-[#282f46] text-xs font-medium text-white transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-40"
-                      >
-                        <RefreshCw className={`w-3.5 h-3.5 ${isCheckingAuth ? "animate-spin text-[var(--accent)]" : ""}`} />
-                        <span>Re-sincronizar</span>
-                      </button>
-
-                      {onForceAnonymous && auth?.is_authenticated && (
-                        <button
-                          type="button"
-                          onClick={onForceAnonymous}
-                          className="px-3 py-1.5 rounded-lg bg-[var(--accent-subtle)] hover:opacity-80 border border-[var(--accent-border)] text-xs font-medium text-[var(--accent-text)] transition-colors cursor-pointer"
-                        >
-                          Modo Anônimo
-                        </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {auth?.is_authenticated ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={onRefreshAuth}
+                            disabled={isCheckingAuth}
+                            title="Atualizar sessão e dados de perfil"
+                            className="px-3 py-2 rounded-xl bg-[#1e2334] hover:bg-[#282f46] text-xs font-medium text-white transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-40"
+                          >
+                            <RefreshCw className={`w-3.5 h-3.5 ${isCheckingAuth ? "animate-spin text-[var(--accent)]" : ""}`} />
+                            <span>Atualizar</span>
+                          </button>
+                          {(onGoogleLogout || onForceAnonymous) && (
+                            <button
+                              type="button"
+                              onClick={onGoogleLogout || onForceAnonymous}
+                              className="px-3.5 py-2 rounded-xl bg-red-950/60 hover:bg-red-900/80 border border-red-800/50 text-red-200 text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5"
+                            >
+                              <LogOut className="w-3.5 h-3.5 text-red-400" />
+                              <span>Sair da Conta</span>
+                            </button>
+                          )}
+                        </>
+                      ) : (
+                        onGoogleLogin && (
+                          <button
+                            type="button"
+                            onClick={onGoogleLogin}
+                            disabled={isCheckingAuth}
+                            className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-500 hover:from-indigo-600 to-purple-600 hover:to-purple-700 text-white text-xs font-bold transition-all shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                          >
+                            <LogIn className="w-4 h-4" />
+                            <span>Fazer Login com Google</span>
+                          </button>
+                        )
                       )}
                     </div>
                   </div>
@@ -791,35 +863,126 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             )}
 
             {/* ============================================================== */}
-            {/* ABA 5: SOBRE (APENAS VERSÃO INSTALADA CONFORME SOLICITADO)     */}
+            {/* ABA 5: SOBRE & ATUALIZAÇÕES DO TETPLAYER (Item 4.10)           */}
             {/* ============================================================== */}
             {activeTab === "about" && (
-              <div className="space-y-6 flex flex-col items-center justify-center text-center py-6 animate-in fade-in duration-150">
+              <div className="space-y-5 flex flex-col items-center justify-center text-center py-2 animate-in fade-in duration-150">
                 <div className="relative">
-                  <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-[var(--accent)] via-[var(--accent-hover)] to-[var(--accent-glow)] flex items-center justify-center shadow-[0_0_30px_var(--accent-glow)] animate-pulse">
-                    <Music2 className="w-10 h-10 text-white" />
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[var(--accent)] via-[var(--accent-hover)] to-[var(--accent-glow)] flex items-center justify-center shadow-[0_0_25px_var(--accent-glow)]">
+                    <Music2 className="w-8 h-8 text-white" />
                   </div>
-                  <span className="absolute -bottom-2 -right-2 px-2 py-0.5 rounded-full bg-[var(--accent-subtle)] border border-[var(--accent-border)] text-[var(--accent-text)] text-[10px] font-mono font-bold">
+                  <span className="absolute -bottom-2 -right-2 px-2 py-0.5 rounded-full bg-[var(--accent-subtle)] border border-[var(--accent-border)] text-[var(--accent-text)] text-[9px] font-mono font-bold">
                     Desktop
                   </span>
                 </div>
 
-                <div className="mt-3">
-                  <h3 className="text-xl font-extrabold text-white tracking-tight">TetPlayer Desktop</h3>
-                  <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 font-mono text-xs text-white">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                    <span>Versão Instalada: <strong>v1.0.0 (Release Oficial)</strong></span>
+                <div>
+                  <h3 className="text-lg font-extrabold text-white tracking-tight">TetPlayer Desktop</h3>
+                  <div className="mt-1.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 font-mono text-xs text-white">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span>Versão Instalada: <strong>v{APP_VERSION}</strong></span>
                   </div>
+                </div>
+
+                {/* Card Reativo de Verificação e Auto-Update (Item 4.10) */}
+                <div className="w-full max-w-md p-4 rounded-2xl bg-[#141724] border border-[#202534] text-left">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-indigo-400" />
+                      Atualizações do Sistema
+                    </span>
+                    {lastCheckedTime && (
+                      <span className="text-[10px] text-[#71778c] font-mono">
+                        Checado às {lastCheckedTime}
+                      </span>
+                    )}
+                  </div>
+
+                  {manualUpdateState === "idle" && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
+                      <p className="text-xs text-[#8c91a4] leading-relaxed">
+                        Verifique lançamentos e novas compilações oficiais no GitHub.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleManualCheckUpdates}
+                        className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all shadow-md shadow-indigo-600/30 flex items-center gap-2 cursor-pointer shrink-0"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>Verificar Atualizações Agora</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {manualUpdateState === "checking" && (
+                    <div className="flex items-center gap-3 py-2 text-xs text-indigo-300">
+                      <RefreshCw className="w-4 h-4 animate-spin text-indigo-400 shrink-0" />
+                      <span>🔄 Verificando atualizações no GitHub...</span>
+                    </div>
+                  )}
+
+                  {manualUpdateState === "upToDate" && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
+                      <div className="flex items-center gap-2 text-xs text-emerald-400">
+                        <CheckCircle2 className="w-4 h-4 shrink-0" />
+                        <span>✅ Você está usando a versão mais recente (v{APP_VERSION})</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleManualCheckUpdates}
+                        className="text-xs text-[#8c91a4] hover:text-white underline cursor-pointer shrink-0"
+                      >
+                        Checar novamente
+                      </button>
+                    </div>
+                  )}
+
+                  {manualUpdateState === "available" && manualUpdateInfo && (
+                    <div className="space-y-3 pt-1">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-xs font-semibold text-emerald-400">
+                          <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+                          <span>🚀 Nova versão v{manualUpdateInfo.latestVersion} disponível!</span>
+                        </div>
+                        {manualUpdateInfo.assetSize && (
+                          <span className="text-[11px] font-mono text-zinc-400">
+                            {formatBytes(manualUpdateInfo.assetSize)}
+                          </span>
+                        )}
+                      </div>
+
+                      {manualUpdateInfo.releaseNotes && (
+                        <div className="bg-black/30 border border-white/5 rounded-lg p-2.5 text-[11px] text-zinc-300 max-h-20 overflow-y-auto custom-scrollbar">
+                          {manualUpdateInfo.releaseNotes}
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between pt-1">
+                        <button
+                          type="button"
+                          onClick={() => openReleasePage(manualUpdateInfo.releaseUrl)}
+                          className="text-xs text-zinc-400 hover:text-indigo-400 flex items-center gap-1 transition-colors cursor-pointer"
+                        >
+                          <span>Ver no GitHub</span>
+                          <ExternalLink size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => downloadAndInstallUpdate(manualUpdateInfo)}
+                          className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-500 hover:from-indigo-600 to-purple-600 hover:to-purple-700 text-white text-xs font-bold transition-all shadow-lg shadow-indigo-500/25 flex items-center gap-2 cursor-pointer"
+                        >
+                          <Download size={14} />
+                          <span>Atualizar Agora</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <p className="text-xs text-[#8c91a4] max-w-sm leading-relaxed">
                   Reprodutor de música desktop de alta fidelidade desenvolvido com <strong>Tauri v2 (Rust)</strong>,{" "}
                   <strong>React 19</strong> e <strong>Tailwind CSS v4</strong>.
                 </p>
-
-                <div className="p-3 rounded-xl bg-[#141724] border border-[#202534] text-[11px] text-[#71778c] max-w-sm">
-                  Licença aberta e compilação nativa de alta performance com zero telemetria invasiva.
-                </div>
               </div>
             )}
           </main>
