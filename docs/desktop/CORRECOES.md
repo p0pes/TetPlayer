@@ -637,10 +637,23 @@
 
 ---
 
-## 📋 Conclusão da Auditoria (Release v1.3.1 Oficial)
+### 61. Ativação de createUpdaterArtifacts no Tauri v2 para Auto-Update Silencioso In-App (latest.json)
+* **Status:** `[Resolvido]` ✅
+* **Localização:** [`desktop/src-tauri/tauri.conf.json`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/tauri.conf.json) e [`desktop/src/services/updater.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/updater.ts).
+* **Diagnóstico Técnico:**
+  - No Tauri v2, a geração dos manifestos criptográficos de atualização (`latest.json` e arquivos `.sig`) foi desacoplada dos targets padrão do bundler. Sem a flag explícita `"createUpdaterArtifacts": true` dentro de `"bundle"`, o `tauri build` e a GitHub Action (`tauri-action`) compilam apenas os instaladores normais (`.exe` e `.msi`), deixando de gerar o manifesto assinado.
+  - Como o `latest.json` não existia na release, o plugin nativo do Tauri não encontrava a assinatura para instalar silenciosamente em segundo plano, acionando o fallback de download manual do executável.
+* **Solução Implementada:**
+  - Adicionado `"createUpdaterArtifacts": true` na seção `"bundle"` de `tauri.conf.json`.
+  - Habilitada a geração automática do `latest.json` e das assinaturas Minisign no pipeline do GitHub Actions usando os segredos `TAURI_SIGNING_PRIVATE_KEY` e `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
+  - **Bump Oficial v1.3.2:** Versão incrementada em todos os manifestos para permitir o ciclo completo de auto-update in-app com download em segundo plano e reinício automático.
 
-A versão **1.3.1** elimina a sobreposição visual na tela Sobre e prepara o ambiente para o teste de validação do Auto-Updater in-app:
+---
+
+## 📋 Conclusão da Auditoria (Release v1.3.2 Oficial)
+
+A versão **1.3.2** habilita a infraestrutura completa de auto-atualização silenciosa in-app no Tauri v2:
 - **Zero erros de compilação ou tipos:** `tsc && vite build`, 48 testes Vitest e 8 testes Rust 100% verdes (56 testes no total).
-- **Design Limpo e sem Sobreposição:** Badge Desktop integrado ao lado do título e ícone desimpedido na aba Sobre.
-- **Validação de Atualização:** Publicada nova compilação na branch `main` e tag `v1.3.1` para teste direto do updater.
-- **Bump Oficial v1.3.1:** Sincronizado em `package.json`, `Cargo.toml`, `tauri.conf.json`, `updater.ts` e `README.md`.
+- **Auto-Update 100% In-App:** Habilitado `createUpdaterArtifacts: true`, garantindo que o `latest.json` seja assinado e publicado automaticamente a cada release.
+- **Transição Transparente:** O aplicativo baixa a atualização diretamente no painel interno com barra de progresso e reinicia sozinho.
+- **Bump Oficial v1.3.2:** Sincronizado em `package.json`, `Cargo.toml`, `tauri.conf.json`, `updater.ts` e `README.md`.
