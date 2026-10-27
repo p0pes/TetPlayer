@@ -650,10 +650,24 @@
 
 ---
 
-## 📋 Conclusão da Auditoria (Release v1.3.2 Oficial)
+### 62. Fechamento Automático da Gaveta de Reprodução e Letras ao Navegar na Barra Lateral (Sidebar)
+* **Status:** `[Resolvido]` ✅
+* **Localização:** [`desktop/src/App.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/App.tsx), [`desktop/src/components/Sidebar/Sidebar.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Sidebar/Sidebar.tsx) e [`desktop/src/components/__tests__/Sidebar.test.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/__tests__/Sidebar.test.tsx).
+* **Diagnóstico Técnico:**
+  - Quando a gaveta de reprodução (`NowPlayingDrawer`, contendo a fila de faixas ou as letras sincronizadas) estava expandida, ela ocupava a viewport central sobrepondo o conteúdo principal.
+  - Ao clicar nos itens superiores da barra de navegação à esquerda ("Biblioteca", "Buscar" ou "Estatísticas"), a rota interna era alterada no estado, porém a gaveta permanecia aberta na frente, exigindo que o usuário clicasse no botão de minimizar para conseguir visualizar a tela selecionada.
+* **Solução Implementada:**
+  - Integrado o disparo de `closeNowPlaying()` nos manipuladores de navegação `handleSidebarTabChange`, `handleSelectPlaylist` e `handleBackToPlaylists`.
+  - Ao clicar em qualquer uma das seções principais da barra lateral ("Buscar", "Biblioteca", "Estatísticas") ou ao selecionar uma playlist, a gaveta expandida é recolhida instantaneamente (`isNowPlayingOpen = false`, `showLyrics = false`), revelando a tela solicitada em segundo plano com transição suave.
+  - Teste unitário adicionado em `Sidebar.test.tsx` cobrindo o acionamento dos botões de navegação.
+  - **Bump Oficial v1.3.3:** Versão incrementada em todos os manifestos do projeto para validação do auto-updater na pipeline do GitHub Actions.
 
-A versão **1.3.2** habilita a infraestrutura completa de auto-atualização silenciosa in-app no Tauri v2:
-- **Zero erros de compilação ou tipos:** `tsc && vite build`, 48 testes Vitest e 8 testes Rust 100% verdes (56 testes no total).
-- **Auto-Update 100% In-App:** Habilitado `createUpdaterArtifacts: true`, garantindo que o `latest.json` seja assinado e publicado automaticamente a cada release.
-- **Transição Transparente:** O aplicativo baixa a atualização diretamente no painel interno com barra de progresso e reinicia sozinho.
-- **Bump Oficial v1.3.2:** Sincronizado em `package.json`, `Cargo.toml`, `tauri.conf.json`, `updater.ts` e `README.md`.
+---
+
+## 📋 Conclusão da Auditoria (Release v1.3.3 Oficial)
+
+A versão **1.3.3** aprimora a fluidez da navegação com fechamento automático da gaveta de reprodução e consolida a infraestrutura de auto-update:
+- **Zero erros de compilação ou tipos:** `tsc && vite build`, 49 testes Vitest e 8 testes Rust 100% verdes (57 testes no total).
+- **Navegação Fluida:** A gaveta expandida de Fila/Letras é automaticamente recolhida ao alternar entre Biblioteca, Busca e Estatísticas na barra lateral.
+- **Auto-Update 100% In-App:** Pipeline com `createUpdaterArtifacts: true` gerando assinaturas Minisign e `latest.json` nas releases do GitHub.
+- **Bump Oficial v1.3.3:** Sincronizado em `package.json`, `Cargo.toml`, `tauri.conf.json`, `updater.ts`, `updater.test.ts` e `README.md`.

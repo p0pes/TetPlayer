@@ -74,6 +74,7 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
     isNowPlayingOpen,
     nowPlayingTab,
     showLyrics,
+    closeNowPlaying,
     errorMessage,
     setErrorMessage,
     playTrackWithQueue,
@@ -294,6 +295,7 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
     if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
     setSelectedPlaylist(playlist);
     setActiveTab("library");
+    closeNowPlaying();
 
     // Exibe faixas em cache instantaneamente (0ms) se existirem
     const cachedTracks = LocalCacheService.getCachedPlaylistTracks(playlist.id);
@@ -321,7 +323,7 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
     } finally {
       setIsLoadingPlaylistTracks(false);
     }
-  }, [mainScrollRef, playlistScrollPosRef, setErrorMessage]);
+  }, [mainScrollRef, playlistScrollPosRef, setErrorMessage, closeNowPlaying]);
 
   // Escuta evento de mudança na autenticação (quando o login via Webview do Google conclui)
   useEffect(() => {
@@ -365,13 +367,15 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
     playlistScrollPosRef.current = 0;
     if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
     setSelectedPlaylist(null);
-  }, [mainScrollRef, playlistScrollPosRef]);
+    closeNowPlaying();
+  }, [mainScrollRef, playlistScrollPosRef, closeNowPlaying]);
 
   const handleSidebarTabChange = useCallback((tab: ActiveTab) => {
     playlistScrollPosRef.current = 0;
     setActiveTab(tab);
     if (tab === "library") setSelectedPlaylist(null);
-  }, [playlistScrollPosRef]);
+    closeNowPlaying();
+  }, [playlistScrollPosRef, closeNowPlaying]);
 
   const handleTogglePinPlaylist = useCallback((playlistId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();

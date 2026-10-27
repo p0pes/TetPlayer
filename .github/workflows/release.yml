@@ -51,4 +51,6 @@ jobs:
           releaseBody: 'Nova versão oficial do TetPlayer compilada automaticamente pela branch main.'
           releaseDraft: false
           prerelease: false
+          includeUpdaterJson: true
+          uploadUpdaterJson: true
           args: ${{ matrix.args }}
