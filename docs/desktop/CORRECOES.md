@@ -624,11 +624,23 @@
 
 ---
 
-## 📋 Conclusão da Auditoria (Release v1.3.0 Oficial)
+### 60. Correção de Sobreposição do Badge "Desktop" sobre o Ícone do Aplicativo na Aba Sobre
+* **Status:** `[Resolvido]` ✅
+* **Localização:** [`desktop/src/components/SettingsModal/SettingsModal.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/SettingsModal/SettingsModal.tsx) e [`desktop/src/services/updater.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/updater.ts).
+* **Diagnóstico Técnico:**
+  - Na aba "Sobre" do `SettingsModal`, a insígnia translúcida "Desktop" estava posicionada com coordenadas absolutas (`absolute -bottom-2 -right-2`) sobre o quadrado vermelho do logotipo, colidindo visualmente com a nota musical e a curvatura inferior do ícone.
+  - Além da sobreposição esteticamente inadequada, o texto abaixo repetia redundantemente "TetPlayer Desktop".
+* **Solução Implementada:**
+  - **Desacoplamento Visual Completo:** O ícone com gradiente Aurora e glow neon agora fica 100% limpo e sem sobreposições (`w-16 h-16 rounded-2xl ring-1 ring-white/10`).
+  - **Composição Tipográfica Harmoniosa:** A insígnia "Desktop" foi integrada como um chip sutil e refinado ao lado do título principal: `TetPlayer [Desktop]`.
+  - **Bump Oficial v1.3.1:** Versão incrementada em todos os manifestos para permitir o disparo do fluxo de auto-atualização in-app a partir da v1.3.0.
 
-A versão **1.3.0** unifica o armazenamento na pasta de instalação, melhora a fidelidade visual e prepara o aplicativo para distribuição contínua:
-- **Zero erros de compilação ou tipos:** `tsc && vite build` em 2.45s, 48 testes Vitest e 8 testes Rust 100% verdes (56 testes no total).
-- **Armazenamento Unificado e Portátil:** Toda a base de dados, sessão, configurações e downloads de músicas offline são armazenados na pasta `data/` de instalação, preservando a permanência do login entre atualizações e conferindo total controle ao usuário.
-- **Instalador NSIS com Escolha de Pasta:** O usuário escolhe no instalador exatamente onde deseja instalar o TetPlayer.
-- **Seletor de Abas com Indicador Deslizante:** Caixa de abas Fila/Letras harmonizada com o botão de Crossfade e indicador animado que desliza rapidamente ao alternar de aba.
-- **Bump Oficial v1.3.0:** Versão incrementada em todos os manifestos (`package.json`, `Cargo.toml`, `tauri.conf.json`, `updater.ts`, `README.md`).
+---
+
+## 📋 Conclusão da Auditoria (Release v1.3.1 Oficial)
+
+A versão **1.3.1** elimina a sobreposição visual na tela Sobre e prepara o ambiente para o teste de validação do Auto-Updater in-app:
+- **Zero erros de compilação ou tipos:** `tsc && vite build`, 48 testes Vitest e 8 testes Rust 100% verdes (56 testes no total).
+- **Design Limpo e sem Sobreposição:** Badge Desktop integrado ao lado do título e ícone desimpedido na aba Sobre.
+- **Validação de Atualização:** Publicada nova compilação na branch `main` e tag `v1.3.1` para teste direto do updater.
+- **Bump Oficial v1.3.1:** Sincronizado em `package.json`, `Cargo.toml`, `tauri.conf.json`, `updater.ts` e `README.md`.

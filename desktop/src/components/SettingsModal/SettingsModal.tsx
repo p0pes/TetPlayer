@@ -935,19 +935,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             {/* ============================================================== */}
             {activeTab === "about" && (
               <div className="space-y-5 flex flex-col items-center justify-center text-center py-2 animate-in fade-in duration-150">
-                <div className="relative">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[var(--accent)] via-[var(--accent-hover)] to-[var(--accent-glow)] flex items-center justify-center shadow-[0_0_25px_var(--accent-glow)]">
-                    <Music2 className="w-8 h-8 text-white" />
-                  </div>
-                  <span className="absolute -bottom-2 -right-2 px-2 py-0.5 rounded-full bg-[var(--accent-subtle)] border border-[var(--accent-border)] text-[var(--accent-text)] text-[9px] font-mono font-bold">
-                    Desktop
-                  </span>
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[var(--accent)] via-[var(--accent-hover)] to-[var(--accent-glow)] flex items-center justify-center shadow-[0_0_25px_var(--accent-glow)] ring-1 ring-white/10">
+                  <Music2 className="w-8 h-8 text-white" />
                 </div>
 
-                <div>
-                  <h3 className="text-lg font-extrabold text-white tracking-tight">TetPlayer Desktop</h3>
-                  <div className="mt-1.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 font-mono text-xs text-white">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <div className="flex flex-col items-center gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xl font-extrabold text-white tracking-tight">TetPlayer</h3>
+                    <span className="px-2 py-0.5 rounded-md bg-[var(--accent-subtle)] border border-[var(--accent-border)] text-[var(--accent-text)] text-[10px] font-mono font-bold tracking-wider">
+                      Desktop
+                    </span>
+                  </div>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 font-mono text-xs text-white">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                     <span>Versão Instalada: <strong>v{APP_VERSION}</strong></span>
                   </div>
                 </div>
