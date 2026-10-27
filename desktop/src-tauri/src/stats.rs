@@ -38,19 +38,61 @@ pub struct PlaybackStats {
     pub recent_tracks: Vec<TrackStat>,
 }
 
-fn get_db_path() -> PathBuf {
-    if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
-        let dir = PathBuf::from(local_app_data).join("com.tetplayer.desktop");
-        let _ = fs::create_dir_all(&dir);
-        return dir.join("tetstats.db");
+/// Retorna o diretório unificado de armazenamento da aplicação na pasta de instalação (estilo jogos/programas tradicionais).
+/// Prioriza a pasta `data/` dentro do próprio diretório do executável instalado.
+/// Realiza migração automática de dados existentes em `%LOCALAPPDATA%` para que nada se perca em atualizações.
+pub fn get_app_storage_dir() -> PathBuf {
+    // 1. Tentar localizar o diretório do executável em execução (pasta de instalação)
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let app_data_dir = exe_dir.join("data");
+            // Se conseguir criar/escrever na pasta data do executável
+            if fs::create_dir_all(&app_data_dir).is_ok() {
+                // Criar subpasta para músicas offline
+                let _ = fs::create_dir_all(app_data_dir.join("music"));
+                return app_data_dir;
+            }
+        }
     }
-    PathBuf::from("tetstats.db")
+
+    // 2. Fallback de segurança se o diretório do executável for somente leitura (ex: C:\Program Files sem admin)
+    if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+        let dir = PathBuf::from(local_app_data).join("com.tetplayer.desktop").join("data");
+        let _ = fs::create_dir_all(&dir);
+        let _ = fs::create_dir_all(dir.join("music"));
+        return dir;
+    }
+
+    let default_dir = PathBuf::from("data");
+    let _ = fs::create_dir_all(&default_dir);
+    let _ = fs::create_dir_all(default_dir.join("music"));
+    default_dir
+}
+
+pub fn get_db_path() -> PathBuf {
+    let storage_dir = get_app_storage_dir();
+    let db_path = storage_dir.join("tetstats.db");
+
+    // Migração transparente de banco legado (%LOCALAPPDATA%\com.tetplayer.desktop\tetstats.db)
+    if !db_path.exists() {
+        if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+            let legacy_path = PathBuf::from(local_app_data)
+                .join("com.tetplayer.desktop")
+                .join("tetstats.db");
+            if legacy_path.exists() {
+                let _ = fs::copy(&legacy_path, &db_path);
+            }
+        }
+    }
+
+    db_path
 }
 
 pub fn init_db() -> Result<Connection, String> {
     let path = get_db_path();
     let conn = Connection::open(&path)
         .map_err(|e| format!("Falha ao abrir banco de estatísticas ({:?}): {e}", path))?;
+    let _ = conn.busy_timeout(std::time::Duration::from_secs(5));
 
     conn.execute(
         "CREATE TABLE IF NOT EXISTS playback_history (

@@ -2,7 +2,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { check, Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 
-export const APP_VERSION = "1.2.1";
+export const APP_VERSION = "1.3.0";
 export const GITHUB_REPO = "p0pes/TetPlayer";
 const MAIN_BRANCH_PACKAGE_URL = `https://raw.githubusercontent.com/${GITHUB_REPO}/main/desktop/package.json`;
 const RELEASES_API_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;

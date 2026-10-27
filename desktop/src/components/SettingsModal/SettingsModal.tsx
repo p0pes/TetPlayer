@@ -25,7 +25,10 @@ import {
   ShieldCheck,
   Download,
   ExternalLink,
+  Folder,
+  FolderOpen,
 } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
 import {
   SettingsService,
   AppSettings,
@@ -80,6 +83,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [manualUpdateInfo, setManualUpdateInfo] = useState<UpdateInfo | null>(null);
   const [lastCheckedTime, setLastCheckedTime] = useState<string | null>(null);
   const [inAppProgress, setInAppProgress] = useState<UpdateProgress | null>(null);
+  const [appStoragePath, setAppStoragePath] = useState<string>("");
+
+  const handleOpenStorageFolder = useCallback(async () => {
+    try {
+      await invoke("open_app_storage_dir");
+    } catch (err) {
+      console.error("[Settings] Erro ao abrir pasta de armazenamento:", err);
+    }
+  }, []);
 
   const handleStartUpdate = useCallback(async (info: UpdateInfo) => {
     if (info.isNativeUpdater) {
@@ -118,6 +130,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setSettings(SettingsService.getSettings());
       setCacheSize(LocalCacheService.getEstimatedCacheSize());
       setCacheClearSuccess(false);
+
+      invoke<{ storageDir?: string }>("get_app_storage_info")
+        .then((info) => {
+          if (info?.storageDir) setAppStoragePath(info.storageDir);
+        })
+        .catch(() => {});
     }
   }, [isOpen]);
 
@@ -876,6 +894,38 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       <span>Cache limpo com sucesso! As próximas listas serão recarregadas sob demanda.</span>
                     </div>
                   )}
+                </div>
+
+                {/* Local dos Arquivos e Instalação (Armazenamento Portável) */}
+                <div className="border-t border-[#1f2434] pt-5">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Folder className="w-4 h-4 text-[var(--accent-text)]" />
+                    Local dos Arquivos & Armazenamento da Instalação
+                  </h3>
+                  <p className="text-xs text-[#8c91a4] mt-1">
+                    Todos os dados do TetPlayer (banco SQLite, login salvo, estatísticas e músicas offline) ficam centralizados na pasta de instalação, permitindo controle total do espaço em disco.
+                  </p>
+
+                  <div className="mt-3 p-3.5 rounded-xl bg-[#141724] border border-[#202534] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-white">Pasta de Armazenamento:</p>
+                      <p className="text-xs font-mono text-indigo-400 mt-0.5 truncate select-all" title={appStoragePath || "Pasta da Instalação/data"}>
+                        {appStoragePath || "Pasta da Instalação/data"}
+                      </p>
+                      <p className="text-[10px] text-[#8c91a4] mt-1">
+                        Permanência garantida: seus dados e sessão de login nunca são deletados ao atualizar o aplicativo.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleOpenStorageFolder}
+                      className="px-3.5 py-2 rounded-xl bg-indigo-950/60 hover:bg-indigo-900/70 border border-indigo-800/50 text-indigo-200 text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+                    >
+                      <FolderOpen className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Abrir Pasta de Dados</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

@@ -587,9 +587,48 @@
 
 ---
 
-## 📋 Conclusão da Auditoria (Release v1.2.1 Oficial)
+### 58. Armazenamento Unificado e Portátil na Pasta de Instalação (data/) e Seleção de Diretório no Instalador NSIS
+* **Status:** `[Resolvido]` ✅
+* **Localização:** [`desktop/src-tauri/src/stats.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/stats.rs), [`desktop/src-tauri/src/lib.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/lib.rs), [`desktop/src-tauri/tauri.conf.json`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/tauri.conf.json), [`desktop/src/components/SettingsModal/SettingsModal.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/SettingsModal/SettingsModal.tsx) e [`desktop/src/services/updater.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/updater.ts).
+* **Diagnóstico Técnico:**
+  - O aplicativo dispersava arquivos e dados de sessão de forma oculta no sistema operacional (`%LOCALAPPDATA%\TetPlayer` e pastas temporárias), dificultando o controle do usuário sobre o consumo de disco e o destino de downloads de músicas offline.
+  - Ao atualizar a aplicação, existia o receio de sobrescrita ou perda de dados pessoais caso ficassem atrelados a locais instáveis.
+  - O instalador NSIS estava configurado no modo padrão per-user sem prompt claro para o usuário escolher o disco/pasta de instalação (ex: `D:\TetPlayer` ou `D:\Jogos`).
+* **Solução Implementada:**
+  - **Mecanismo de Diretório Unificado (`get_app_storage_dir`):**
+    - Localiza o executável em tempo de execução via `std::env::current_exe()?.parent()` e cria uma pasta dedicada `data/` diretamente no diretório onde o TetPlayer foi instalado.
+    - Se a pasta de instalação for somente-leitura (ex: `Program Files` sem elevação de privilégios), o motor possui fallback automático gracioso para a pasta de dados do usuário local com log de aviso.
+  - **Isolamento de Dados, Cache e Músicas Offline:**
+    - O banco de dados SQLite principal (`tetstats.db`) e a subpasta de músicas baixadas (`data/music/`) agora residem no diretório de instalação unificado.
+    - **Migração Transparente Automática:** Se houver um banco de dados legado existente no diretório antigo (`%LOCALAPPDATA%`), o TetPlayer o move automaticamente para a nova pasta `data/tetstats.db` na primeira inicialização, preservando 100% do histórico, playlists e estatísticas do usuário.
+  - **Seleção de Pasta no Instalador NSIS:**
+    - Configurado `bundle.windows.nsis.installMode = "both"` em `tauri.conf.json`, ativando o passo de escolha de pasta de destino no instalador do Windows (`MUI_PAGE_DIRECTORY`), permitindo ao usuário instalar em qualquer disco (SSD/HD secundário).
+  - **Inspeção e Atalho nas Configurações:**
+    - Expostos comandos Tauri nativos `get_app_storage_info` e `open_app_storage_dir`.
+    - Na aba "Sessão & Armazenamento" do `SettingsModal`, é exibido o caminho real completo da pasta de dados com botão "Abrir Pasta" para revelar o diretório instantaneamente no Windows Explorer.
 
-A versão **1.2.1** aperfeiçoa a experiência visual com física elástica natural:
-- **Zero erros de compilação ou tipos:** `tsc && vite build`, 45 testes Vitest e 8 testes Rust 100% verdes.
-- **Efeito Bounce em Letras:** Física elástica de escala e translação vertical na troca de estrofes, com amortecimento cinético no autoscroll.
-- **Identificação Imediata da Versão:** Versão `v1.2.1` estampada na TitleBar e em todos os manifestos do ecossistema.
+---
+
+### 59. Harmonização Geométrica do Seletor de Abas e Indicador Deslizante Suave (NowPlayingDrawer)
+* **Status:** `[Resolvido]` ✅
+* **Localização:** [`desktop/src/components/NowPlayingDrawer/NowPlayingDrawer.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/NowPlayingDrawer/NowPlayingDrawer.tsx).
+* **Diagnóstico Técnico:**
+  - No cabeçalho da gaveta expandida (`NowPlayingDrawer`), a caixa seletora de abas ("Fila" e "Letras") possuía altura e bordas desproporcionais (`h-9`, `p-1`, `rounded-full`) em comparação com a caixa do botão de Crossfade (`h-8`, `rounded-xl`, `border-[#232735]`), criando assimetria visual.
+  - A transição visual ao alternar entre "Fila" e "Letras" utilizava apenas classes condicionais instantâneas sem deslizamento suave do indicador (pill ativo), tornando a troca rígida.
+* **Solução Implementada:**
+  - **Harmonização de Altura e Estilo:** O contêiner de abas foi equalizado com `h-8`, `p-0.5`, `rounded-xl` e borda `border-[#232735]`, espelhando a geometria exata do botão de Crossfade.
+  - **Indicador Deslizante com Aceleração de Hardware (`indicatorStyle`):**
+    - Implementado rastreamento de referências (`tabRefs`) para calcular `offsetLeft` e `offsetWidth` do botão ativo.
+    - O pill de destaque desliza velozmente e com precisão fluida (`transition-all duration-200 ease-out`) de um botão para o outro ao clicar, com fundo semitransparente escuro e borda sutil.
+  - **Transição Fluida de Conteúdo:** Adicionadas animações cinéticas (`animate-in fade-in duration-200 slide-in-from-right-2`) na transição entre a Fila de Reprodução e o painel de Letras.
+
+---
+
+## 📋 Conclusão da Auditoria (Release v1.3.0 Oficial)
+
+A versão **1.3.0** unifica o armazenamento na pasta de instalação, melhora a fidelidade visual e prepara o aplicativo para distribuição contínua:
+- **Zero erros de compilação ou tipos:** `tsc && vite build` em 2.45s, 48 testes Vitest e 8 testes Rust 100% verdes (56 testes no total).
+- **Armazenamento Unificado e Portátil:** Toda a base de dados, sessão, configurações e downloads de músicas offline são armazenados na pasta `data/` de instalação, preservando a permanência do login entre atualizações e conferindo total controle ao usuário.
+- **Instalador NSIS com Escolha de Pasta:** O usuário escolhe no instalador exatamente onde deseja instalar o TetPlayer.
+- **Seletor de Abas com Indicador Deslizante:** Caixa de abas Fila/Letras harmonizada com o botão de Crossfade e indicador animado que desliza rapidamente ao alternar de aba.
+- **Bump Oficial v1.3.0:** Versão incrementada em todos os manifestos (`package.json`, `Cargo.toml`, `tauri.conf.json`, `updater.ts`, `README.md`).

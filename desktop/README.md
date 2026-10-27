@@ -1,4 +1,4 @@
-# 🎧 TetPlayer Desktop — v1.2.1 (Release Oficial)
+# 🎧 TetPlayer Desktop — v1.3.0 (Release Oficial)
 
 > **O Reprodutor de Música Ultraleve de Alta Fidelidade para Windows.**  
 > Desenvolvido com **Tauri v2 (Rust)**, **React 19**, **TypeScript** e **Tailwind CSS v4**.

@@ -11,24 +11,24 @@ import {
 } from "../updater";
 
 describe("updater (Verificação SemVer e Atualizações)", () => {
-  it("deve reportar a versão atual como 1.2.1", () => {
-    expect(APP_VERSION).toBe("1.2.1");
+  it("deve reportar a versão atual como 1.3.0", () => {
+    expect(APP_VERSION).toBe("1.3.0");
   });
 
   it("deve detectar corretamente quando uma versão remota é mais recente", () => {
-    expect(isNewerVersion("1.2.2", "1.2.1")).toBe(true);
-    expect(isNewerVersion("1.3.0", "1.2.1")).toBe(true);
-    expect(isNewerVersion("2.0.0", "1.2.1")).toBe(true);
-    expect(isNewerVersion("v1.2.2", "v1.2.1")).toBe(true);
+    expect(isNewerVersion("1.3.1", "1.3.0")).toBe(true);
+    expect(isNewerVersion("1.4.0", "1.3.0")).toBe(true);
+    expect(isNewerVersion("2.0.0", "1.3.0")).toBe(true);
+    expect(isNewerVersion("v1.3.1", "v1.3.0")).toBe(true);
   });
 
   it("deve detectar quando a versão remota é igual ou mais antiga", () => {
-    expect(isNewerVersion("1.2.1", "1.2.1")).toBe(false);
-    expect(isNewerVersion("1.2.0", "1.2.1")).toBe(false);
-    expect(isNewerVersion("1.1.0", "1.2.1")).toBe(false);
-    expect(isNewerVersion("1.0.0", "1.2.1")).toBe(false);
-    expect(isNewerVersion("0.9.9", "1.2.1")).toBe(false);
-    expect(isNewerVersion("v1.2.1", "1.2.1")).toBe(false);
+    expect(isNewerVersion("1.3.0", "1.3.0")).toBe(false);
+    expect(isNewerVersion("1.2.1", "1.3.0")).toBe(false);
+    expect(isNewerVersion("1.2.0", "1.3.0")).toBe(false);
+    expect(isNewerVersion("1.1.0", "1.3.0")).toBe(false);
+    expect(isNewerVersion("1.0.0", "1.3.0")).toBe(false);
+    expect(isNewerVersion("v1.3.0", "1.3.0")).toBe(false);
   });
 
   it("deve formatar o tamanho dos instaladores e pacotes corretamente", () => {

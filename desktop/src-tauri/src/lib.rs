@@ -284,6 +284,39 @@ fn clear_all_db_cache() -> Result<(), String> {
     stats::clear_all_cache()
 }
 
+#[tauri::command]
+fn get_app_storage_info() -> Result<serde_json::Value, String> {
+    let storage_dir = stats::get_app_storage_dir();
+    let music_dir = storage_dir.join("music");
+    let db_path = stats::get_db_path();
+
+    let db_size = std::fs::metadata(&db_path).map(|m| m.len()).unwrap_or(0);
+
+    Ok(serde_json::json!({
+        "storageDir": storage_dir.to_string_lossy(),
+        "musicDir": music_dir.to_string_lossy(),
+        "dbPath": db_path.to_string_lossy(),
+        "dbSizeBytes": db_size,
+    }))
+}
+
+#[tauri::command]
+fn open_app_storage_dir() -> Result<(), String> {
+    let storage_dir = stats::get_app_storage_dir();
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(&storage_dir)
+            .spawn()
+            .map_err(|e| format!("Falha ao abrir pasta de armazenamento: {e}"))?;
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = storage_dir;
+    }
+    Ok(())
+}
+
 // Window commands
 #[tauri::command]
 fn show_main_window(window: tauri::Window) {
@@ -767,7 +800,9 @@ pub fn run() {
             undock_mini_player,
             check_and_snap_mini_player,
             start_drag_and_snap,
-            move_docked_tab
+            move_docked_tab,
+            get_app_storage_info,
+            open_app_storage_dir
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
