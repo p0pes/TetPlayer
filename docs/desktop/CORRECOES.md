@@ -1,11 +1,11 @@
 # Relatório de Auditoria e Code Review Técnico — TetPlayer Desktop
 
-> **Data da Auditoria:** 25 de Outubro de 2026  
+> **Data da Auditoria:** 27 de Outubro de 2026  
 > **Avaliador:** Agente Especialista em Code Review, Análise Estática e UX/UI Inspection (`reviewer`)  
-> **Status Geral da Aplicação:** 🟢 **Build, Compilação e Testes 100% Verificados (TypeScript + Rust `cargo test` & `vite build` com Zero Erros, 39 testes Vitest + 7 testes Rust passando)**.  
+> **Status Geral da Aplicação:** 🟢 **Build, Compilação e Testes 100% Verificados (TypeScript + Rust `cargo test` & `vite build` com Zero Erros, 48 testes Vitest + 8 testes Rust passando)**.  
 > **Status Comparativo:**  
 > - 📌 **0 Apontamentos Pendentes** (100% dos itens da rodada corrigidos, validados e cobertos por testes)  
-> - ✅ **51 Itens Integralmente Resolvidos e Validados** (Histórico técnico preservado na íntegra na seção inferior)  
+> - ✅ **52 Itens Integralmente Resolvidos e Validados** (Histórico técnico preservado na íntegra na seção inferior)  
 
 ---
 
@@ -27,6 +27,13 @@
 
 > [!NOTE]
 > Todos os itens abaixo foram implementados, testados, compilados e validados no TetPlayer Desktop. Eles permanecem registrados na base deste documento como memória técnica da arquitetura, robustez e performance da aplicação.
+
+---
+
+### 57. Modernização do Mecanismo de Atualização para In-App Silent Auto-Update via Tauri v2
+* **Status:** `[Resolvido]` ✅
+* **Localização:** [`desktop/src/services/updater.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/updater.ts), [`desktop/src/components/UpdateModal/UpdateModal.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/UpdateModal/UpdateModal.tsx), [`desktop/src/components/SettingsModal/SettingsModal.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/SettingsModal/SettingsModal.tsx), [`desktop/src-tauri/Cargo.toml`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/Cargo.toml), [`desktop/src-tauri/tauri.conf.json`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/tauri.conf.json) e [`.github/workflows/release.yml`](file:///d:/progrmação/programas/TetPlayer/.github/workflows/release.yml).
+* **Solução Implementada:** Integrado o plugin oficial do Tauri v2 (`@tauri-apps/plugin-updater` + `tauri-plugin-updater`) e `@tauri-apps/plugin-process` para permitir atualização 100% nativa e silenciosa dentro do próprio app. O usuário não precisa abrir o navegador ou baixar executáveis manualmente: ao clicar em "Atualizar Agora", uma barra de progresso visual em tempo real exibe o download e o app é reiniciado automaticamente já na versão compilada. A segurança foi reforçada com chaves de assinatura digital (Minisign) geradas e configuradas no `tauri.conf.json` e no pipeline de CI/CD do GitHub Actions com fallback gracioso.
 
 ---
 

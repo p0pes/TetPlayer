@@ -55,6 +55,7 @@ desktop.ini
 !.env.example
 *.pem
 *.key
+*.key.pub
 cookies_dump.json
 temp_cookies.db*
 

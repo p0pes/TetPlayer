@@ -38,9 +38,11 @@ import { SpectrumVisualizer } from "../Visualizer/SpectrumVisualizer";
 import {
   checkForAppUpdates,
   downloadAndInstallUpdate,
+  downloadAndInstallInAppUpdate,
   formatBytes,
   openReleasePage,
   UpdateInfo,
+  UpdateProgress,
   APP_VERSION,
 } from "../../services/updater";
 
@@ -77,6 +79,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [manualUpdateState, setManualUpdateState] = useState<"idle" | "checking" | "upToDate" | "available">("idle");
   const [manualUpdateInfo, setManualUpdateInfo] = useState<UpdateInfo | null>(null);
   const [lastCheckedTime, setLastCheckedTime] = useState<string | null>(null);
+  const [inAppProgress, setInAppProgress] = useState<UpdateProgress | null>(null);
+
+  const handleStartUpdate = useCallback(async (info: UpdateInfo) => {
+    if (info.isNativeUpdater) {
+      setInAppProgress({
+        status: "downloading",
+        percent: 0,
+        downloadedBytes: 0,
+      });
+      await downloadAndInstallInAppUpdate(info, (prog) => {
+        setInAppProgress(prog);
+      });
+    } else {
+      await downloadAndInstallUpdate(info);
+    }
+  }, []);
 
   const handleManualCheckUpdates = useCallback(async () => {
     setManualUpdateState("checking");
@@ -957,24 +975,61 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         </div>
                       )}
 
-                      <div className="flex items-center justify-between pt-1">
-                        <button
-                          type="button"
-                          onClick={() => openReleasePage(manualUpdateInfo.releaseUrl)}
-                          className="text-xs text-zinc-400 hover:text-indigo-400 flex items-center gap-1 transition-colors cursor-pointer"
-                        >
-                          <span>Ver no GitHub</span>
-                          <ExternalLink size={12} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => downloadAndInstallUpdate(manualUpdateInfo)}
-                          className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-500 hover:from-indigo-600 to-purple-600 hover:to-purple-700 text-white text-xs font-bold transition-all shadow-lg shadow-indigo-500/25 flex items-center gap-2 cursor-pointer"
-                        >
-                          <Download size={14} />
-                          <span>Atualizar Agora</span>
-                        </button>
-                      </div>
+                      {inAppProgress ? (
+                        <div className="space-y-2 bg-black/40 border border-white/10 rounded-xl p-3">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-semibold text-zinc-200">
+                              {inAppProgress.status === "downloading" && "Baixando pacote oficial..."}
+                              {inAppProgress.status === "installing" && "Instalando nova versão..."}
+                              {inAppProgress.status === "ready" && "Pronto! Reiniciando o TetPlayer..."}
+                              {inAppProgress.status === "error" && "Falha na atualização automática"}
+                            </span>
+                            <span className="font-mono text-indigo-400 font-bold">
+                              {inAppProgress.percent}%
+                            </span>
+                          </div>
+                          <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 transition-all duration-300 ease-out"
+                              style={{ width: `${inAppProgress.percent}%` }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between text-[10px] font-mono text-zinc-400">
+                            <span>
+                              {formatBytes(inAppProgress.downloadedBytes)}
+                              {inAppProgress.totalBytes ? ` de ${formatBytes(inAppProgress.totalBytes)}` : ""}
+                            </span>
+                            {inAppProgress.status === "error" && (
+                              <button
+                                type="button"
+                                onClick={() => downloadAndInstallUpdate(manualUpdateInfo)}
+                                className="text-xs text-indigo-400 hover:underline"
+                              >
+                                Baixar pelo Navegador
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between pt-1">
+                          <button
+                            type="button"
+                            onClick={() => openReleasePage(manualUpdateInfo.releaseUrl)}
+                            className="text-xs text-zinc-400 hover:text-indigo-400 flex items-center gap-1 transition-colors cursor-pointer"
+                          >
+                            <span>Ver no GitHub</span>
+                            <ExternalLink size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleStartUpdate(manualUpdateInfo)}
+                            className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-500 hover:from-indigo-600 to-purple-600 hover:to-purple-700 text-white text-xs font-bold transition-all shadow-lg shadow-indigo-500/25 flex items-center gap-2 cursor-pointer"
+                          >
+                            <Download size={14} />
+                            <span>Atualizar Agora</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

@@ -1,4 +1,6 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { check, Update } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 
 export const APP_VERSION = "1.2.1";
 export const GITHUB_REPO = "p0pes/TetPlayer";
@@ -22,6 +24,34 @@ export interface UpdateInfo {
   downloadUrl?: string;
   assetName?: string;
   assetSize?: number;
+  isNativeUpdater?: boolean;
+}
+
+export type UpdateInstallStatus = "idle" | "downloading" | "installing" | "ready" | "error";
+
+export interface UpdateProgress {
+  status: UpdateInstallStatus;
+  percent: number;
+  downloadedBytes: number;
+  totalBytes?: number;
+  error?: string;
+}
+
+// Guarda a referência ativa do Update nativo para download
+let activeNativeUpdate: Update | null = null;
+
+/**
+ * Retorna o Update nativo do Tauri em cache (se houver)
+ */
+export function getActiveNativeUpdate(): Update | null {
+  return activeNativeUpdate;
+}
+
+/**
+ * Limpa ou define o Update nativo (usado para testes ou reset)
+ */
+export function setActiveNativeUpdate(update: Update | null): void {
+  activeNativeUpdate = update;
 }
 
 /**
@@ -59,8 +89,8 @@ export function isNewerVersion(remote: string, current: string): boolean {
 }
 
 /**
- * Checa na branch main e nas releases do GitHub se há uma versão mais nova.
- * Extrai notas de versão, link da release e executável direto para 1-clique.
+ * Checa por atualizações usando prioritariamente o plugin oficial do Tauri (@tauri-apps/plugin-updater).
+ * Caso não haja endpoint configurado ou ocorra falha (ex: dev / web / vitest), executa fallback para a API do GitHub.
  */
 export async function checkForAppUpdates(): Promise<UpdateInfo> {
   const defaultResult: UpdateInfo = {
@@ -68,8 +98,30 @@ export async function checkForAppUpdates(): Promise<UpdateInfo> {
     currentVersion: APP_VERSION,
     latestVersion: APP_VERSION,
     releaseUrl: RELEASES_WEB_URL,
+    isNativeUpdater: false,
   };
 
+  // 1. Tentar primeiro o plugin oficial do Tauri (In-App Auto-Updater)
+  try {
+    const update = await check();
+    if (update && isNewerVersion(update.version, APP_VERSION)) {
+      activeNativeUpdate = update;
+      return {
+        hasUpdate: true,
+        currentVersion: APP_VERSION,
+        latestVersion: update.version,
+        releaseUrl: RELEASES_WEB_URL,
+        releaseNotes: update.body || undefined,
+        publishedAt: update.date || undefined,
+        isNativeUpdater: true,
+      };
+    }
+  } catch {
+    // Fallback gracioso para a verificação direta no GitHub caso o endpoint nativo falhe ou não esteja pronto
+    activeNativeUpdate = null;
+  }
+
+  // 2. Fallback: Checa na branch main e nas releases do GitHub
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 6000);
@@ -82,7 +134,7 @@ export async function checkForAppUpdates(): Promise<UpdateInfo> {
     let assetName: string | undefined = undefined;
     let assetSize: number | undefined = undefined;
 
-    // 1. Tentar ler diretamente da branch main no GitHub (com cache buster)
+    // Tentar ler da branch main no GitHub (com cache buster)
     try {
       const mainResponse = await fetch(`${MAIN_BRANCH_PACKAGE_URL}?t=${Date.now()}`, {
         signal: controller.signal,
@@ -96,10 +148,10 @@ export async function checkForAppUpdates(): Promise<UpdateInfo> {
         }
       }
     } catch {
-      // Ignora falha na main e tenta fallback
+      // Ignora falha na main e tenta releases
     }
 
-    // 2. Buscar detalhes da release mais recente no GitHub
+    // Buscar detalhes da release mais recente no GitHub
     try {
       const releaseResponse = await fetch(RELEASES_API_URL, {
         signal: controller.signal,
@@ -150,6 +202,7 @@ export async function checkForAppUpdates(): Promise<UpdateInfo> {
         downloadUrl,
         assetName,
         assetSize,
+        isNativeUpdater: false,
       };
     }
 
@@ -161,7 +214,92 @@ export async function checkForAppUpdates(): Promise<UpdateInfo> {
 }
 
 /**
- * Inicia a atualização em 1-clique abrindo o download do instalador ou a página da release
+ * Executa o download e instalação da atualização silenciosamente dentro do próprio aplicativo.
+ * Notifica o callback de progresso a cada chunk recebido e reinicia o app via relaunch() ao concluir.
+ * Retorna true se a instalação nativa foi iniciada com sucesso, ou false caso caia no fallback.
+ */
+export async function downloadAndInstallInAppUpdate(
+  updateInfo: UpdateInfo,
+  onProgress?: (progress: UpdateProgress) => void
+): Promise<boolean> {
+  if (activeNativeUpdate) {
+    try {
+      let totalBytes: number | undefined = undefined;
+      let downloadedBytes = 0;
+
+      onProgress?.({
+        status: "downloading",
+        percent: 0,
+        downloadedBytes: 0,
+      });
+
+      await activeNativeUpdate.downloadAndInstall((event) => {
+        if (event.event === "Started") {
+          totalBytes = event.data.contentLength;
+          onProgress?.({
+            status: "downloading",
+            percent: 0,
+            downloadedBytes: 0,
+            totalBytes,
+          });
+        } else if (event.event === "Progress") {
+          downloadedBytes += event.data.chunkLength;
+          const percent = totalBytes && totalBytes > 0
+            ? Math.min(100, Math.round((downloadedBytes / totalBytes) * 100))
+            : 0;
+          onProgress?.({
+            status: "downloading",
+            percent,
+            downloadedBytes,
+            totalBytes,
+          });
+        } else if (event.event === "Finished") {
+          onProgress?.({
+            status: "installing",
+            percent: 100,
+            downloadedBytes,
+            totalBytes,
+          });
+        }
+      });
+
+      onProgress?.({
+        status: "ready",
+        percent: 100,
+        downloadedBytes,
+        totalBytes,
+      });
+
+      // Aguarda 1s para o usuário visualizar o feedback e reinicia
+      setTimeout(async () => {
+        try {
+          await relaunch();
+        } catch (err) {
+          console.warn("[Updater] Relaunch automático falhou (normal no Windows se o instalador fechar o processo):", err);
+        }
+      }, 1200);
+
+      return true;
+    } catch (err) {
+      console.error("[Updater] Falha no download/instalação in-app:", err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      onProgress?.({
+        status: "error",
+        percent: 0,
+        downloadedBytes: 0,
+        error: errMsg,
+      });
+      return false;
+    }
+  }
+
+  // Fallback se não for nativo: abre o navegador ou link direto do instalador
+  await downloadAndInstallUpdate(updateInfo);
+  return false;
+}
+
+/**
+ * Fallback tradicional: Inicia o download abrindo o link do instalador ou a página da release no navegador
  */
 export async function downloadAndInstallUpdate(updateInfo: UpdateInfo): Promise<void> {
   const targetUrl = updateInfo.downloadUrl || updateInfo.releaseUrl || RELEASES_WEB_URL;
