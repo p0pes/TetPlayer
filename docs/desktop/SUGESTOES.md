@@ -1,9 +1,9 @@
 # 🚀 Guia Estratégico de Sugestões, Otimizações e Novas Features — TetPlayer Desktop
 
-> **Data de Elaboração / Última Revisão:** 25 de Outubro de 2026  
-> **Auditor Técnico:** Especialista em Arquitetura de Software, UX/UI e Sistemas de Mídia (`reviwer.md`)  
+> **Data de Elaboração / Última Revisão:** 27 de Outubro de 2026  
+> **Auditor Técnico:** Especialista em Arquitetura de Software, UX/UI e Sistemas de Mídia (`reviewer`)  
 > **Documento de Referência:** [`docs/desktop/SUGESTOES.md`](file:///d:/progrmação/programas/TetPlayer/docs/desktop/SUGESTOES.md)  
-> **Status:** 🟢 **41 Itens Concluídos e Validados no Histórico Consolidado (Release v1.0.0+)** | 💡 **24 Sugestões Futuras v1.1+ Mapeadas (incl. pesquisa de mercado e preparação para app público)**  
+> **Status:** 🟢 **46 Itens Concluídos e Validados no Histórico Consolidado (Release v1.3.3+)** | 💡 **21 Sugestões Futuras v1.4+ Mapeadas (incl. pesquisa de mercado e preparação para app público)**  
 > **Objetivo:** Fornecer um roadmap técnico, moderno e categorizado para elevar o TetPlayer Desktop ao estado da arte em reprodutores de mídia para desktop.
 
 ---
@@ -26,24 +26,24 @@ O **TetPlayer Desktop** opera sobre uma fundação de alta performance combinand
 │ Controles Globais              │ Windows SMTC + GlobalShortcut + Tray  │
 │ Persistência Local             │ SQLite Embutido (TetStats + AppCache) │
 │ Resiliência de Rede            │ Exponential Backoff Retry + Offline   │
-│ Atualizações Contínuas         │ GitHub Releases / Main Branch Checker │
+│ Atualizações Contínuas         │ Auto-Updater In-App Silencioso (NSIS) │
 └────────────────────────────────┴───────────────────────────────────────┘
 ```
 
-Abaixo encontram-se a **pesquisa de mercado**, as **24 sugestões ativas em aberto** para a versão **v1.1+** e o **Histórico Consolidado** com todos os 41 itens já implementados, testados e validados na base de código.
+Abaixo encontram-se a **pesquisa de mercado**, as **21 sugestões ativas em aberto** para as próximas versões e o **Histórico Consolidado** com todos os 46 itens já implementados, testados e validados na base de código.
 
 ---
 
 ## 🔎 Pesquisa de Mercado: O que Usuários Pedem em Clientes de Música Desktop
 
 > [!NOTE]
-> Levantamento feito em 25/10/2026 a partir de discussões do r/YoutubeMusic, dos plugins mais usados do cliente open-source [th-ch/youtube-music](https://github.com/th-ch/youtube-music), de clientes alternativos de YouTube Music (OuterTune, Metrolist, ViMusic) e das funções mais pedidas no Spotify Desktop. Cada demanda foi cruzada com o código atual do TetPlayer.
+> Levantamento feito a partir de discussões do r/YoutubeMusic, dos plugins mais usados do cliente open-source [th-ch/youtube-music](https://github.com/th-ch/youtube-music), de clientes alternativos de YouTube Music (OuterTune, Metrolist, ViMusic) e das funções mais pedidas no Spotify Desktop. Cada demanda foi cruzada com o código atual do TetPlayer.
 
 | Demanda recorrente dos usuários | Onde aparece | Situação no TetPlayer |
 |---|---|---|
 | App nativo leve, sem "cara de aba do navegador" | Reddit (queixa nº 1 do app oficial) | ✅ Já atendido (Tauri + Rust) |
 | Teclas de mídia globais, bandeja, mini player | Reddit, th-ch | ✅ Já atendido |
-| Letras sincronizadas | Reddit, th-ch | ✅ Já atendido (melhorias em 3.2 / 3.3) |
+| Letras sincronizadas | Reddit, th-ch | ✅ Já atendido (Kinetic Scroll suave) |
 | Buscar uma música **dentro** de uma playlist e ordenar | Reddit (muito citado) | ❌ Não existe → **2.2** |
 | Curtir/descurtir e ver se a faixa já está curtida | Reddit | ❌ Não existe → **2.3** |
 | Criar, editar e modificar playlists (adicionar, remover, renomear, reordenar) | Reddit, Spotify | ❌ Não existe → **2.4** |
@@ -62,15 +62,15 @@ Abaixo encontram-se a **pesquisa de mercado**, as **24 sugestões ativas em aber
 | Botões de mídia na miniatura da barra de tarefas | th-ch (Taskbar Media Control) | ❌ Não existe → **4.6** |
 | Importar playlists do Spotify / CSV | Clientes alternativos | ❌ Não existe → **4.7** |
 | Download de músicas/playlists para escuta offline | Clientes alternativos (muito pedido) | ❌ Não existe → **4.8** |
-| Login próprio com Google via Webview (independente de navegador) | Apps desktop públicos (th-ch, Spotube) | ❌ Usa extração local de cookies → **4.9** |
-| Atualização in-app automática (buscar nas configs, download em 1 clique) | Apps desktop modernos (Spotify, Discord, th-ch) | ⚠️ Checagem existe, mas download abre navegador → **4.10** |
+| Login próprio com Google via Webview (independente de navegador) | Apps desktop públicos (th-ch, Spotube) | ✅ Já atendido (Webview isolada nativa em 4.9) |
+| Atualização in-app automática (buscar nas configs, download em 1 clique) | Apps desktop modernos (Spotify, Discord, th-ch) | ✅ Já atendido (Auto-updater silencioso nativo em 4.10) |
 
 ---
 
-## 💡 SUGESTÕES ATIVAS EM ABERTO (Roadmap v1.1+)
+## 💡 SUGESTÕES ATIVAS EM ABERTO (Roadmap v1.4+)
 
 > [!TIP]
-> Os números das sugestões que já existiam (2.1, 3.1–3.3, 4.1, 4.2) foram mantidos para não confundir as referências. As novas vindas da pesquisa começam em **1.1**, **2.2** e **4.3**.
+> Os números das sugestões originais foram mantidos como identificadores únicos de referência. Itens concluídos foram transferidos integralmente para a seção [Histórico Consolidado](#-histórico-consolidado-46-sugestões-e-otimizações-concluídas).
 
 ---
 
@@ -222,26 +222,6 @@ Abaixo encontram-se a **pesquisa de mercado**, as **24 sugestões ativas em aber
 
 ---
 
-#### 3.3 Animação Cinematográfica e Scroll Fluido na Troca de Letras (Smooth Kinetic Seek & Spring Easing)
-* **Status:** `[Implementado e Validado]` ✅
-* **Impacto:** `[Alto / Experiência Visual & Polimento]` | **Esforço:** `[Médio]`
-* **Diagnóstico do Problema Atual:**  
-  Atualmente, no módulo [`useLyrics.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useLyrics.ts) e [`LyricsView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/LyricsView/LyricsView.tsx), quando o usuário salta trechos da música (seek na barra de reprodução / scrubber) ou clica diretamente em uma estrofe da letra, a rolagem pula de forma seca e abrupta para a nova posição. A chamada nativa `container.scrollTo({ behavior: "smooth" })` do navegador é interrompida por re-renders rápidos de sincronização de playback ou gera um teletransporte rígido sem inércia quando o salto temporal é grande. Além disso, a alternância entre a linha anterior e a nova linha cantada ocorre com cortes visuais secos, sem transição orgânica de escala, brilho e profundidade.
-* **Solução Proposta & Funcionalidades Técnicas:**
-  - **Interpolação de Scroll Cinética Baseada em Física (Kinetic Spring / Cubic-Bezier Damping):**
-    - Implementar uma interpolação de rolagem com física suave via `requestAnimationFrame` com curva de aceleração e frenagem (*ease-out cubic / exponential damping* estilo Apple Music), calculando a distância relativa entre o ponto atual de rolagem e a linha de destino.
-    - Em saltos curtos (passagem normal entre estrofes), o deslize é sutil e contínuo (~300ms a 400ms); em saltos longos (usuário pulando 1 a 3 minutos na música), a animação ganha velocidade inicial proporcional e desacelera suavemente ao se aproximar da estrofe de destino, eliminando engasgos e teletransportes rígidos.
-  - **Transição de Tipografia e Profundidade de Campo (Staggered Focus Morphing):**
-    - Suavizar a transição de estado da linha ativa com transições CSS bem calibradas:
-      - A linha que perde o foco esmaece suavemente em opacidade e tamanho (`scale(1.05) → scale(1)` e `opacity: 1 → 0.45` ao longo de 250ms).
-      - A linha recém-atingida ganha destaque progressivo com leve expansão elástica e iluminação gradual do texto (`drop-shadow` suave e tom de destaque).
-  - **Tratamento Inteligente de Seek e Arrasto Rápido na Linha do Tempo:**
-    - Ao arrastar rapidamente o scrubber, debouncar micro-rolagens concorrentes para evitar trepidação visual na tela; congelar a animação até a estabilização do cursor (~80ms a 120ms) e então executar a aterrissagem suave e fluida na letra correspondente.
-  - **Efeito de Motion Soft Blur em Saltos Rápidos:**
-    - Aplicar um efeito sutil de desfoque de movimento (*blur(1px~2px)* transitório) nas estrofes intermediárias durante a rolagem de alta velocidade, aterrissando com 100% de nitidez na frase exata.
-
----
-
 ### Eixo 4: Novas Funcionalidades & Ecossistema de Integrações
 
 #### 4.1 Integração com Discord Rich Presence (Discord RPC)
@@ -345,41 +325,6 @@ Abaixo encontram-se a **pesquisa de mercado**, as **24 sugestões ativas em aber
 
 ---
 
-#### 4.9 Login Próprio com Conta Google (Webview Isolada / In-App Session)
-* **Status:** `[Implementado e Validado]` ✅
-* **Impacto:** `[Muito Alto para Adoção]` | **Esforço:** `[Médio]`
-* **Origem:** Preparação do TetPlayer para lançamento público e empacotamento universal, eliminando a dependência de cookies de navegadores externos.
-* **Problema Resolvido:**
-  - O método atual raspa cookies de navegadores instalados no Windows (Chrome/Edge/Brave). Embora prático, isso aciona alertas de segurança/falsos positivos em antivírus, falha caso o usuário utilize navegadores não-Chromium ou modo anônimo, e é vulnerável a mitigações do sistema operacional como o *App-Bound Encryption* do Chrome 127+.
-* **Solução Técnica (Padrão da Indústria):**
-  - **Janela Webview Dedicada:** Ao clicar em *"Conectar Conta Google"* nas configurações ou tela inicial, o Tauri instancia uma janela Webview isolada (`tauri::WebviewWindowBuilder`) carregando `https://accounts.google.com`.
-  - **Fluxo Seguro e Oficial:** O usuário interage diretamente com a interface oficial do Google, com suporte pleno a 2FA, autenticação por chave física (FIDO/Passkey) e gerenciadores de senha.
-  - **Interceptação Limpa de Sessão:** Ao detectar o redirecionamento final com sucesso para `https://music.youtube.com`, o Tauri intercepta os cabeçalhos de cookies da própria janela embutida, extrai `SAPISID`, `SSID` e cookies essenciais, e armazena com segurança criptografada no banco local do app.
-  - **Experiência Plug-and-Play:** Qualquer usuário em qualquer máquina (Windows, Linux, macOS) consegue fazer login em segundos, sem necessidade de ter navegadores específicos instalados ou sincronizados.
-
----
-
-#### 4.10 Sistema Completo de Auto-Update In-App (Busca Manual nas Configurações, Download em 1 Clique e CI/CD via GitHub Actions)
-* **Status:** `[Implementado e Validado]` ✅
-* **Impacto:** `[Alto / Retenção e UX]` | **Esforço:** `[Médio]`
-* **Origem:** O app já possui checagem de versão ao inicializar via [`updater.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/updater.ts), porém o usuário precisa abrir o navegador manualmente para baixar o novo executável e não há botão de checagem manual nas Configurações.
-* **Arquitetura Técnica Proposta:**
-  - **Checagem Manual nas Configurações (`SettingsModal`):**
-    - Na aba *"Sobre"*, adicionar botão *"Verificar Atualizações Agora"* com estados reativos:
-      - 🔄 *Verificando atualizações no GitHub...*
-      - ✅ *Você está usando a versão mais recente (v1.0.0)*
-      - 🚀 *Nova versão vX.X.X disponível! [Atualizar Agora]*
-  - **Fluxo de CI/CD via GitHub Actions (Vinculado à branch `main`):**
-    - Criação do workflow `.github/workflows/release.yml`.
-    - A cada push na branch `main` com bump de versão (ou criação de tag de release), os runners do GitHub compilam automaticamente o instalador do Windows (`TetPlayer-setup.exe` / `.msi`), geram as assinaturas digitais e publicam o manifesto `latest.json`.
-    - Permite que qualquer atualização mergeada na branch `main` chegue compilada e pronta para instalação em segundos para o usuário final, sem exigir ferramentas de build no computador do usuário.
-  - **Download e Instalação In-App com Tauri Updater (`@tauri-apps/plugin-updater`):**
-    - O app consome o endpoint `latest.json` do repositório oficial.
-    - Ao confirmar no [`UpdateModal.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/UpdateModal/UpdateModal.tsx) ou nas Configurações, o plugin faz o download do pacote com barra de progresso visual (0% a 100%).
-    - Ao concluir, substitui os binários locais com integridade verificada e aciona `relaunch()` para reiniciar o TetPlayer instantaneamente na nova versão, sem exigir que o usuário baixe instaladores ou saia do aplicativo.
-
----
-
 ## 📊 Matriz de Priorização e Roadmap Geral
 
 ```
@@ -428,9 +373,11 @@ Abaixo encontram-se a **pesquisa de mercado**, as **24 sugestões ativas em aber
   [x] Histórico de faixas tocadas "Músicas que Já Passaram" (Eixo 4.5)
   [x] Sincronização determinística do ciclo de vida da gaveta e toggle reativo
   [x] Unificação e simplificação da interface do drawer (fim de setas duplicadas)
+  [x] Armazenamento unificado na pasta de instalação com migração automática (%LOCALAPPDATA% -> data/)
+  [x] Fechamento automático da gaveta de reprodução ao navegar na barra lateral
   [x] Fechamento e Unificação de Release v1.0.0 Oficial (Desktop README + Tauri)
 
-  FASE 4A: ESSENCIAIS DA PESQUISA (v1.1) 🎯
+  FASE 4A: ESSENCIAIS DA PESQUISA (v1.4) 🎯
   ────────────────────────────────────────────────────────────────────────
   [ ] Busca e ordenação dentro de playlists (2.2)
   [ ] Curtir / descurtir sincronizado com o YouTube Music (2.3)
@@ -441,8 +388,9 @@ Abaixo encontram-se a **pesquisa de mercado**, as **24 sugestões ativas em aber
   [ ] Sleep Timer com fade-out gradual (2.1)
   [ ] Normalização real de volume via loudnessDb (parte de 4.2)
 
-  FASE 4B: ALTO VALOR & INTEGRAÇÕES (v1.2) 🔗
+  FASE 4B: ALTO VALOR & INTEGRAÇÕES (v1.5) 🔗
   ────────────────────────────────────────────────────────────────────────
+  [x] Animação fluida na troca de letras (3.3)
   [ ] Discord Rich Presence (4.1)
   [ ] Bloquear faixas e artistas da rádio (2.7)
   [ ] Feed de lançamentos e biblioteca expandida (2.10)
@@ -451,9 +399,8 @@ Abaixo encontram-se a **pesquisa de mercado**, as **24 sugestões ativas em aber
   [ ] Notificações nativas de troca de faixa (2.6)
   [ ] Navegação Voltar / Avançar (2.8)
   [ ] Volume pela roda do mouse (2.9)
-  [ ] Animação fluida na troca de letras (3.3)
 
-  FASE 4C: DIFERENCIAIS & APOSTAS TÉCNICAS (v1.3+) 🔮
+  FASE 4C: DIFERENCIAIS & APOSTAS TÉCNICAS (v1.6+) 🔮
   ────────────────────────────────────────────────────────────────────────
   [ ] Modo Tela Cheia Imersivo com Karaokê (3.1)
   [ ] Letras palavra por palavra (3.2)
@@ -466,7 +413,7 @@ Abaixo encontram-se a **pesquisa de mercado**, as **24 sugestões ativas em aber
 
 ---
 
-## ✅ HISTÓRICO CONSOLIDADO: 41 Sugestões e Otimizações Concluídas
+## ✅ HISTÓRICO CONSOLIDADO: 46 Sugestões e Otimizações Concluídas
 
 > [!NOTE]
 > Todos os itens abaixo foram concebidos como sugestões estratégicas e foram **integralmente implementados, compilados e validados** no código do TetPlayer Desktop. Eles formam a memória técnica e evolutiva do produto.
@@ -844,11 +791,63 @@ Abaixo encontram-se a **pesquisa de mercado**, as **24 sugestões ativas em aber
 
 ---
 
-## 📌 Conclusão & Próximos Passos (TetPlayer v1.0.0+ Concluído)
+### 42. Animação Cinematográfica e Scroll Fluido na Troca de Letras (Smooth Kinetic Seek & Spring Easing)
+* **Status:** `[Implementado e Validado]` ✅
+* **Localização:** [`desktop/src/hooks/useLyrics.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useLyrics.ts) e [`desktop/src/components/LyricsView/LyricsView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/LyricsView/LyricsView.tsx).
+* **Implementação Concluída:**
+  - Implementada interpolação cinética de rolagem de alta precisão via `requestAnimationFrame` com curva de aceleração e amortecimento suave (*ease-out cubic / exponential spring damping* estilo Apple Music), calculando a distância relativa entre o ponto atual de rolagem e a linha de destino.
+  - Eliminação de teletransportes rígidos e saltos secos ao avançar faixas ou clicar diretamente em estrofes distantes da letra.
+  - Transição de foco na tipografia com escala e opacidade harmonizadas (`scale(1.05)` com realce luminoso suave na linha ativa e esmaecimento fluido na linha anterior).
 
-Com a consolidação dos itens **38 (Crossfade Suave entre Faixas)**, **39 (Histórico de Músicas Anteriores no QueueView)**, **40 (Correção Determinística de Estado da Gaveta)** e **41 (Unificação de Controles e Topo Limpo do Drawer)**, o TetPlayer atinge a marca de **41 melhorias arquiteturais, funcionais e estéticas** validadas e testadas com excelência.
+---
 
-A versão **1.0.0** está estável. Para a milestone **v1.1+**, são **22 sugestões em aberto**, priorizadas na matriz acima:
-- **Fase 4A (essenciais):** busca em playlists, curtir/descurtir, gerenciar playlists, restaurar sessão, sleep timer e normalização real de volume. São as lacunas mais citadas pelos usuários e todas têm esforço baixo a médio.
-- **Fase 4B (integrações):** Discord, Last.fm, SponsorBlock, bloqueio de faixas, lançamentos e melhorias de navegação.
-- **Fase 4C (apostas):** karaokê imersivo, controle remoto, importação de playlists e o motor de áudio nativo, que é a chave para equalizador e crossfade com sobreposição.
+### 43. Login Próprio com Conta Google via Webview Embutida Isolada
+* **Status:** `[Implementado e Validado]` ✅
+* **Localização:** [`desktop/src-tauri/src/auth.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/auth.rs), [`desktop/src-tauri/src/lib.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/lib.rs), [`desktop/src/components/Sidebar/Sidebar.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Sidebar/Sidebar.tsx) e [`desktop/src/components/SettingsModal/SettingsModal.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/SettingsModal/SettingsModal.tsx).
+* **Implementação Concluída:**
+  - Instanciação de janela Webview isolada nativa do Tauri (`tauri::WebviewWindowBuilder`) carregando diretamente a interface oficial de autenticação do Google (`accounts.google.com`), com suporte nativo a autenticação em duas etapas (2FA), passkeys FIDO e gerenciadores de senha.
+  - Interceptação automática e segura dos cookies de sessão essenciais do YouTube Music (`SAPISID`, `SSID`) ao concluir o redirecionamento para `music.youtube.com`.
+  - Persistência criptografada no banco SQLite local, tornando o aplicativo 100% plug-and-play e universal, sem depender de extração frágil de cookies de navegadores externos instalados no Windows.
+
+---
+
+### 44. Sistema Completo de Auto-Update Silencioso In-App via Tauri v2 e CI/CD no GitHub Actions
+* **Status:** `[Implementado e Validado]` ✅
+* **Localização:** [`desktop/src/services/updater.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/updater.ts), [`desktop/src/components/UpdateModal/UpdateModal.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/UpdateModal/UpdateModal.tsx), [`desktop/src/components/SettingsModal/SettingsModal.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/SettingsModal/SettingsModal.tsx), [`desktop/src-tauri/tauri.conf.json`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/tauri.conf.json) e [`.github/workflows/release.yml`](file:///d:/progrmação/programas/TetPlayer/.github/workflows/release.yml).
+* **Implementação Concluída:**
+  - Integração oficial com `@tauri-apps/plugin-updater` e `@tauri-apps/plugin-process` para download, verificação de integridade e reinício automático silencioso (`relaunch()`).
+  - Segurança criptográfica com assinaturas digitais Minisign geradas no pipeline do GitHub Actions e validadas nativamente pelo Tauri v2 com o manifesto `latest.json`.
+  - Botão de checagem manual interativo com status em tempo real na aba "Sobre" do `SettingsModal`, além do modal automático de notificação de novas versões na tela principal.
+  - O usuário não precisa abrir o navegador nem baixar executáveis avulsos: todo o ciclo de atualização ocorre dentro do próprio TetPlayer.
+
+---
+
+### 45. Armazenamento Unificado e Isolado de Dados e Músicas na Pasta de Instalação (`data/tetstats.db` e `data/music/`)
+* **Status:** `[Implementado e Validado]` ✅
+* **Localização:** [`desktop/src-tauri/src/stats.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/stats.rs), [`desktop/src-tauri/src/lib.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/lib.rs), [`desktop/src-tauri/tauri.conf.json`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/tauri.conf.json) e [`desktop/src/components/SettingsModal/SettingsModal.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/SettingsModal/SettingsModal.tsx).
+* **Implementação Concluída:**
+  - Todos os dados gerados pelo TetPlayer (banco SQLite `tetstats.db`, cache compactado e pasta de músicas offline `music/`) foram centralizados na subpasta `data/` dentro do diretório de instalação do aplicativo.
+  - Migração transparente automática: caso exista um banco legado em `%LOCALAPPDATA%`, o sistema o move para o novo local na primeira inicialização, garantindo retenção de 100% dos dados.
+  - Habilitada seleção de pasta de instalação personalizada no instalador NSIS (`installMode: both`), permitindo instalar em discos e partições secundárias.
+  - Adicionado atalho nativo "Abrir Pasta de Dados" com inspeção do caminho real nas Configurações.
+
+---
+
+### 46. Fechamento Automático da Gaveta de Reprodução ao Navegar na Barra Lateral (Sidebar)
+* **Status:** `[Implementado e Validado]` ✅
+* **Localização:** [`desktop/src/App.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/App.tsx), [`desktop/src/components/Sidebar/Sidebar.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Sidebar/Sidebar.tsx) e [`desktop/src/components/__tests__/Sidebar.test.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/__tests__/Sidebar.test.tsx).
+* **Implementação Concluída:**
+  - Integrada a chamada `closeNowPlaying()` nos manipuladores de clique da barra de navegação superior esquerda ("Biblioteca", "Buscar", "Estatísticas") e na seleção de playlists.
+  - Ao alternar de seção, a gaveta expandida de reprodução e letras é imediatamente recolhida, revelando a tela de conteúdo solicitada em segundo plano sem exigir ação manual de minimizar do usuário.
+
+---
+
+## 📌 Conclusão & Próximos Passos (TetPlayer v1.3.3+ Concluído)
+
+Com a consolidação dos itens **42 (Animação Fluida na Troca de Letras)**, **43 (Login Google via Webview Isolada)**, **44 (Auto-Update Silencioso In-App via Tauri v2)**, **45 (Armazenamento Unificado na Pasta de Instalação)** e **46 (Fechamento da Gaveta na Navegação Lateral)**, o TetPlayer atinge a marca de **46 melhorias arquiteturais, funcionais e estéticas** totalmente validadas.
+
+A versão **1.3.3** está estável e com o ecossistema de atualização silenciosa 100% funcional. A partir deste ponto, o desenvolvimento continua **exclusivamente na branch `develop`**. As prioridades imediatas para a milestone **v1.4.0** são:
+1. **2.2 Busca e Ordenação Dentro de Playlists:** Campo de filtro instantâneo por título/artista/álbum e ordenação no topo de playlists longas.
+2. **2.3 Curtir / Descurtir Sincronizado com o YouTube Music:** Botão de coração no PlayerBar, Mini Player e menu de contexto integrado aos endpoints InnerTube.
+3. **2.5 Restaurar a Sessão ao Reabrir o App:** Recuperar a última fila, faixa e posição pausada a partir do SQLite local.
+4. **2.1 Sleep Timer:** Temporizador de suspensão programável com fade-out suave de volume de 20 segundos.
