@@ -1,10 +1,10 @@
 # Relatório de Auditoria e Code Review Técnico — TetPlayer Desktop
 
-> **Data da Auditoria:** 27 de Outubro de 2026  
+> **Data da Auditoria:** 28 de Outubro de 2026  
 > **Avaliador:** Agente Especialista em Code Review, Análise Estática e UX/UI Inspection (`reviewer`)  
-> **Status Geral da Aplicação:** 🟢 **Build, Compilação e Testes 100% Verificados (TypeScript + Rust `cargo test` & `vite build` com Zero Erros, 58 testes Vitest + 11 testes Rust passando = 69 testes)**.  
+> **Status Geral da Aplicação:** 🟡 **Auditoria Profunda Concluída — 7 Apontamentos Catalogados para Aprimoramento da Branch `develop` (1 Crítico, 4 Avisos Técnicos, 2 Sugestões de UX/Refatoração)**.  
 > **Status Comparativo:**  
-> - 📌 **0 Apontamentos Pendentes** (100% dos 72 itens catalogados foram corrigidos, validados e cobertos por testes)  
+> - 📌 **7 Apontamentos Ativos Catalogados** (Mapeados para prevenção de falhas de rede, memory leaks e gargalos de renderização)  
 > - ✅ **72 Itens Integralmente Resolvidos e Validados** (Histórico técnico preservado na íntegra na seção inferior)  
 
 ---
@@ -17,9 +17,157 @@
 ├────┬───────────────────────────────────┬───────────────┬────────────────────────────────────────────────────────┤
 │ #  │ Categoria                         │ Severidade    │ Status / Descrição                                     │
 ├────┼───────────────────────────────────┼───────────────┼────────────────────────────────────────────────────────┤
-│ -- │ Nenhuma pendência ativa           │ [Resolvido]   │ Todos os 72 apontamentos técnicos foram solucionados   │
+│ 73 │ Backend Rust / HTTP Client        │ [Crítico]     │ `reqwest::Client::new()` em loop sem pool nem timeout  │
+│ 74 │ UX / TimelineScrubber             │ [Aviso]       │ Congelamento de arrasto por falta de pointer capture   │
+│ 75 │ Performance / Virtual List        │ [Aviso]       │ Descompasso de `scrollMargin` na lista virtualizada    │
+│ 76 │ Reatividade / React Context       │ [Aviso]       │ Subscrição ao `PlayerContext` quebra memo de TrackRow  │
+│ 77 │ Animação / useLyrics              │ [Aviso]       │ Falso salto cinético e debounce indevido entre faixas  │
+│ 78 │ UX / Acessibilidade (a11y)        │ [Sugestão]    │ Interceptação agressiva de `Ctrl+F` com modais abertos │
+│ 79 │ Ciclo de Vida / MediaSession      │ [Sugestão]    │ Ausência de cleanup nos action handlers do Windows SMTC│
 └────┴───────────────────────────────────┴───────────────┴────────────────────────────────────────────────────────┘
 ```
+
+---
+
+### 73. Recriação Concorrente de `reqwest::Client::new()` sem Timeout e sem Reúso de Pool de Conexões HTTP/2
+* **Severidade:** `[Crítico]` (Risco de congelamento eterno de IPC, exaustão de sockets TCP e alta latência)
+* **Localização:** [`desktop/src-tauri/src/ytm.rs:105, 152, 203, 295, 394, 496, 960, 1095`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/ytm.rs#L105)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  Em todas as chamadas do backend Rust (`search_music`, `get_stream_info`, `get_playlist_tracks`, `get_radio_tracks`, `get_home_recommendations`, etc.), o código executa incondicionalmente `let client = reqwest::Client::new();` a cada comando assíncrono.
+  1. **Ausência Total de Timeout:** O cliente padrão do `reqwest` possui timeout indefinido (`None`). Caso a conexão com a CDN do YouTube oscile ou o endpoint `/player` demore a responder, a requisição assíncrona trava a thread do Tokio indefinidamente. No frontend, o Tauri `invoke("get_stream_info")` nunca retorna nem lança erro, prendendo a faixa no estado perpétuo de carregamento (`loadingTrackId`) e bloqueando o fallback resiliente para o IFrame.
+  2. **Destruição do Pool de Conexões e Multiplexação HTTP/2:** O `reqwest::Client` foi concebido para ser instanciado uma única vez e compartilhado (via `Arc`). Recriá-lo em toda requisição impede o reaproveitamento de sockets TCP (keep-alive), forçando uma nova negociação de handshake TLS 1.3 a cada clique em faixa ou letra, adicionando de 150ms a 350ms de latência pura em cada operação.
+  3. **Exaustão de Portas Efêmeras:** Durante a paginação contínua de playlists com 500+ faixas ou skips rápidos, dezenas de conexões TCP abertas e descartadas entram em estado `TIME_WAIT` no Windows, sobrecarregando o subsistema de rede.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  Definir uma instância estática e global única de `reqwest::Client` utilizando `std::sync::LazyLock` (nativo do Rust 1.80+) ou `once_cell::sync::Lazy`, configurando explicitamente timeout geral de 15 segundos e timeout de conexão de 6 segundos, reaproveitando as conexões TCP/TLS:
+  ```rust
+  use std::sync::LazyLock;
+  use std::time::Duration;
+
+  static HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
+      reqwest::Client::builder()
+          .timeout(Duration::from_secs(15))
+          .connect_timeout(Duration::from_secs(6))
+          .tcp_keepalive(Some(Duration::from_secs(30)))
+          .pool_max_idle_per_host(8)
+          .build()
+          .expect("Falha ao inicializar HTTP client global do TetPlayer")
+  });
+  ```
+
+---
+
+### 74. Congelamento do Scrubber da Linha do Tempo ao Soltar o Botão do Mouse Fora do Input
+* **Severidade:** `[Aviso]` (Falha de UX e descompasso visual no controle de tempo de reprodução)
+* **Localização:** [`desktop/src/components/Player/TimelineScrubber.tsx:50-56, 71-74`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Player/TimelineScrubber.tsx#L50-L56)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  O componente `TimelineScrubber` utiliza eventos `onPointerDown`, `onPointerUp` e `onPointerCancel` vinculados diretamente ao elemento `<input type="range">`.
+  Durante a interação em telas desktop, o usuário costumeiramente clica na barra de progresso (com apenas 4px de altura) e arrasta horizontalmente. Durante esse movimento, é extremamente comum o cursor do mouse se deslocar verticalmente para fora dos limites geométricos estreitos do `<input>`.
+  Quando o botão do mouse é solto fora do elemento, o navegador **não despacha** o evento `pointerup` para o `<input>` a menos que a captura de ponteiro esteja ativa. Como resultado:
+  1. A flag `isDraggingRef.current` permanece travada em `true`.
+  2. O estado `isDragging` não é desativado, fazendo com que `displayTime` continue exibindo permanentemente o valor estático do arrasto (`dragValue`).
+  3. A música continua tocando em segundo plano, mas o relógio e a barra visual ficam completamente paralisados até que o usuário clique novamente dentro da área do input.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  Implementar captura de ponteiro (Pointer Capture) com `setPointerCapture` e `releasePointerCapture` nos manipuladores de evento, similar à implementação adotada com sucesso no `Sidebar.tsx`:
+  ```tsx
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLInputElement>) => {
+    isDraggingRef.current = true;
+    dragValueRef.current = currentTime;
+    setIsDragging(true);
+    setDragValue(currentTime);
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // fallback
+    }
+  }, [currentTime]);
+
+  const handlePointerUp = useCallback((e: React.PointerEvent<HTMLInputElement>) => {
+    if (isDraggingRef.current) {
+      isDraggingRef.current = false;
+      setIsDragging(false);
+      onSeek(dragValueRef.current);
+    }
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      // fallback
+    }
+  }, [onSeek]);
+  ```
+
+---
+
+### 75. Descompasso de `scrollMargin` na Lista Virtualizada ao Redimensionar Janela ou Carregar Metadados
+* **Severidade:** `[Aviso]` (Gargalo visual com linhas em branco ou cortes prematuros na virtualização de playlists)
+* **Localização:** [`desktop/src/components/MainView/VirtualizedTrackList.tsx:76-80`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/VirtualizedTrackList.tsx#L76-L80)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  Em `VirtualContainer`, o cálculo da margem de rolagem (`scrollMargin`) utiliza `useLayoutEffect` com array de dependências vazio `[]`:
+  `setScrollMargin(containerRef.current.offsetTop);`
+  Esse valor é obtido apenas no exato milissegundo em que o componente é montado. No entanto, o contêiner virtualizado fica posicionado logo abaixo do cabeçalho da playlist (`PlaylistDetailView`), cuja altura sofre variações drásticas:
+  1. Carregamento assíncrono da capa do álbum em alta resolução.
+  2. Abertura do input de busca e filtros (`Ctrl+F`).
+  3. Redimensionamento responsivo da janela (que altera a quebra de linha do título da playlist de 1 para 2 ou 3 linhas).
+  Quando a altura do cabeçalho muda, o `offsetTop` real do container se desloca, mas `scrollMargin` permanece fixado no valor inicial defasado. Como o `@tanstack/react-virtual` necessita dessa medida precisa para calcular quais elementos devem ser montados no viewport, a lista apresenta saltos de rolagem, recortes prematuros de faixas ou grandes espaços vazios no topo da playlist.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  Vincular o recálculo de `scrollMargin` às alterações geométricas do container através de um `ResizeObserver` ou escuta de redimensionamento de janela, garantindo sincronia contínua da geometria virtual.
+
+---
+
+### 76. Subscrição Indevida ao Contexto Global em `TrackRow` e Quebra da Memoização da Lista
+* **Severidade:** `[Aviso]` (Re-renderização em lote de centenas de componentes a cada interação na UI)
+* **Localização:** [`desktop/src/components/MainView/TrackRow.tsx:28`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/TrackRow.tsx#L28)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  O componente `TrackRow` foi encapsulado com `React.memo` para proteger a performance de renderização de listas extensas. Contudo, na linha 28, o componente consome diretamente o contexto global:
+  `const { openContextMenu } = usePlayer();`
+  No React, componentes que chamam `useContext(Context)` são re-renderizados incondicionalmente sempre que o valor do contexto sofre mutação — ignorando a barreira do `React.memo`.
+  Sempre que a gaveta de reprodução abre/fecha (`isNowPlayingOpen`), uma aba muda, o volume é ajustado ou o erro muda, **todas as 40 a 100 linhas visíveis de músicas são reprocessadas pelo Virtual DOM**, gerando descartes contínuos de memória e micro-engasgos em CPUs de menor potência.
+  Curiosamente, a prop `onContextMenu?: (e: React.MouseEvent, track: Track) => void;` já está declarada na interface `TrackRowProps`, tornando a dependência direta do contexto totalmente desnecessária.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  Eliminar o hook `usePlayer()` de dentro de `TrackRow`. A função de abertura do menu de contexto deve ser fornecida pelo pai (`PlaylistDetailView` / `SearchView`) via prop memoizada com `useCallback`, preservando a pureza de `React.memo(TrackRow)`.
+
+---
+
+### 77. Falso Salto Cinético e Debounce Indevido no Início de Novas Faixas no `useLyrics`
+* **Severidade:** `[Aviso]` (Atraso de 90ms e perda da fluidez de scroll no início de reprodução)
+* **Localização:** [`desktop/src/hooks/useLyrics.ts:325-348`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useLyrics.ts#L325-L348)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  O hook `useLyrics` possui um mecanismo para diferenciar progressão contínua de estrofes de saltos manuais de tempo (*seek jumps*):
+  `const isSeekJump = prevIndex !== -1 && Math.abs(activeLyricIndex - prevIndex) > 1;`
+  Quando uma música termina e a próxima faixa inicia, `activeLyricIndex` transita do índice da última estrofe da música anterior (ex: índice 40) para a primeira estrofe da nova faixa (`0`).
+  No entanto, o efeito de troca de faixa (`[currentTrack?.id]`) não redefine `lastActiveIndexRef.current` para `-1`. Por consequência, a expressão calcula `|0 - 40| = 40 > 1` e classifica erroneamente a entrada da nova música como um "Seek Jump manual violento".
+  Isso ativa desnecessariamente o temporizador de debounce de 90ms (`seekDebounceTimerRef`), postergando o alinhamento da primeira linha de letra da música e introduzindo uma sensação visual de hesitação/atraso na abertura da gaveta.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  No efeito de alteração de faixa (`[currentTrack?.id]`), resetar explicitamente `lastActiveIndexRef.current = -1` e limpar qualquer timeout pendente em `seekDebounceTimerRef.current`.
+
+---
+
+### 78. Interceptação Global Agressiva do Atalho `Ctrl+F` em `PlaylistDetailView` com Modais Abertos
+* **Severidade:** `[Sugestão]` (Acessibilidade, foco indevido e colisão de eventos de teclado)
+* **Localização:** [`desktop/src/components/MainView/PlaylistDetailView.tsx:75-85`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/PlaylistDetailView.tsx#L75-L85)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  O componente `PlaylistDetailView` anexa um ouvinte de teclado global no objeto `window`:
+  ```tsx
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
+    e.preventDefault();
+    filterInputRef.current?.focus();
+    filterInputRef.current?.select();
+  }
+  ```
+  Se o usuário estiver navegando com um modal em primeiro plano (ex: `SettingsModal` ou `UpdateModal`) e pressionar `Ctrl+F`, o evento é interceptado incondicionalmente, impedindo ações nativas e forçando o foco para o campo de input em segundo plano, violando as diretrizes WAI-ARIA de foco modal.
+  Além disso, quando a gaveta de reprodução (`NowPlayingDrawer`) está expandida, a tag `<main>` recebe o atributo `inert`. Tentar focar um elemento dentro de um contêiner `inert` gera inconsistências de foco no WebView.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  Inserir verificação defensiva checando se há modais abertos no DOM (`document.querySelector('[role="dialog"]')`) ou se a área principal está sob o atributo `inert` antes de acionar `e.preventDefault()`.
+
+---
+
+### 79. Ausência de Limpeza (Cleanup) de Action Handlers no `useMediaSession` ao Desmontar
+* **Severidade:** `[Sugestão]` (Prevenção de vazamento de referências e callbacks órfãos no SMTC)
+* **Localização:** [`desktop/src/hooks/useMediaSession.ts:68-88`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useMediaSession.ts#L68-L88)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  O hook `useMediaSession` registra diversos manipuladores no `navigator.mediaSession` (`setActionHandler("play")`, `setActionHandler("pause")`, etc.). No entanto, o `useEffect` correspondente não define uma função de retorno de desmonte (*cleanup function*).
+  Caso o componente ou provedor seja remontado ou o usuário desative a integração, os callbacks permanecem vinculados ao subsistema do sistema operacional apontando para referências em memória de ciclos passados.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  Retornar uma função de limpeza no efeito atribuindo `null` a todas as ações registradas no `navigator.mediaSession`.
 
 ---
 
