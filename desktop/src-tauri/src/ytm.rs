@@ -1,5 +1,5 @@
 use crate::auth::{generate_sapisid_hash, AuthSession};
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE, COOKIE, ORIGIN, REFERER, USER_AGENT};
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue, AUTHORIZATION, CONTENT_TYPE, COOKIE, ORIGIN, REFERER, USER_AGENT};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::LazyLock;
@@ -95,6 +95,10 @@ fn build_headers(session: &AuthSession, client_name: &str) -> HeaderMap {
         HeaderValue::from_static("https://music.youtube.com"),
     );
     headers.insert(
+        HeaderName::from_static("x-origin"),
+        HeaderValue::from_static("https://music.youtube.com"),
+    );
+    headers.insert(
         REFERER,
         HeaderValue::from_static("https://music.youtube.com/"),
     );
@@ -107,6 +111,11 @@ fn build_headers(session: &AuthSession, client_name: &str) -> HeaderMap {
     headers.insert(USER_AGENT, HeaderValue::from_str(user_agent).unwrap());
 
     if session.is_authenticated {
+        if let Some(auth_user) = &session.auth_user {
+            if let Ok(val) = HeaderValue::from_str(auth_user) {
+                headers.insert(HeaderName::from_static("x-goog-authuser"), val);
+            }
+        }
         if !session.cookie_header.is_empty() {
             // Filtro defensivo: descarta cookies não essenciais para evitar cabeçalhos > 8KB e HTTP 413
             let clean_cookie: String = session
@@ -147,7 +156,7 @@ fn build_headers(session: &AuthSession, client_name: &str) -> HeaderMap {
 }
 
 pub async fn search_music(session: &AuthSession, query: &str) -> Result<Vec<Track>, String> {
-    let client = reqwest::Client::new();
+    let client = &HTTP_CLIENT;
     let url = "https://music.youtube.com/youtubei/v1/search?prettyPrint=false";
     let headers = build_headers(session, "WEB_REMIX");
 
@@ -194,7 +203,7 @@ pub async fn search_music(session: &AuthSession, query: &str) -> Result<Vec<Trac
 }
 
 pub async fn get_home_recommendations(session: &AuthSession) -> Result<Vec<Track>, String> {
-    let client = reqwest::Client::new();
+    let client = &HTTP_CLIENT;
     let url = "https://music.youtube.com/youtubei/v1/browse?prettyPrint=false";
     let headers = build_headers(session, "WEB_REMIX");
 
@@ -245,7 +254,7 @@ pub async fn get_home_recommendations(session: &AuthSession) -> Result<Vec<Track
 }
 
 pub async fn get_user_playlists(session: &AuthSession) -> Result<Vec<Playlist>, String> {
-    let client = reqwest::Client::new();
+    let client = &HTTP_CLIENT;
     let url = "https://music.youtube.com/youtubei/v1/browse?prettyPrint=false";
     let headers = build_headers(session, "WEB_REMIX");
 
@@ -260,7 +269,7 @@ pub async fn get_user_playlists(session: &AuthSession) -> Result<Vec<Playlist>, 
         track_count: None,
     });
 
-    // 2. Busca na Biblioteca (FEmusic_liked_playlists) apenas as playlists criadas pelo usuário
+    // 2. Busca na Biblioteca do usuário (FEmusic_liked_playlists)
     let payload = json!({
         "context": {
             "client": {
@@ -277,6 +286,29 @@ pub async fn get_user_playlists(session: &AuthSession) -> Result<Vec<Playlist>, 
         if resp.status().is_success() {
             if let Ok(json_val) = resp.json::<Value>().await {
                 extract_user_playlists_from_value(&json_val, &mut playlists);
+            }
+        }
+    }
+
+    // 3. Fallback: Se após FEmusic_liked_playlists houver apenas VLLM, consulta a landing da biblioteca
+    if playlists.len() <= 1 && session.is_authenticated {
+        let landing_payload = json!({
+            "context": {
+                "client": {
+                    "clientName": "WEB_REMIX",
+                    "clientVersion": "1.20240401.01.00",
+                    "hl": "pt",
+                    "gl": "BR"
+                }
+            },
+            "browseId": "FEmusic_library_landing"
+        });
+
+        if let Ok(resp) = client.post(url).headers(headers.clone()).json(&landing_payload).send().await {
+            if resp.status().is_success() {
+                if let Ok(json_val) = resp.json::<Value>().await {
+                    extract_user_playlists_from_value(&json_val, &mut playlists);
+                }
             }
         }
     }
@@ -337,7 +369,7 @@ pub fn extract_continuation_token(val: &Value) -> Option<String> {
 }
 
 pub async fn get_playlist_tracks(session: &AuthSession, playlist_id: &str) -> Result<Vec<Track>, String> {
-    let client = reqwest::Client::new();
+    let client = &HTTP_CLIENT;
     let url = "https://music.youtube.com/youtubei/v1/browse?prettyPrint=false";
     let headers = build_headers(session, "WEB_REMIX");
 
@@ -436,7 +468,7 @@ pub async fn get_playlist_tracks(session: &AuthSession, playlist_id: &str) -> Re
 
 /// Obtém informações e stream direto de áudio nativo para reprodução de alta fidelidade sem stutter (Item 1.1)
 pub async fn get_stream_info(session: &AuthSession, video_id: &str) -> Result<Option<StreamInfo>, String> {
-    let client = reqwest::Client::new();
+    let client = &HTTP_CLIENT;
     let url = "https://music.youtube.com/youtubei/v1/player?prettyPrint=false";
     let headers = build_headers(session, "WEB_REMIX");
 
@@ -538,7 +570,7 @@ pub async fn get_stream_info(session: &AuthSession, video_id: &str) -> Result<Op
 }
 
 pub async fn get_radio_tracks(session: &AuthSession, video_id: &str) -> Result<Vec<Track>, String> {
-    let client = reqwest::Client::new();
+    let client = &HTTP_CLIENT;
     let url = "https://music.youtube.com/youtubei/v1/next?prettyPrint=false";
     let headers = build_headers(session, "WEB_REMIX");
 
@@ -634,6 +666,10 @@ fn extract_user_playlists_from_value(val: &Value, playlists: &mut Vec<Playlist>)
                 if let Some(pl) = parse_user_playlist_two_row(item) {
                     playlists.push(pl);
                 }
+            } else if let Some(item) = map.get("musicResponsiveListItemRenderer") {
+                if let Some(pl) = parse_user_playlist_responsive_item(item) {
+                    playlists.push(pl);
+                }
             }
 
             for v in map.values() {
@@ -659,21 +695,8 @@ fn parse_user_playlist_two_row(item: &Value) -> Option<Playlist> {
         return None;
     }
 
-    // Apenas IDs de playlist (VLPL... ou PL...)
-    if !browse_id.starts_with("VLPL") && !browse_id.starts_with("PL") {
-        return None;
-    }
-
-    // Filtro rigoroso: apenas playlists criadas pelo próprio usuário (contém deletePlaylistEndpoint ou musicPlaylistEditHeaderRenderer)
-    let raw_str = item.to_string();
-    let is_created_by_user = raw_str.contains("deletePlaylistEndpoint")
-        || raw_str.contains("musicPlaylistEditHeaderRenderer")
-        || raw_str.contains("Excluir playlist")
-        || raw_str.contains("Delete playlist")
-        || raw_str.contains("Editar playlist")
-        || raw_str.contains("Edit playlist");
-
-    if !is_created_by_user {
+    // Ignora canais/artistas (UC...), seções internas (FE...) ou álbuns canônicos (MPREb_)
+    if browse_id.starts_with("UC") || browse_id.starts_with("FE") || browse_id.starts_with("MPREb_") {
         return None;
     }
 
@@ -681,8 +704,14 @@ fn parse_user_playlist_two_row(item: &Value) -> Option<Playlist> {
         .as_array()
         .and_then(|r| r.first())
         .and_then(|t| t["text"].as_str())
+        .or_else(|| item["title"]["simpleText"].as_str())
         .unwrap_or("Playlist")
         .to_string();
+
+    let title_lower = title.to_lowercase();
+    if title_lower == "nova playlist" || title_lower == "new playlist" {
+        return None;
+    }
 
     let subtitle = item["subtitle"]["runs"]
         .as_array()
@@ -691,7 +720,75 @@ fn parse_user_playlist_two_row(item: &Value) -> Option<Playlist> {
                 .filter_map(|r| r["text"].as_str())
                 .collect::<Vec<_>>()
                 .join(" ")
-        });
+        })
+        .or_else(|| item["subtitle"]["simpleText"].as_str().map(|s| s.to_string()));
+
+    let artwork_url = extract_thumbnail_from_renderer(&item["thumbnailRenderer"])
+        .or_else(|| extract_thumbnail_from_renderer(&item["thumbnail"]));
+
+    Some(Playlist {
+        id: browse_id.to_string(),
+        title,
+        subtitle,
+        artwork_url,
+        track_count: None,
+    })
+}
+
+fn parse_user_playlist_responsive_item(item: &Value) -> Option<Playlist> {
+    let nav = &item["navigationEndpoint"];
+    let browse_id = nav["browseEndpoint"]["browseId"].as_str()
+        .or_else(|| nav["watchEndpoint"]["playlistId"].as_str())
+        .or_else(|| {
+            item["flexColumns"].as_array()?.iter().find_map(|c| {
+                c["musicResponsiveListItemFlexColumnRenderer"]["text"]["runs"]
+                    .as_array()?
+                    .iter()
+                    .find_map(|r| {
+                        let id = r["navigationEndpoint"]["browseEndpoint"]["browseId"].as_str()?;
+                        if id.starts_with("VL") || id.starts_with("PL") || id.starts_with("RD") {
+                            Some(id)
+                        } else {
+                            None
+                        }
+                    })
+            })
+        })?;
+
+    if browse_id.is_empty() || browse_id == "VLLM" || browse_id == "LM" || browse_id == "VLSE" {
+        return None;
+    }
+
+    if browse_id.starts_with("UC") || browse_id.starts_with("FE") || browse_id.starts_with("MPREb_") {
+        return None;
+    }
+
+    let flex = item["flexColumns"].as_array();
+    let title = flex
+        .and_then(|cols| cols.get(0))
+        .and_then(|c| c["musicResponsiveListItemFlexColumnRenderer"]["text"]["runs"].as_array())
+        .and_then(|runs| runs.first())
+        .and_then(|r| r["text"].as_str())
+        .or_else(|| item["title"]["runs"][0]["text"].as_str())
+        .or_else(|| item["title"]["simpleText"].as_str())
+        .unwrap_or("Playlist")
+        .to_string();
+
+    let title_lower = title.to_lowercase();
+    if title_lower == "nova playlist" || title_lower == "new playlist" {
+        return None;
+    }
+
+    let subtitle = flex
+        .and_then(|cols| cols.get(1))
+        .and_then(|c| c["musicResponsiveListItemFlexColumnRenderer"]["text"]["runs"].as_array())
+        .map(|runs| {
+            runs.iter()
+                .filter_map(|r| r["text"].as_str())
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+        .or_else(|| item["subtitle"]["simpleText"].as_str().map(|s| s.to_string()));
 
     let artwork_url = extract_thumbnail_from_renderer(&item["thumbnailRenderer"])
         .or_else(|| extract_thumbnail_from_renderer(&item["thumbnail"]));
@@ -1035,7 +1132,7 @@ pub async fn fetch_lyrics(
 }
 
 async fn fetch_ytm_lyrics(session: &AuthSession, video_id: &str) -> Result<Option<String>, String> {
-    let client = reqwest::Client::new();
+    let client = &HTTP_CLIENT;
     let url = "https://music.youtube.com/youtubei/v1/next?prettyPrint=false";
     let headers = build_headers(session, "WEB_REMIX");
 
@@ -1170,7 +1267,7 @@ pub async fn fetch_account_info(session: &AuthSession) -> (Option<String>, Optio
         return (None, None, None);
     }
 
-    let client = reqwest::Client::new();
+    let client = &HTTP_CLIENT;
     let url = "https://music.youtube.com/youtubei/v1/account/account_menu?prettyPrint=false";
     let headers = build_headers(session, "WEB_REMIX");
     let payload = json!({
