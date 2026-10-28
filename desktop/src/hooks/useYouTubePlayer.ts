@@ -58,6 +58,8 @@ export function useYouTubePlayer({
   const onTrackErrorRef = useRef(onTrackError);
   // Sentinela para evitar flooding de postMessage de volume a cada 80ms (Item #3)
   const lastAppliedVolumeRef = useRef<number>(-1);
+  // Sentinela para evitar flooding de automação no Web Audio a cada 80ms (Item 69)
+  const lastAppliedNativeVolumeRef = useRef<number>(-1);
 
   volumeRef.current = volume;
   isMutedRef.current = isMuted;
@@ -130,7 +132,10 @@ export function useYouTubePlayer({
           target = 0.85 + (target - 0.85) * 0.5;
         }
 
-        nativeAudioEngine.setVolume(target);
+        if (Math.abs(lastAppliedNativeVolumeRef.current - target) > 0.001) {
+          nativeAudioEngine.setVolume(target);
+          lastAppliedNativeVolumeRef.current = target;
+        }
       } else if (ytPlayerRef.current && isPlayerReady) {
         try {
           const state = ytPlayerRef.current.getPlayerState();
@@ -269,6 +274,8 @@ export function useYouTubePlayer({
   }
 
   function playIframeVideo(videoId: string, seekSec = 0) {
+    if (currentVideoIdRef.current !== videoId) return;
+
     if (ytPlayerRef.current && typeof ytPlayerRef.current.loadVideoById === "function") {
       if (isMutedRef.current) {
         ytPlayerRef.current.mute();
@@ -285,6 +292,8 @@ export function useYouTubePlayer({
       setLoadingTrackId(null);
     } else {
       setTimeout(() => {
+        if (currentVideoIdRef.current !== videoId) return;
+
         if (ytPlayerRef.current && typeof ytPlayerRef.current.loadVideoById === "function") {
           if (isMutedRef.current) {
             ytPlayerRef.current.mute();
@@ -311,6 +320,9 @@ export function useYouTubePlayer({
     // 1. Arquitetura Híbrida: tenta obter stream direto de áudio nativo (Item 1.1)
     try {
       const stream = await invoke<StreamInfo | null>("get_stream_info", { videoId });
+      // Prevenção de Race Condition (Item 68): descarta se o usuário já selecionou outra faixa
+      if (currentVideoIdRef.current !== videoId) return;
+
       if (stream && stream.stream_url) {
         activeEngineRef.current = "native";
 
@@ -332,13 +344,20 @@ export function useYouTubePlayer({
         }
 
         await nativeAudioEngine.play();
+        if (currentVideoIdRef.current !== videoId) {
+          nativeAudioEngine.stop();
+          return;
+        }
         setIsPlaying(true);
         setLoadingTrackId(null);
         return;
       }
     } catch (err) {
+      if (currentVideoIdRef.current !== videoId) return;
       console.warn("[Player] Stream direto nativo não disponível, utilizando IFrame fallback:", err);
     }
+
+    if (currentVideoIdRef.current !== videoId) return;
 
     // 2. Fallback Transparente para o IFrame Player do YouTube
     activeEngineRef.current = "iframe";

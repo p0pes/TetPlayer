@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, memo } from "react";
 import { SettingsService, VisualizerStyle } from "../../services/settings";
 
 interface SpectrumVisualizerProps {
@@ -9,7 +9,7 @@ interface SpectrumVisualizerProps {
   className?: string;
 }
 
-export function SpectrumVisualizer({
+export const SpectrumVisualizer = memo(function SpectrumVisualizer({
   isPlaying,
   barCount = 5,
   variant = "mini",
@@ -49,7 +49,13 @@ export function SpectrumVisualizer({
 
     let lastTime = performance.now();
     const updateSpectrum = (time: number) => {
-      if (time - lastTime >= 40) {
+      // Otimização (Item 72): suspende cálculos e re-renderização caso a janela esteja oculta/minimizada
+      if (typeof document !== "undefined" && document.hidden) {
+        animFrameRef.current = requestAnimationFrame(updateSpectrum);
+        return;
+      }
+
+      if (time - lastTime >= 50) {
         lastTime = time;
         setHeights(
           Array.from({ length: barCount }, (_, i) => {
@@ -406,4 +412,4 @@ export function SpectrumVisualizer({
       </div>
     </div>
   );
-}
+});

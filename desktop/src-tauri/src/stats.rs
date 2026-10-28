@@ -94,6 +94,14 @@ pub fn init_db() -> Result<Connection, String> {
         .map_err(|e| format!("Falha ao abrir banco de estatísticas ({:?}): {e}", path))?;
     let _ = conn.busy_timeout(std::time::Duration::from_secs(5));
 
+    // Modo WAL e pragmas de alta performance para concorrência desktop sem contenção de I/O (Item 71)
+    let _ = conn.execute_batch("
+        PRAGMA journal_mode = WAL;
+        PRAGMA synchronous = NORMAL;
+        PRAGMA temp_store = MEMORY;
+        PRAGMA cache_size = -8000;
+    ");
+
     conn.execute(
         "CREATE TABLE IF NOT EXISTS playback_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

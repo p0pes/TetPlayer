@@ -1,6 +1,73 @@
+import React, { useCallback } from "react";
 import { Sparkles, Mic2, Loader2 } from "lucide-react";
 import { usePlayer, usePlaybackProgress } from "../../context/PlayerContext";
 import { useLyrics } from "../../hooks/useLyrics";
+import { LyricLine } from "../../types";
+
+interface LyricLineRowProps {
+  line: LyricLine;
+  isActive: boolean;
+  distance: number;
+  isPast: boolean;
+  isFastScrolling: boolean;
+  activeLyricRef?: React.RefObject<HTMLDivElement | null>;
+  onClick: () => void;
+}
+
+// Componente memoizado para evitar re-renderização de todas as estrofes a cada 80ms (Item 70)
+const LyricLineRow = React.memo(
+  function LyricLineRow({
+    line,
+    isActive,
+    distance,
+    isPast,
+    isFastScrolling,
+    activeLyricRef,
+    onClick,
+  }: LyricLineRowProps) {
+    // Transição de Tipografia e Profundidade de Campo com Efeito Bounce (Item 3.3)
+    let depthStyle = "";
+    if (isActive) {
+      depthStyle =
+        "text-xl sm:text-2xl md:text-[1.85rem] lg:text-[2rem] font-extrabold text-white scale-[1.015] opacity-100 drop-shadow-[0_0_20px_var(--accent-glow)] [text-shadow:0_0_24px_rgba(255,255,255,0.7)] animate-lyric-bounce";
+    } else if (distance === 1) {
+      depthStyle = isPast
+        ? "text-base sm:text-lg md:text-xl font-semibold text-[#cbd5e1] opacity-70 scale-100 hover:text-white hover:opacity-100"
+        : "text-base sm:text-lg md:text-xl font-semibold text-[#e2e8f0] opacity-80 scale-100 hover:text-white hover:opacity-100";
+    } else if (distance <= 3) {
+      depthStyle = isPast
+        ? "text-sm sm:text-base md:text-lg font-medium text-[#64748b] opacity-40 scale-[0.99] hover:text-[#94a3b8] hover:opacity-80"
+        : "text-sm sm:text-base md:text-lg font-medium text-[#94a3b8] opacity-50 scale-[0.99] hover:text-white hover:opacity-85";
+    } else {
+      depthStyle = isPast
+        ? "text-xs sm:text-sm md:text-base font-medium text-[#475569] opacity-20 scale-[0.98] hover:text-[#64748b] hover:opacity-60"
+        : "text-xs sm:text-sm md:text-base font-medium text-[#475569] opacity-25 scale-[0.98] hover:text-[#94a3b8] hover:opacity-60";
+    }
+
+    const blurStyle = isFastScrolling && !isActive ? "blur-[1.5px]" : "blur-0";
+
+    return (
+      <div
+        data-lyric-time={line.time}
+        ref={isActive ? activeLyricRef : null}
+        onClick={onClick}
+        className={`py-2 px-4 rounded-xl cursor-pointer select-none will-change-transform max-w-full text-balance leading-relaxed transition-[transform,opacity,filter,color] duration-500 ease-[cubic-bezier(0.34,1.3,0.64,1)] ${depthStyle} ${blurStyle}`}
+      >
+        {line.text}
+      </div>
+    );
+  },
+  (prev, next) => {
+    return (
+      prev.isActive === next.isActive &&
+      prev.distance === next.distance &&
+      prev.isPast === next.isPast &&
+      prev.isFastScrolling === next.isFastScrolling &&
+      prev.line.time === next.line.time &&
+      prev.line.text === next.line.text
+    );
+  }
+);
 
 export function LyricsView() {
   const { currentTrack, isNowPlayingOpen, nowPlayingTab, showLyrics, handleSeekTo } = usePlayer();
@@ -26,6 +93,13 @@ export function LyricsView() {
     nowPlayingTab,
     showLyrics,
   });
+
+  const onLyricClick = useCallback(
+    (time: number) => {
+      handleLyricClick(time, handleSeekTo);
+    },
+    [handleLyricClick, handleSeekTo]
+  );
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative p-6">
@@ -74,37 +148,17 @@ export function LyricsView() {
               const distance = activeLyricIndex !== -1 ? Math.abs(idx - activeLyricIndex) : 999;
               const isPast = idx < activeLyricIndex;
 
-              // Transição de Tipografia e Profundidade de Campo com Efeito Bounce (Item 3.3)
-              let depthStyle = "";
-              if (isActive) {
-                depthStyle =
-                  "text-xl sm:text-2xl md:text-[1.85rem] lg:text-[2rem] font-extrabold text-white scale-[1.015] opacity-100 drop-shadow-[0_0_20px_var(--accent-glow)] [text-shadow:0_0_24px_rgba(255,255,255,0.7)] animate-lyric-bounce";
-              } else if (distance === 1) {
-                depthStyle = isPast
-                  ? "text-base sm:text-lg md:text-xl font-semibold text-[#cbd5e1] opacity-70 scale-100 hover:text-white hover:opacity-100"
-                  : "text-base sm:text-lg md:text-xl font-semibold text-[#e2e8f0] opacity-80 scale-100 hover:text-white hover:opacity-100";
-              } else if (distance <= 3) {
-                depthStyle = isPast
-                  ? "text-sm sm:text-base md:text-lg font-medium text-[#64748b] opacity-40 scale-[0.99] hover:text-[#94a3b8] hover:opacity-80"
-                  : "text-sm sm:text-base md:text-lg font-medium text-[#94a3b8] opacity-50 scale-[0.99] hover:text-white hover:opacity-85";
-              } else {
-                depthStyle = isPast
-                  ? "text-xs sm:text-sm md:text-base font-medium text-[#475569] opacity-20 scale-[0.98] hover:text-[#64748b] hover:opacity-60"
-                  : "text-xs sm:text-sm md:text-base font-medium text-[#475569] opacity-25 scale-[0.98] hover:text-[#94a3b8] hover:opacity-60";
-              }
-
-              const blurStyle = isFastScrolling && !isActive ? "blur-[1.5px]" : "blur-0";
-
               return (
-                <div
+                <LyricLineRow
                   key={`${line.time}-${idx}`}
-                  data-lyric-time={line.time}
-                  ref={isActive ? activeLyricRef : null}
-                  onClick={() => handleLyricClick(line.time, handleSeekTo)}
-                  className={`py-2 px-4 rounded-xl cursor-pointer select-none will-change-transform max-w-full text-balance leading-relaxed transition-[transform,opacity,filter,color] duration-500 ease-[cubic-bezier(0.34,1.3,0.64,1)] ${depthStyle} ${blurStyle}`}
-                >
-                  {line.text}
-                </div>
+                  line={line}
+                  isActive={isActive}
+                  distance={distance}
+                  isPast={isPast}
+                  isFastScrolling={isFastScrolling}
+                  activeLyricRef={isActive ? activeLyricRef : undefined}
+                  onClick={() => onLyricClick(line.time)}
+                />
               );
             })}
           </div>

@@ -25,6 +25,7 @@ export class AudioEngine {
   private gainNode: GainNode | null = null;
   private sourceNode: MediaElementAudioSourceNode | null = null;
   private isAudioCtxInitialized = false;
+  private lastAppliedVolume = -1;
 
   public onTimeUpdate: ((currentTime: number, duration: number) => void) | null = null;
   public onEnded: (() => void) | null = null;
@@ -156,9 +157,14 @@ export class AudioEngine {
 
   /**
    * Ajusta o volume linear (0.0 a 1.0) via GainNode ou HTMLAudioElement
+   * Contém sentinela de cache para evitar flooding de automação no Web Audio (Item 69)
    */
   public setVolume(vol: number) {
     const clamped = Math.max(0, Math.min(1, vol));
+    if (Math.abs(this.lastAppliedVolume - clamped) < 0.001) {
+      return;
+    }
+    this.lastAppliedVolume = clamped;
     if (this.gainNode && this.audioCtx) {
       try {
         this.gainNode.gain.setValueAtTime(clamped, this.audioCtx.currentTime);
