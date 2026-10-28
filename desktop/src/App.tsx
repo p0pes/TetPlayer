@@ -494,14 +494,11 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
             {/* Conteúdo com Scroll da Playlist, Busca ou TetStats */}
             <main
               ref={mainScrollRef as React.RefObject<HTMLDivElement>}
+              inert={isNowPlayingOpen && !isDrawerClosing ? true : undefined}
               onScroll={(e) => {
-                if (!isNowPlayingOpen && !showLyrics && !isDrawerClosing) {
-                  playlistScrollPosRef.current = e.currentTarget.scrollTop;
-                }
+                playlistScrollPosRef.current = e.currentTarget.scrollTop;
               }}
-              className={`flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar ${
-                isNowPlayingOpen || showLyrics ? "hidden" : "block"
-              }`}
+              className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar block"
             >
               {activeTab === "library" && (
                 <>

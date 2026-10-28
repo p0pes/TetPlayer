@@ -38,7 +38,7 @@ export function NowPlayingDrawer() {
 
   return (
     <div
-      className={`absolute inset-0 z-30 flex flex-col min-h-0 overflow-hidden bg-[#0b0c10]/95 backdrop-blur-2xl ${
+      className={`absolute inset-0 z-30 flex flex-col min-h-0 overflow-hidden bg-[#0b0c10] ${
         isDrawerClosing ? "animate-drawer-out pointer-events-none" : "animate-drawer-in"
       }`}
     >

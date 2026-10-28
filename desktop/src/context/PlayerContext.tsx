@@ -302,7 +302,7 @@ export function PlayerProvider({
       setShowLyrics(false);
       setIsDrawerClosing(false);
       closeDrawerTimeoutRef.current = null;
-    }, 300);
+    }, 200);
   }
 
   function toggleNowPlaying() {
