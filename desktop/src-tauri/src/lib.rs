@@ -11,8 +11,9 @@ use tauri::{Emitter, Manager, State};
 use ytm::{
     fetch_lyrics, get_home_recommendations, get_playlist_tracks as fetch_playlist_tracks,
     get_radio_tracks as fetch_radio_tracks, get_stream_info as fetch_stream_info,
-    get_user_playlists as fetch_user_playlists, search_music, LyricsData, Playlist, StreamInfo,
-    Track,
+    get_user_playlists as fetch_user_playlists, get_user_albums as fetch_user_albums,
+    get_album_details as fetch_album_details, search_album_by_name as fetch_search_album_by_name,
+    search_music, Album, AlbumDetail, LyricsData, Playlist, StreamInfo, Track,
 };
 
 pub struct AppState {
@@ -220,6 +221,30 @@ async fn get_playlist_tracks(
 ) -> Result<Vec<Track>, String> {
     let session = { state.session.lock().unwrap().clone() };
     fetch_playlist_tracks(&session, &playlist_id).await
+}
+
+#[tauri::command]
+async fn get_user_albums(state: State<'_, AppState>) -> Result<Vec<Album>, String> {
+    let session = { state.session.lock().unwrap().clone() };
+    fetch_user_albums(&session).await
+}
+
+#[tauri::command]
+async fn get_album_details(
+    state: State<'_, AppState>,
+    browse_id: String,
+) -> Result<AlbumDetail, String> {
+    let session = { state.session.lock().unwrap().clone() };
+    fetch_album_details(&session, &browse_id).await
+}
+
+#[tauri::command]
+async fn search_album_by_name(
+    state: State<'_, AppState>,
+    query: String,
+) -> Result<Option<Album>, String> {
+    let session = { state.session.lock().unwrap().clone() };
+    fetch_search_album_by_name(&session, &query).await
 }
 
 #[tauri::command]
@@ -790,6 +815,9 @@ pub fn run() {
             get_quick_tracks,
             get_user_playlists,
             get_playlist_tracks,
+            get_user_albums,
+            get_album_details,
+            search_album_by_name,
             get_radio_tracks,
             get_stream_info,
             get_track_lyrics,

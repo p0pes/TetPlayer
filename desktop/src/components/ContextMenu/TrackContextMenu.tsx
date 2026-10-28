@@ -7,6 +7,7 @@ import {
   Copy,
   Search,
   Check,
+  Disc3,
 } from "lucide-react";
 import { Track } from "../../types";
 import { usePlayer } from "../../context/PlayerContext";
@@ -122,6 +123,20 @@ export function TrackContextMenu({
     onClose();
   }
 
+  function onOpenAlbum() {
+    if (!track) return;
+    window.dispatchEvent(
+      new CustomEvent("tetplayer:open-album", {
+        detail: {
+          albumId: track.album_id,
+          albumTitle: track.album,
+          artist: track.artist,
+        },
+      })
+    );
+    onClose();
+  }
+
   return (
     <>
       <div
@@ -182,6 +197,19 @@ export function TrackContextMenu({
           <Radio className="w-4 h-4 text-[#8c91a4] group-hover:text-[var(--accent-text)] shrink-0 group-hover:scale-110 transition-transform" />
           <span>Iniciar Rádio desta música</span>
         </button>
+
+        {/* Opção 3.5: Ver Álbum Completo */}
+        {(track.album || track.album_id) && (
+          <button
+            type="button"
+            role="menuitem"
+            onClick={onOpenAlbum}
+            className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-[#c4c8d8] hover:text-white hover:bg-[var(--accent-subtle)] hover:border-[var(--accent-border)] border border-transparent transition-all cursor-pointer group text-left"
+          >
+            <Disc3 className="w-4 h-4 text-[var(--accent-text)] shrink-0 group-hover:scale-110 transition-transform" />
+            <span className="truncate">Ver Álbum {track.album ? `(${track.album})` : ""}</span>
+          </button>
+        )}
 
         <div className="h-px bg-[#212638] my-1" />
 

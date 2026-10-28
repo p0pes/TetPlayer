@@ -170,7 +170,21 @@ export function NowPlayingDrawer() {
               {currentTrack?.artist || "TetPlayer"}
             </p>
             {currentTrack?.album && (
-              <p className="text-xs text-[#8c91a4] mt-0.5 truncate font-medium">
+              <p
+                onClick={() => {
+                  window.dispatchEvent(
+                    new CustomEvent("tetplayer:open-album", {
+                      detail: {
+                        albumId: currentTrack.album_id,
+                        albumTitle: currentTrack.album,
+                        artist: currentTrack.artist,
+                      },
+                    })
+                  );
+                }}
+                title={`Ver álbum ${currentTrack.album}`}
+                className="text-xs text-[#8c91a4] hover:text-[var(--accent-text)] hover:underline mt-0.5 truncate font-medium cursor-pointer transition-colors"
+              >
                 {currentTrack.album}
               </p>
             )}

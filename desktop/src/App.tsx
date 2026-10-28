@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { AlertCircle, AlertTriangle } from "lucide-react";
-import { Playlist, Track, AuthSession, ActiveTab } from "./types";
+import { AlertCircle, AlertTriangle, ListMusic, Disc3 } from "lucide-react";
+import { Playlist, Track, AuthSession, ActiveTab, Album, AlbumDetail } from "./types";
 import { LocalCacheService } from "./services/cache";
 import { PlayerProvider, usePlayer } from "./context/PlayerContext";
 import { TitleBar } from "./components/TitleBar/TitleBar";
 import { Sidebar } from "./components/Sidebar/Sidebar";
 import { PlaylistGridView } from "./components/MainView/PlaylistGridView";
 import { PlaylistDetailView } from "./components/MainView/PlaylistDetailView";
+import { AlbumGridView } from "./components/MainView/AlbumGridView";
+import { AlbumDetailView } from "./components/MainView/AlbumDetailView";
 import { SearchView } from "./components/MainView/SearchView";
 import { StatsView } from "./components/StatsView/StatsView";
 import { PlayerBar } from "./components/Player/PlayerBar";
@@ -89,6 +91,7 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
 
   // Navegação: 'library', 'search' ou 'stats'
   const [activeTab, setActiveTab] = useState<ActiveTab>("library");
+  const [librarySection, setLibrarySection] = useState<"playlists" | "albums">("playlists");
 
   // Configurações & Aurora Glow (Aba de Configurações)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -131,6 +134,17 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
   selectedPlaylistRef.current = selectedPlaylist;
   const [playlistTracks, setPlaylistTracks] = useState<Track[]>([]);
   const [isLoadingPlaylistTracks, setIsLoadingPlaylistTracks] = useState(false);
+
+  // Álbuns & Biblioteca (com Cache Local Stale-While-Revalidate)
+  const [albums, setAlbums] = useState<Album[]>(() => {
+    return LocalCacheService.getCachedAlbums() || [];
+  });
+  const [isLoadingAlbums, setIsLoadingAlbums] = useState(false);
+  const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
+  const selectedAlbumRef = useRef<Album | null>(null);
+  selectedAlbumRef.current = selectedAlbum;
+  const [albumDetail, setAlbumDetail] = useState<AlbumDetail | null>(null);
+  const [isLoadingAlbumDetail, setIsLoadingAlbumDetail] = useState(false);
 
   // Busca
   const [searchQuery, setSearchQuery] = useState("");
@@ -184,10 +198,15 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
       if (cached && cached.length > 0) {
         setPlaylists((prev) => (prev.length === 0 ? cached : prev));
       }
+      const cachedAlbums = LocalCacheService.getCachedAlbums();
+      if (cachedAlbums && cachedAlbums.length > 0) {
+        setAlbums((prev) => (prev.length === 0 ? cachedAlbums : prev));
+      }
     });
 
     loadAuthStatus();
     loadPlaylists();
+    loadAlbums();
 
     // Checa atualizações na branch main do GitHub após inicialização
     let isMounted = true;
@@ -259,18 +278,32 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
     }
   }, []);
 
+  // Carregamento de Álbuns com Stale-While-Revalidate (0ms de espera)
+  const loadAlbums = useCallback(async () => {
+    setIsLoadingAlbums(true);
+    try {
+      const res = await invoke<Album[]>("get_user_albums");
+      setAlbums(res);
+      LocalCacheService.saveCachedAlbums(res);
+    } catch (err) {
+      console.warn("Falha ao carregar álbuns da rede, mantendo cache local:", err);
+    } finally {
+      setIsLoadingAlbums(false);
+    }
+  }, []);
+
   const handleRefreshAuth = useCallback(async () => {
     setIsCheckingAuth(true);
     try {
       const res = await invoke<AuthSession>("refresh_auth");
       setAuth(res);
-      await loadPlaylists();
+      await Promise.all([loadPlaylists(), loadAlbums()]);
     } catch (err) {
       setErrorMessage(`Erro ao atualizar sessão: ${String(err)}`);
     } finally {
       setIsCheckingAuth(false);
     }
-  }, [loadPlaylists]);
+  }, [loadPlaylists, loadAlbums, setErrorMessage]);
 
   const handleGoogleLogin = useCallback(async () => {
     try {
@@ -284,17 +317,20 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
     try {
       await invoke("logout_google");
       setAuth(null);
-      await loadPlaylists();
+      await Promise.all([loadPlaylists(), loadAlbums()]);
     } catch (err) {
       setErrorMessage(`Erro ao desconectar conta: ${String(err)}`);
     }
-  }, [loadPlaylists, setErrorMessage]);
+  }, [loadPlaylists, loadAlbums, setErrorMessage]);
 
   // Selecionar Playlist com Stale-While-Revalidate e tolerância offline
   const handleSelectPlaylist = useCallback(async (playlist: Playlist) => {
     playlistScrollPosRef.current = 0;
     if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
     setSelectedPlaylist(playlist);
+    setSelectedAlbum(null);
+    setAlbumDetail(null);
+    setLibrarySection("playlists");
     setActiveTab("library");
     closeNowPlaying();
 
@@ -326,6 +362,90 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
     }
   }, [mainScrollRef, playlistScrollPosRef, setErrorMessage, closeNowPlaying]);
 
+  // Selecionar Álbum com Stale-While-Revalidate (0ms instant display)
+  const handleSelectAlbum = useCallback(async (album: Album) => {
+    playlistScrollPosRef.current = 0;
+    if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
+    setSelectedAlbum(album);
+    setSelectedPlaylist(null);
+    setLibrarySection("albums");
+    setActiveTab("library");
+    closeNowPlaying();
+
+    const cachedDetail = LocalCacheService.getCachedAlbumDetail(album.id);
+    if (cachedDetail) {
+      setAlbumDetail(cachedDetail);
+    } else {
+      setAlbumDetail(null);
+    }
+
+    setIsLoadingAlbumDetail(true);
+    setErrorMessage(null);
+
+    try {
+      const detail = await invoke<AlbumDetail>("get_album_details", {
+        browseId: album.id,
+      });
+      setAlbumDetail(detail);
+      LocalCacheService.saveCachedAlbumDetail(album.id, detail);
+    } catch (err) {
+      if (cachedDetail) {
+        console.warn("Falha ao revalidar álbum pela rede, mantendo cache local offline:", err);
+      } else {
+        setErrorMessage(`Erro ao carregar detalhes do álbum: ${String(err)}`);
+      }
+    } finally {
+      setIsLoadingAlbumDetail(false);
+    }
+  }, [mainScrollRef, playlistScrollPosRef, setErrorMessage, closeNowPlaying]);
+
+  // Escuta evento de abertura de álbum (via Menu de Contexto ou Drawer)
+  useEffect(() => {
+    async function handleOpenAlbumEvent(e: Event) {
+      const customEvent = e as CustomEvent<{
+        albumId?: string;
+        albumTitle?: string;
+        artist?: string;
+      }>;
+      const { albumId, albumTitle, artist } = customEvent.detail || {};
+
+      if (albumId) {
+        const existing = albums.find((a) => a.id === albumId);
+        const targetAlbum: Album = existing || {
+          id: albumId,
+          title: albumTitle || "Álbum",
+          artist: artist || "Artista",
+          year: "",
+          artwork_url: "",
+          album_type: "album",
+        };
+        handleSelectAlbum(targetAlbum);
+      } else if (albumTitle) {
+        try {
+          const query = [albumTitle, artist].filter(Boolean).join(" ");
+          const found = await invoke<Album | null>("search_album_by_name", { query });
+          if (found) {
+            handleSelectAlbum(found);
+          } else {
+            setSearchQuery(albumTitle);
+            setActiveTab("search");
+            setIsSearching(true);
+            setHasSearched(true);
+            const res = await invoke<Track[]>("search_tracks", { query: albumTitle });
+            setSearchResults(res);
+          }
+        } catch (err) {
+          setErrorMessage(`Álbum não encontrado: ${String(err)}`);
+        } finally {
+          setIsSearching(false);
+        }
+      }
+    }
+
+    window.addEventListener("tetplayer:open-album", handleOpenAlbumEvent);
+    return () => window.removeEventListener("tetplayer:open-album", handleOpenAlbumEvent);
+  }, [albums, handleSelectAlbum, setErrorMessage]);
+
   // Escuta evento de mudança na autenticação (quando o login via Webview do Google conclui)
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -333,8 +453,12 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
       if (event.payload) {
         setAuth(event.payload);
         loadPlaylists();
+        loadAlbums();
         if (selectedPlaylistRef.current) {
           handleSelectPlaylist(selectedPlaylistRef.current);
+        }
+        if (selectedAlbumRef.current) {
+          handleSelectAlbum(selectedAlbumRef.current);
         }
       }
     }).then((fn) => {
@@ -344,7 +468,7 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
     return () => {
       if (unlisten) unlisten();
     };
-  }, [loadPlaylists, handleSelectPlaylist]);
+  }, [loadPlaylists, loadAlbums, handleSelectPlaylist, handleSelectAlbum]);
 
   const handleSearch = useCallback(async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -371,12 +495,74 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
     closeNowPlaying();
   }, [mainScrollRef, playlistScrollPosRef, closeNowPlaying]);
 
+  const handleBackToAlbums = useCallback(() => {
+    playlistScrollPosRef.current = 0;
+    if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
+    setSelectedAlbum(null);
+    setAlbumDetail(null);
+    closeNowPlaying();
+  }, [mainScrollRef, playlistScrollPosRef, closeNowPlaying]);
+
   const handleSidebarTabChange = useCallback((tab: ActiveTab) => {
     playlistScrollPosRef.current = 0;
     setActiveTab(tab);
-    if (tab === "library") setSelectedPlaylist(null);
+    if (tab === "library") {
+      setSelectedPlaylist(null);
+      setSelectedAlbum(null);
+      setAlbumDetail(null);
+    }
     closeNowPlaying();
   }, [playlistScrollPosRef, closeNowPlaying]);
+
+  // Reprodução de Álbuns
+  const handlePlayAlbum = useCallback(
+    (tracks: Track[], startIndex = 0, shuffle = false) => {
+      if (!tracks || tracks.length === 0) return;
+      let queue = [...tracks];
+      let startIdx = startIndex;
+      if (shuffle) {
+        for (let i = queue.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [queue[i], queue[j]] = [queue[j], queue[i]];
+        }
+        startIdx = 0;
+      }
+      const trackToPlay = queue[startIdx] || queue[0];
+      playTrackWithQueue(trackToPlay, queue, startIdx, selectedAlbum?.id);
+    },
+    [playTrackWithQueue, selectedAlbum]
+  );
+
+  const handlePlayAlbumTrack = useCallback(
+    (track: Track, index: number, customQueue?: Track[]) => {
+      const queue = customQueue || albumDetail?.tracks || [track];
+      playTrackWithQueue(track, queue, index, selectedAlbum?.id);
+    },
+    [albumDetail, playTrackWithQueue, selectedAlbum]
+  );
+
+  const handlePlayAlbumQuick = useCallback(
+    async (album: Album, e: React.MouseEvent) => {
+      e.stopPropagation();
+      try {
+        const cached = LocalCacheService.getCachedAlbumDetail(album.id);
+        if (cached && cached.tracks.length > 0) {
+          playTrackWithQueue(cached.tracks[0], cached.tracks, 0, album.id);
+          return;
+        }
+        const detail = await invoke<AlbumDetail>("get_album_details", {
+          browseId: album.id,
+        });
+        if (detail && detail.tracks && detail.tracks.length > 0) {
+          LocalCacheService.saveCachedAlbumDetail(album.id, detail);
+          playTrackWithQueue(detail.tracks[0], detail.tracks, 0, album.id);
+        }
+      } catch (err) {
+        console.error("Erro ao reproduzir álbum rapidamente:", err);
+      }
+    },
+    [playTrackWithQueue]
+  );
 
   const handleTogglePinPlaylist = useCallback((playlistId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -430,6 +616,7 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
           auth={auth}
           activeTab={activeTab}
           selectedPlaylist={selectedPlaylist}
+          selectedAlbum={selectedAlbum}
           currentTrack={currentTrack}
           isNowPlayingOpen={isNowPlayingOpen}
           nowPlayingTab={nowPlayingTab}
@@ -534,14 +721,75 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
                       onTogglePlayPause={togglePlayPause}
                       scrollRef={mainScrollRef}
                     />
-                  ) : (
-                    <PlaylistGridView
-                      playlists={playlists}
-                      isLoadingPlaylists={isLoadingPlaylists}
-                      pinnedPlaylistIds={pinnedPlaylistIds}
-                      onSelectPlaylist={handleSelectPlaylist}
-                      onTogglePinPlaylist={handleTogglePinPlaylist}
+                  ) : selectedAlbum ? (
+                    <AlbumDetailView
+                      album={selectedAlbum}
+                      albumDetail={albumDetail}
+                      isLoading={isLoadingAlbumDetail}
+                      currentTrack={currentTrack}
+                      isPlaying={isPlaying}
+                      loadingTrackId={loadingTrackId}
+                      onBack={handleBackToAlbums}
+                      onPlayAlbum={handlePlayAlbum}
+                      onPlayTrack={handlePlayAlbumTrack}
+                      onTogglePlayPause={togglePlayPause}
+                      onSelectRelatedAlbum={handleSelectAlbum}
                     />
+                  ) : (
+                    <div className="space-y-6">
+                      {/* Segmented Control da Biblioteca: Playlists vs Álbuns */}
+                      <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                        <div className="flex items-center gap-1.5 p-1 bg-white/[0.03] border border-white/10 rounded-xl">
+                          <button
+                            onClick={() => setLibrarySection("playlists")}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+                              librarySection === "playlists"
+                                ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-lg shadow-emerald-500/10"
+                                : "text-neutral-400 hover:text-white hover:bg-white/5 border border-transparent"
+                            }`}
+                          >
+                            <ListMusic className="w-4 h-4" />
+                            Playlists
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/10 text-neutral-300">
+                              {playlists.length}
+                            </span>
+                          </button>
+
+                          <button
+                            onClick={() => setLibrarySection("albums")}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+                              librarySection === "albums"
+                                ? "bg-purple-500/20 text-purple-400 border border-purple-500/30 shadow-lg shadow-purple-500/10"
+                                : "text-neutral-400 hover:text-white hover:bg-white/5 border border-transparent"
+                            }`}
+                          >
+                            <Disc3 className="w-4 h-4" />
+                            Álbuns
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/10 text-neutral-300">
+                              {albums.length}
+                            </span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {librarySection === "playlists" ? (
+                        <PlaylistGridView
+                          playlists={playlists}
+                          isLoadingPlaylists={isLoadingPlaylists}
+                          pinnedPlaylistIds={pinnedPlaylistIds}
+                          onSelectPlaylist={handleSelectPlaylist}
+                          onTogglePinPlaylist={handleTogglePinPlaylist}
+                        />
+                      ) : (
+                        <AlbumGridView
+                          albums={albums}
+                          isLoading={isLoadingAlbums}
+                          onRefresh={loadAlbums}
+                          onSelectAlbum={handleSelectAlbum}
+                          onPlayAlbumQuick={handlePlayAlbumQuick}
+                        />
+                      )}
+                    </div>
                   )}
                 </>
               )}

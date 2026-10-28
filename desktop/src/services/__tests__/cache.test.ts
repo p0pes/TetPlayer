@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { LocalCacheService } from "../cache";
-import { Playlist, Track } from "../../types";
+import { Playlist, Track, Album, AlbumDetail } from "../../types";
 
 describe("LocalCacheService", () => {
   beforeEach(() => {
@@ -30,6 +30,22 @@ describe("LocalCacheService", () => {
     },
   ];
 
+  const mockAlbum: Album = {
+    id: "alb_test_1",
+    title: "Random Access Memories",
+    artist: "Daft Punk",
+    year: "2013",
+    album_type: "album",
+    track_count: 13,
+  };
+
+  const mockAlbumDetail: AlbumDetail = {
+    ...mockAlbum,
+    release_date: "17 de maio de 2013",
+    copyright: "℗ 2013 Daft Life Limited",
+    tracks: mockTracks,
+  };
+
   it("deve salvar e recuperar playlists no cache local", () => {
     expect(LocalCacheService.getCachedPlaylists()).toBeNull();
     LocalCacheService.saveCachedPlaylists([mockPlaylist]);
@@ -45,6 +61,39 @@ describe("LocalCacheService", () => {
     expect(cachedTracks).toHaveLength(2);
     expect(cachedTracks?.[0].title).toBe("Musica 1");
     expect(cachedTracks?.[1].title).toBe("Musica 2");
+  });
+
+  it("deve salvar e recuperar álbuns no cache local", () => {
+    expect(LocalCacheService.getCachedAlbums()).toBeNull();
+    LocalCacheService.saveCachedAlbums([mockAlbum]);
+    const cached = LocalCacheService.getCachedAlbums();
+    expect(cached).toHaveLength(1);
+    expect(cached?.[0].title).toBe("Random Access Memories");
+    expect(cached?.[0].artist).toBe("Daft Punk");
+  });
+
+  it("deve salvar e recuperar detalhes de um álbum com faixas", () => {
+    expect(LocalCacheService.getCachedAlbumDetail("alb_test_1")).toBeNull();
+    LocalCacheService.saveCachedAlbumDetail("alb_test_1", mockAlbumDetail);
+    const cached = LocalCacheService.getCachedAlbumDetail("alb_test_1");
+    expect(cached).not.toBeNull();
+    expect(cached?.title).toBe("Random Access Memories");
+    expect(cached?.tracks).toHaveLength(2);
+    expect(cached?.copyright).toContain("Daft Life Limited");
+  });
+
+  it("deve aplicar política LRU e expurgar álbum mais antigo ao exceder o teto de 25", () => {
+    for (let i = 1; i <= 26; i++) {
+      LocalCacheService.saveCachedAlbumDetail(`alb_${i}`, {
+        id: `alb_${i}`,
+        title: `Album ${i}`,
+        artist: "Artist",
+        tracks: [],
+      });
+    }
+
+    expect(LocalCacheService.getCachedAlbumDetail("alb_1")).toBeNull();
+    expect(LocalCacheService.getCachedAlbumDetail("alb_26")).not.toBeNull();
   });
 
   it("deve aplicar política LRU e expurgar a playlist mais antiga ao exceder o teto de 25", () => {

@@ -11,7 +11,7 @@ import {
   WifiOff,
   Wifi,
 } from "lucide-react";
-import { AuthSession, Playlist, Track, ActiveTab, NowPlayingTab } from "../../types";
+import { AuthSession, Playlist, Track, ActiveTab, NowPlayingTab, Album } from "../../types";
 import { useNetworkStatus } from "../../services/network";
 import { SettingsService } from "../../services/settings";
 import { APP_VERSION } from "../../services/updater";
@@ -20,6 +20,7 @@ interface TitleBarProps {
   auth: AuthSession | null;
   activeTab: ActiveTab;
   selectedPlaylist: Playlist | null;
+  selectedAlbum?: Album | null;
   currentTrack: Track | null;
   isNowPlayingOpen: boolean;
   nowPlayingTab: NowPlayingTab;
@@ -30,6 +31,7 @@ export const TitleBar = React.memo(function TitleBar({
   auth,
   activeTab,
   selectedPlaylist,
+  selectedAlbum,
   currentTrack,
   isNowPlayingOpen,
   nowPlayingTab,
@@ -126,7 +128,9 @@ export const TitleBar = React.memo(function TitleBar({
     : activeTab === "library"
     ? selectedPlaylist
       ? `Biblioteca > ${selectedPlaylist.title}`
-      : "Biblioteca de Playlists"
+      : selectedAlbum
+      ? `Biblioteca > ${selectedAlbum.title}`
+      : "Biblioteca"
     : activeTab === "search"
     ? "Busca de Músicas"
     : "Estatísticas de Reprodução";

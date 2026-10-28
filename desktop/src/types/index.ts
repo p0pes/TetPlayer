@@ -13,9 +13,32 @@ export interface Track {
   title: string;
   artist: string;
   album?: string;
+  album_id?: string;
   duration?: string;
   duration_seconds?: number;
   artwork_url?: string;
+}
+
+export type AlbumType = "album" | "single" | "ep";
+
+export interface Album {
+  id: string;
+  title: string;
+  artist: string;
+  artist_id?: string;
+  year?: string;
+  artwork_url?: string;
+  track_count?: number;
+  duration_text?: string;
+  album_type?: AlbumType;
+}
+
+export interface AlbumDetail extends Album {
+  description?: string;
+  release_date?: string;
+  copyright?: string;
+  tracks: Track[];
+  related_albums?: Album[];
 }
 
 export interface Playlist {

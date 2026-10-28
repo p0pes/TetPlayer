@@ -2,6 +2,19 @@ use crate::auth::{generate_sapisid_hash, AuthSession};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE, COOKIE, ORIGIN, REFERER, USER_AGENT};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::sync::LazyLock;
+use std::time::Duration;
+
+pub static HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
+    reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .connect_timeout(Duration::from_secs(6))
+        .tcp_keepalive(Some(Duration::from_secs(30)))
+        .pool_max_idle_per_host(8)
+        .build()
+        .expect("Falha ao inicializar HTTP client do TetPlayer")
+});
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Track {
@@ -9,9 +22,41 @@ pub struct Track {
     pub title: String,
     pub artist: String,
     pub album: Option<String>,
+    pub album_id: Option<String>,
     pub duration: Option<String>,
     pub duration_seconds: Option<u64>,
     pub artwork_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Album {
+    pub id: String,
+    pub title: String,
+    pub artist: String,
+    pub artist_id: Option<String>,
+    pub year: Option<String>,
+    pub artwork_url: Option<String>,
+    pub track_count: Option<u32>,
+    pub duration_text: Option<String>,
+    pub album_type: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlbumDetail {
+    pub id: String,
+    pub title: String,
+    pub artist: String,
+    pub artist_id: Option<String>,
+    pub year: Option<String>,
+    pub artwork_url: Option<String>,
+    pub track_count: Option<u32>,
+    pub duration_text: Option<String>,
+    pub album_type: Option<String>,
+    pub description: Option<String>,
+    pub release_date: Option<String>,
+    pub copyright: Option<String>,
+    pub tracks: Vec<Track>,
+    pub related_albums: Vec<Album>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -737,6 +782,36 @@ fn parse_responsive_item(item: &Value) -> Option<Track> {
         }
     }
 
+    let mut album_id = None;
+    if flex_columns.len() > 1 {
+        if let Some(runs) = flex_columns[1]["musicResponsiveListItemFlexColumnRenderer"]["text"]["runs"].as_array() {
+            for r in runs {
+                if let Some(b_id) = r["navigationEndpoint"]["browseEndpoint"]["browseId"].as_str() {
+                    if b_id.starts_with("MPREb_") || b_id.starts_with("OLAK5uy_") {
+                        album_id = Some(b_id.to_string());
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    if duration.is_none() {
+        if let Some(fixed) = item["fixedColumns"].as_array() {
+            if let Some(col) = fixed.first() {
+                if let Some(text) = col["musicResponsiveListItemFixedColumnRenderer"]["text"]["runs"]
+                    .as_array()
+                    .and_then(|r| r.first())
+                    .and_then(|t| t["text"].as_str())
+                {
+                    if text.contains(':') {
+                        duration = Some(text.to_string());
+                    }
+                }
+            }
+        }
+    }
+
     let artwork_url = extract_thumbnail_from_renderer(&item["thumbnail"])
         .or_else(|| Some(format!("https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg")));
 
@@ -745,6 +820,7 @@ fn parse_responsive_item(item: &Value) -> Option<Track> {
         title,
         artist,
         album,
+        album_id,
         duration,
         duration_seconds: None,
         artwork_url,
@@ -778,6 +854,7 @@ fn parse_two_row_item(item: &Value) -> Option<Track> {
         title,
         artist,
         album: None,
+        album_id: None,
         duration: None,
         duration_seconds: None,
         artwork_url,
@@ -824,6 +901,7 @@ fn parse_playlist_panel_item(item: &Value) -> Option<Track> {
         title,
         artist,
         album: None,
+        album_id: None,
         duration,
         duration_seconds: None,
         artwork_url,
@@ -1119,6 +1197,460 @@ pub async fn fetch_account_info(session: &AuthSession) -> (Option<String>, Optio
         }
     }
     (None, None, None)
+}
+
+
+// ==========================================
+// MÓDULO DE SUPORTE A ÁLBUNS (Item 2.11)
+// ==========================================
+
+fn parse_album_two_row(item: &Value) -> Option<Album> {
+    let nav = &item["navigationEndpoint"]["browseEndpoint"];
+    let browse_id = nav["browseId"].as_str()?;
+    let page_type = nav["browseEndpointContextSupportedConfigs"]["browseEndpointContextMusicConfig"]["pageType"]
+        .as_str()
+        .unwrap_or("");
+
+    let is_album = browse_id.starts_with("MPREb_")
+        || browse_id.starts_with("OLAK5uy_")
+        || page_type == "MUSIC_PAGE_TYPE_ALBUM";
+
+    if !is_album {
+        return None;
+    }
+
+    let title = item["title"]["runs"]
+        .as_array()
+        .and_then(|r| r.first())
+        .and_then(|t| t["text"].as_str())
+        .unwrap_or("Álbum")
+        .to_string();
+
+    let mut artist = "Artista".to_string();
+    let mut artist_id = None;
+    let mut year = None;
+    let mut album_type = Some("album".to_string());
+
+    if let Some(runs) = item["subtitle"]["runs"].as_array() {
+        for r in runs {
+            if let Some(txt) = r["text"].as_str() {
+                let trimmed = txt.trim();
+                let lower = trimmed.to_lowercase();
+                if lower.contains("single") {
+                    album_type = Some("single".to_string());
+                } else if lower.contains("ep") {
+                    album_type = Some("ep".to_string());
+                } else if trimmed.len() == 4 && trimmed.chars().all(|c| c.is_ascii_digit()) {
+                    year = Some(trimmed.to_string());
+                } else if !trimmed.is_empty()
+                    && trimmed != "•"
+                    && trimmed != "Álbum"
+                    && trimmed != "Album"
+                    && trimmed != "Single"
+                    && trimmed != "EP"
+                {
+                    artist = trimmed.to_string();
+                    if let Some(a_id) = r["navigationEndpoint"]["browseEndpoint"]["browseId"].as_str() {
+                        artist_id = Some(a_id.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    let artwork_url = extract_thumbnail_from_renderer(&item["thumbnailRenderer"])
+        .or_else(|| extract_thumbnail_from_renderer(&item["thumbnail"]));
+
+    Some(Album {
+        id: browse_id.to_string(),
+        title,
+        artist,
+        artist_id,
+        year,
+        artwork_url,
+        track_count: None,
+        duration_text: None,
+        album_type,
+    })
+}
+
+fn extract_albums_from_value(val: &Value, albums: &mut Vec<Album>) {
+    match val {
+        Value::Object(map) => {
+            if let Some(item) = map.get("musicTwoRowItemRenderer") {
+                if let Some(album) = parse_album_two_row(item) {
+                    albums.push(album);
+                }
+            }
+            for v in map.values() {
+                extract_albums_from_value(v, albums);
+            }
+        }
+        Value::Array(arr) => {
+            for v in arr {
+                extract_albums_from_value(v, albums);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn extract_album_header(
+    val: &Value,
+) -> (
+    String,
+    String,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+) {
+    let header = val.get("header").and_then(|h| {
+        h.get("musicResponsiveHeaderRenderer")
+            .or_else(|| h.get("musicDetailHeaderRenderer"))
+    });
+
+    let mut title = "Álbum".to_string();
+    let mut artist = "Artista".to_string();
+    let mut artist_id = None;
+    let mut year = None;
+    let mut artwork_url = None;
+    let mut album_type = Some("album".to_string());
+    let mut description = None;
+    let release_date = None;
+    let copyright = None;
+
+    if let Some(h) = header {
+        if let Some(t) = h["title"]["runs"]
+            .as_array()
+            .and_then(|r| r.first())
+            .and_then(|x| x["text"].as_str())
+        {
+            title = t.to_string();
+        }
+
+        if let Some(runs) = h["straplineTextOne"]["runs"].as_array() {
+            if let Some(first) = runs.first() {
+                if let Some(a) = first["text"].as_str() {
+                    artist = a.to_string();
+                }
+                if let Some(id) = first["navigationEndpoint"]["browseEndpoint"]["browseId"].as_str() {
+                    artist_id = Some(id.to_string());
+                }
+            }
+        }
+
+        if let Some(runs) = h["subtitle"]["runs"].as_array() {
+            for r in runs {
+                if let Some(txt) = r["text"].as_str() {
+                    let trimmed = txt.trim();
+                    let lower = trimmed.to_lowercase();
+                    if lower.contains("single") {
+                        album_type = Some("single".to_string());
+                    } else if lower.contains("ep") {
+                        album_type = Some("ep".to_string());
+                    } else if trimmed.len() == 4 && trimmed.chars().all(|c| c.is_ascii_digit()) {
+                        year = Some(trimmed.to_string());
+                    }
+                }
+            }
+        }
+
+        artwork_url = extract_thumbnail_from_renderer(&h["thumbnail"]);
+        if let Some(desc) = h["description"]["runs"].as_array() {
+            let d: String = desc.iter().filter_map(|r| r["text"].as_str()).collect::<Vec<_>>().join("");
+            if !d.is_empty() {
+                description = Some(d);
+            }
+        }
+    }
+
+    (
+        title,
+        artist,
+        artist_id,
+        year,
+        artwork_url,
+        album_type,
+        description,
+        release_date,
+        copyright,
+    )
+}
+
+fn extract_album_tracks_from_value(
+    val: &Value,
+    album_title: &str,
+    album_artist: &str,
+    album_id: &str,
+    default_artwork: Option<&str>,
+    tracks: &mut Vec<Track>,
+) {
+    match val {
+        Value::Object(map) => {
+            if let Some(item) = map.get("musicResponsiveListItemRenderer") {
+                if let Some(mut track) = parse_responsive_item(item) {
+                    if track.album.is_none() || track.album.as_deref() == Some("") {
+                        track.album = Some(album_title.to_string());
+                    }
+                    if track.album_id.is_none() {
+                        track.album_id = Some(album_id.to_string());
+                    }
+                    if track.artist == "Artista" || track.artist.is_empty() {
+                        track.artist = album_artist.to_string();
+                    }
+                    if track.artwork_url.is_none() && default_artwork.is_some() {
+                        track.artwork_url = default_artwork.map(|s| s.to_string());
+                    }
+                    tracks.push(track);
+                }
+            } else {
+                for v in map.values() {
+                    extract_album_tracks_from_value(v, album_title, album_artist, album_id, default_artwork, tracks);
+                }
+            }
+        }
+        Value::Array(arr) => {
+            for v in arr {
+                extract_album_tracks_from_value(v, album_title, album_artist, album_id, default_artwork, tracks);
+            }
+        }
+        _ => {}
+    }
+}
+
+pub async fn get_user_albums(session: &AuthSession) -> Result<Vec<Album>, String> {
+    let client = &HTTP_CLIENT;
+    let url = "https://music.youtube.com/youtubei/v1/browse?prettyPrint=false";
+    let headers = build_headers(session, "WEB_REMIX");
+
+    let mut albums = Vec::new();
+
+    // 1. Se autenticado, busca da biblioteca do usuário FEmusic_liked_albums
+    if session.is_authenticated {
+        let payload = json!({
+            "context": {
+                "client": {
+                    "clientName": "WEB_REMIX",
+                    "clientVersion": "1.20240401.01.00",
+                    "hl": "pt",
+                    "gl": "BR"
+                }
+            },
+            "browseId": "FEmusic_liked_albums"
+        });
+
+        if let Ok(resp) = client.post(url).headers(headers.clone()).json(&payload).send().await {
+            if resp.status().is_success() {
+                if let Ok(json_val) = resp.json::<Value>().await {
+                    extract_albums_from_value(&json_val, &mut albums);
+                }
+            }
+        }
+    }
+
+    // 2. Se a biblioteca estiver vazia (ou usuário anônimo), busca lançamentos / novidades de álbuns
+    if albums.is_empty() {
+        let payload = json!({
+            "context": {
+                "client": {
+                    "clientName": "WEB_REMIX",
+                    "clientVersion": "1.20240401.01.00",
+                    "hl": "pt",
+                    "gl": "BR"
+                }
+            },
+            "browseId": "FEmusic_new_releases"
+        });
+
+        if let Ok(resp) = client.post(url).headers(headers.clone()).json(&payload).send().await {
+            if resp.status().is_success() {
+                if let Ok(json_val) = resp.json::<Value>().await {
+                    extract_albums_from_value(&json_val, &mut albums);
+                }
+            }
+        }
+    }
+
+    // 3. Fallback extra: busca "top albums"
+    if albums.is_empty() {
+        let search_url = "https://music.youtube.com/youtubei/v1/search?prettyPrint=false";
+        let search_payload = json!({
+            "context": {
+                "client": {
+                    "clientName": "WEB_REMIX",
+                    "clientVersion": "1.20240401.01.00",
+                    "hl": "pt",
+                    "gl": "BR"
+                }
+            },
+            "query": "top albums",
+            "params": "EgWKAQIYAWoKEAMQBBAJEAoQBQ%3D%3D"
+        });
+
+        if let Ok(resp) = client.post(search_url).headers(headers).json(&search_payload).send().await {
+            if resp.status().is_success() {
+                if let Ok(json_val) = resp.json::<Value>().await {
+                    extract_albums_from_value(&json_val, &mut albums);
+                }
+            }
+        }
+    }
+
+    // Deduplica mantendo a ordem
+    let mut seen = std::collections::HashSet::new();
+    albums.retain(|a| seen.insert(a.id.clone()));
+
+    Ok(albums)
+}
+
+pub async fn get_album_details(session: &AuthSession, browse_id: &str) -> Result<AlbumDetail, String> {
+    let client = &HTTP_CLIENT;
+    let url = "https://music.youtube.com/youtubei/v1/browse?prettyPrint=false";
+    let headers = build_headers(session, "WEB_REMIX");
+
+    let clean_id = if browse_id.starts_with("VL") {
+        browse_id.to_string()
+    } else if browse_id.starts_with("OLAK5uy_") {
+        format!("VL{browse_id}")
+    } else {
+        browse_id.to_string()
+    };
+
+    let payload = json!({
+        "context": {
+            "client": {
+                "clientName": "WEB_REMIX",
+                "clientVersion": "1.20240401.01.00",
+                "hl": "pt",
+                "gl": "BR"
+            }
+        },
+        "browseId": clean_id
+    });
+
+    let resp = client
+        .post(url)
+        .headers(headers.clone())
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("Erro ao buscar álbum ({browse_id}): {e}"))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("YouTube Music retornou status {} ao buscar álbum", resp.status()));
+    }
+
+    let json_val: Value = resp.json().await.map_err(|e| format!("Erro ao parsear dados do álbum: {e}"))?;
+
+    // Extrair Header do Álbum
+    let (title, artist, artist_id, year, artwork_url, album_type, description, release_date, copyright) =
+        extract_album_header(&json_val);
+
+    // Extrair Faixas
+    let mut tracks = Vec::new();
+    extract_album_tracks_from_value(
+        &json_val,
+        &title,
+        &artist,
+        browse_id,
+        artwork_url.as_deref(),
+        &mut tracks,
+    );
+
+    // Deduplica faixas preservando ordem
+    let mut seen_tracks = std::collections::HashSet::new();
+    tracks.retain(|t| seen_tracks.insert(t.id.clone()));
+
+    let track_count = Some(tracks.len() as u32);
+
+    let total_secs: u64 = tracks
+        .iter()
+        .filter_map(|t| {
+            t.duration.as_deref().and_then(|d| {
+                let parts: Vec<&str> = d.split(':').collect();
+                if parts.len() == 2 {
+                    let m: u64 = parts[0].parse().ok()?;
+                    let s: u64 = parts[1].parse().ok()?;
+                    Some(m * 60 + s)
+                } else if parts.len() == 3 {
+                    let h: u64 = parts[0].parse().ok()?;
+                    let m: u64 = parts[1].parse().ok()?;
+                    let s: u64 = parts[2].parse().ok()?;
+                    Some(h * 3600 + m * 60 + s)
+                } else {
+                    None
+                }
+            })
+        })
+        .sum();
+
+    let duration_text = if total_secs > 0 {
+        let mins = total_secs / 60;
+        let secs = total_secs % 60;
+        Some(format!("{mins} min {secs} s"))
+    } else {
+        None
+    };
+
+    // Extrair álbuns relacionados (More by artist)
+    let mut related_albums = Vec::new();
+    extract_albums_from_value(&json_val, &mut related_albums);
+    related_albums.retain(|a| a.id != browse_id);
+    related_albums.truncate(6);
+
+    Ok(AlbumDetail {
+        id: browse_id.to_string(),
+        title,
+        artist,
+        artist_id,
+        year,
+        artwork_url,
+        track_count,
+        duration_text,
+        album_type,
+        description,
+        release_date,
+        copyright,
+        tracks,
+        related_albums,
+    })
+}
+
+pub async fn search_album_by_name(session: &AuthSession, query: &str) -> Result<Option<Album>, String> {
+    let client = &HTTP_CLIENT;
+    let url = "https://music.youtube.com/youtubei/v1/search?prettyPrint=false";
+    let headers = build_headers(session, "WEB_REMIX");
+
+    let payload = json!({
+        "context": {
+            "client": {
+                "clientName": "WEB_REMIX",
+                "clientVersion": "1.20240401.01.00",
+                "hl": "pt",
+                "gl": "BR"
+            }
+        },
+        "query": query,
+        "params": "EgWKAQIYAWoKEAMQBBAJEAoQBQ%3D%3D"
+    });
+
+    if let Ok(resp) = client.post(url).headers(headers).json(&payload).send().await {
+        if resp.status().is_success() {
+            if let Ok(json_val) = resp.json::<Value>().await {
+                let mut albums = Vec::new();
+                extract_albums_from_value(&json_val, &mut albums);
+                if let Some(first) = albums.into_iter().next() {
+                    return Ok(Some(first));
+                }
+            }
+        }
+    }
+
+    Ok(None)
 }
 
 #[cfg(test)]

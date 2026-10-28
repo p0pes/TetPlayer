@@ -1,11 +1,51 @@
 import { invoke } from "@tauri-apps/api/core";
-import { Playlist, Track } from "../types";
+import { Playlist, Track, Album, AlbumDetail } from "../types";
 import { clearLyricsCache } from "../hooks/useLyrics";
 
 const PLAYLISTS_CACHE_KEY = "tetplayer_cache_playlists";
 const PLAYLIST_TRACKS_CACHE_PREFIX = "tetplayer_cache_tracks_";
 const PLAYLISTS_LRU_KEY = "tetplayer_cache_playlist_lru";
 const MAX_CACHED_PLAYLISTS = 25;
+
+const ALBUMS_CACHE_KEY = "tetplayer_cache_albums";
+const ALBUM_DETAIL_CACHE_PREFIX = "tetplayer_cache_album_";
+const ALBUMS_LRU_KEY = "tetplayer_cache_album_lru";
+const MAX_CACHED_ALBUMS = 25;
+
+function getAlbumLruList(): string[] {
+  try {
+    const data = localStorage.getItem(ALBUMS_LRU_KEY);
+    return data ? (JSON.parse(data) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveAlbumLruList(list: string[]): void {
+  try {
+    localStorage.setItem(ALBUMS_LRU_KEY, JSON.stringify(list));
+  } catch {
+    // ignore
+  }
+}
+
+function touchAlbumLru(albumId: string): void {
+  const list = getAlbumLruList().filter((id) => id !== albumId);
+  list.unshift(albumId);
+
+  while (list.length > MAX_CACHED_ALBUMS) {
+    const evictedId = list.pop();
+    if (evictedId) {
+      try {
+        localStorage.removeItem(`${ALBUM_DETAIL_CACHE_PREFIX}${evictedId}`);
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  saveAlbumLruList(list);
+}
 
 function getLruList(): string[] {
   try {
@@ -131,6 +171,65 @@ export const LocalCacheService = {
     }
 
     // Persiste no SQLite com capacidade irrestrita
+    this.saveToDbCache(cacheKey, serialized).catch(() => {});
+  },
+
+  // Obter álbuns salvos no cache local (0ms instant loading síncrono)
+  getCachedAlbums(): Album[] | null {
+    try {
+      const data = localStorage.getItem(ALBUMS_CACHE_KEY);
+      if (!data) return null;
+      return JSON.parse(data) as Album[];
+    } catch {
+      return null;
+    }
+  },
+
+  // Persistir álbuns no cache local e espelhar no SQLite nativo
+  saveCachedAlbums(albums: Album[]): void {
+    const serialized = JSON.stringify(albums);
+    try {
+      localStorage.setItem(ALBUMS_CACHE_KEY, serialized);
+    } catch {
+      // quota fallback
+    }
+    this.saveToDbCache(ALBUMS_CACHE_KEY, serialized).catch(() => {});
+  },
+
+  // Obter detalhes de um álbum em cache (0ms instant display síncrono)
+  getCachedAlbumDetail(albumId: string): AlbumDetail | null {
+    try {
+      const data = localStorage.getItem(`${ALBUM_DETAIL_CACHE_PREFIX}${albumId}`);
+      if (!data) return null;
+      touchAlbumLru(albumId);
+      return JSON.parse(data) as AlbumDetail;
+    } catch {
+      return null;
+    }
+  },
+
+  // Salvar detalhes de um álbum no cache local com política de evicção LRU e espelhamento no SQLite
+  saveCachedAlbumDetail(albumId: string, detail: AlbumDetail): void {
+    const cacheKey = `${ALBUM_DETAIL_CACHE_PREFIX}${albumId}`;
+    const serialized = JSON.stringify(detail);
+
+    try {
+      touchAlbumLru(albumId);
+      localStorage.setItem(cacheKey, serialized);
+    } catch {
+      try {
+        const list = getAlbumLruList();
+        const toEvict = list.splice(Math.max(0, list.length - 5), 5);
+        for (const evictedId of toEvict) {
+          localStorage.removeItem(`${ALBUM_DETAIL_CACHE_PREFIX}${evictedId}`);
+        }
+        saveAlbumLruList(list);
+        localStorage.setItem(cacheKey, serialized);
+      } catch {
+        // quota fallback
+      }
+    }
+
     this.saveToDbCache(cacheKey, serialized).catch(() => {});
   },
 
