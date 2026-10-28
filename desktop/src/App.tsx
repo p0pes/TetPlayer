@@ -386,8 +386,24 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
       const detail = await invoke<AlbumDetail>("get_album_details", {
         browseId: album.id,
       });
-      setAlbumDetail(detail);
-      LocalCacheService.saveCachedAlbumDetail(album.id, detail);
+      const enrichedDetail: AlbumDetail = {
+        ...detail,
+        artwork_url: detail.artwork_url || album.artwork_url,
+        title:
+          detail.title && detail.title !== "Álbum"
+            ? detail.title
+            : album.title && album.title !== "Álbum"
+            ? album.title
+            : detail.title,
+        artist:
+          detail.artist && detail.artist !== "Artista"
+            ? detail.artist
+            : album.artist && album.artist !== "Artista"
+            ? album.artist
+            : detail.artist,
+      };
+      setAlbumDetail(enrichedDetail);
+      LocalCacheService.saveCachedAlbumDetail(album.id, enrichedDetail);
     } catch (err) {
       if (cachedDetail) {
         console.warn("Falha ao revalidar álbum pela rede, mantendo cache local offline:", err);
@@ -406,19 +422,22 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
         albumId?: string;
         albumTitle?: string;
         artist?: string;
+        artworkUrl?: string;
       }>;
-      const { albumId, albumTitle, artist } = customEvent.detail || {};
+      const { albumId, albumTitle, artist, artworkUrl } = customEvent.detail || {};
 
       if (albumId) {
         const existing = albums.find((a) => a.id === albumId);
-        const targetAlbum: Album = existing || {
-          id: albumId,
-          title: albumTitle || "Álbum",
-          artist: artist || "Artista",
-          year: "",
-          artwork_url: "",
-          album_type: "album",
-        };
+        const targetAlbum: Album = existing
+          ? { ...existing, artwork_url: existing.artwork_url || artworkUrl }
+          : {
+              id: albumId,
+              title: albumTitle || "Álbum",
+              artist: artist || "Artista",
+              year: "",
+              artwork_url: artworkUrl || "",
+              album_type: "album",
+            };
         handleSelectAlbum(targetAlbum);
       } else if (albumTitle) {
         try {
@@ -734,6 +753,7 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
                       onPlayTrack={handlePlayAlbumTrack}
                       onTogglePlayPause={togglePlayPause}
                       onSelectRelatedAlbum={handleSelectAlbum}
+                      onPlayAlbumQuick={handlePlayAlbumQuick}
                     />
                   ) : (
                     <div className="space-y-6">

@@ -1274,11 +1274,100 @@ fn parse_album_two_row(item: &Value) -> Option<Album> {
     })
 }
 
+fn parse_album_responsive_item(item: &Value) -> Option<Album> {
+    let nav = &item["navigationEndpoint"]["browseEndpoint"];
+    let browse_id = nav["browseId"].as_str().or_else(|| {
+        item["flexColumns"].as_array()?.iter().find_map(|c| {
+            c["musicResponsiveListItemFlexColumnRenderer"]["text"]["runs"]
+                .as_array()?
+                .iter()
+                .find_map(|r| r["navigationEndpoint"]["browseEndpoint"]["browseId"].as_str())
+                .filter(|id| id.starts_with("MPREb_") || id.starts_with("OLAK5uy_"))
+        })
+    })?;
+
+    let page_type = nav["browseEndpointContextSupportedConfigs"]["browseEndpointContextMusicConfig"]["pageType"]
+        .as_str()
+        .unwrap_or("");
+
+    let is_album = browse_id.starts_with("MPREb_")
+        || browse_id.starts_with("OLAK5uy_")
+        || page_type == "MUSIC_PAGE_TYPE_ALBUM";
+
+    if !is_album {
+        return None;
+    }
+
+    let flex = item["flexColumns"].as_array()?;
+    let title = flex.get(0)
+        .and_then(|c| c["musicResponsiveListItemFlexColumnRenderer"]["text"]["runs"].as_array())
+        .and_then(|runs| runs.first())
+        .and_then(|r| r["text"].as_str())
+        .unwrap_or("Álbum")
+        .to_string();
+
+    let mut artist = "Artista".to_string();
+    let mut artist_id = None;
+    let mut year = None;
+    let mut album_type = Some("album".to_string());
+
+    if let Some(col1) = flex.get(1) {
+        if let Some(runs) = col1["musicResponsiveListItemFlexColumnRenderer"]["text"]["runs"].as_array() {
+            for r in runs {
+                if let Some(txt) = r["text"].as_str() {
+                    let trimmed = txt.trim();
+                    let lower = trimmed.to_lowercase();
+                    if lower.contains("single") {
+                        album_type = Some("single".to_string());
+                    } else if lower.contains("ep") {
+                        album_type = Some("ep".to_string());
+                    } else if trimmed.len() == 4 && trimmed.chars().all(|c| c.is_ascii_digit()) {
+                        year = Some(trimmed.to_string());
+                    } else if !trimmed.is_empty()
+                        && trimmed != "•"
+                        && trimmed != "Álbum"
+                        && trimmed != "Album"
+                        && trimmed != "Single"
+                        && trimmed != "EP"
+                    {
+                        if artist == "Artista" {
+                            artist = trimmed.to_string();
+                            if let Some(a_id) = r["navigationEndpoint"]["browseEndpoint"]["browseId"].as_str() {
+                                artist_id = Some(a_id.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let artwork_url = extract_thumbnail_from_renderer(&item["thumbnailRenderer"])
+        .or_else(|| extract_thumbnail_from_renderer(&item["thumbnail"]));
+
+    Some(Album {
+        id: browse_id.to_string(),
+        title,
+        artist,
+        artist_id,
+        year,
+        artwork_url,
+        track_count: None,
+        duration_text: None,
+        album_type,
+    })
+}
+
 fn extract_albums_from_value(val: &Value, albums: &mut Vec<Album>) {
     match val {
         Value::Object(map) => {
             if let Some(item) = map.get("musicTwoRowItemRenderer") {
                 if let Some(album) = parse_album_two_row(item) {
+                    albums.push(album);
+                }
+            }
+            if let Some(item) = map.get("musicResponsiveListItemRenderer") {
+                if let Some(album) = parse_album_responsive_item(item) {
                     albums.push(album);
                 }
             }
@@ -1295,6 +1384,71 @@ fn extract_albums_from_value(val: &Value, albums: &mut Vec<Album>) {
     }
 }
 
+fn find_header_renderer(val: &Value) -> Option<&Value> {
+    match val {
+        Value::Object(map) => {
+            if let Some(h) = map.get("musicResponsiveHeaderRenderer") {
+                return Some(h);
+            }
+            if let Some(h) = map.get("musicDetailHeaderRenderer") {
+                return Some(h);
+            }
+            if let Some(h) = map.get("musicVisualHeaderRenderer") {
+                return Some(h);
+            }
+            if let Some(h) = map.get("musicEditablePlaylistDetailHeaderRenderer") {
+                return Some(h);
+            }
+            if let Some(h) = map.get("musicImmersiveHeaderRenderer") {
+                return Some(h);
+            }
+            for v in map.values() {
+                if let Some(found) = find_header_renderer(v) {
+                    return Some(found);
+                }
+            }
+            None
+        }
+        Value::Array(arr) => {
+            for v in arr {
+                if let Some(found) = find_header_renderer(v) {
+                    return Some(found);
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+fn find_mpreb_in_value(val: &Value) -> Option<String> {
+    match val {
+        Value::String(s) => {
+            if s.starts_with("MPREb_") {
+                return Some(s.clone());
+            }
+            None
+        }
+        Value::Object(map) => {
+            for v in map.values() {
+                if let Some(found) = find_mpreb_in_value(v) {
+                    return Some(found);
+                }
+            }
+            None
+        }
+        Value::Array(arr) => {
+            for v in arr {
+                if let Some(found) = find_mpreb_in_value(v) {
+                    return Some(found);
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
 fn extract_album_header(
     val: &Value,
 ) -> (
@@ -1308,10 +1462,7 @@ fn extract_album_header(
     Option<String>,
     Option<String>,
 ) {
-    let header = val.get("header").and_then(|h| {
-        h.get("musicResponsiveHeaderRenderer")
-            .or_else(|| h.get("musicDetailHeaderRenderer"))
-    });
+    let header = find_header_renderer(val);
 
     let mut title = "Álbum".to_string();
     let mut artist = "Artista".to_string();
@@ -1330,6 +1481,8 @@ fn extract_album_header(
             .and_then(|x| x["text"].as_str())
         {
             title = t.to_string();
+        } else if let Some(t) = h["title"]["simpleText"].as_str() {
+            title = t.to_string();
         }
 
         if let Some(runs) = h["straplineTextOne"]["runs"].as_array() {
@@ -1343,7 +1496,10 @@ fn extract_album_header(
             }
         }
 
-        if let Some(runs) = h["subtitle"]["runs"].as_array() {
+        // Subtitle e secondSubtitle runs (ano, formato e artista fallback)
+        let subtitle_runs = h["subtitle"]["runs"].as_array();
+        let second_runs = h["secondSubtitle"]["runs"].as_array();
+        for runs in [subtitle_runs, second_runs].into_iter().flatten() {
             for r in runs {
                 if let Some(txt) = r["text"].as_str() {
                     let trimmed = txt.trim();
@@ -1354,16 +1510,56 @@ fn extract_album_header(
                         album_type = Some("ep".to_string());
                     } else if trimmed.len() == 4 && trimmed.chars().all(|c| c.is_ascii_digit()) {
                         year = Some(trimmed.to_string());
+                    } else if artist == "Artista"
+                        && !trimmed.is_empty()
+                        && trimmed != "•"
+                        && trimmed != "Álbum"
+                        && trimmed != "Album"
+                        && trimmed != "Single"
+                        && trimmed != "EP"
+                    {
+                        artist = trimmed.to_string();
                     }
                 }
             }
         }
 
-        artwork_url = extract_thumbnail_from_renderer(&h["thumbnail"]);
-        if let Some(desc) = h["description"]["runs"].as_array() {
+        artwork_url = extract_thumbnail_from_renderer(&h["thumbnail"])
+            .or_else(|| extract_thumbnail_from_renderer(&h["thumbnailRenderer"]));
+
+        if let Some(desc) = h["description"]["musicDescriptionShelfRenderer"]["description"]["runs"].as_array() {
             let d: String = desc.iter().filter_map(|r| r["text"].as_str()).collect::<Vec<_>>().join("");
             if !d.is_empty() {
                 description = Some(d);
+            }
+        } else if let Some(desc) = h["description"]["runs"].as_array() {
+            let d: String = desc.iter().filter_map(|r| r["text"].as_str()).collect::<Vec<_>>().join("");
+            if !d.is_empty() {
+                description = Some(d);
+            }
+        }
+    }
+
+    // Fallback para microformat do YouTube caso header renderer não tenha vindo completo
+    if let Some(mf) = val["microformat"]["microformatDataRenderer"].as_object() {
+        if title == "Álbum" || title.is_empty() {
+            if let Some(t) = mf.get("title").and_then(|x| x.as_str()) {
+                title = t.to_string();
+            }
+        }
+        if artwork_url.is_none() {
+            if let Some(thumbs) = mf.get("thumbnail").and_then(|t| t.get("thumbnails")).and_then(|t| t.as_array()) {
+                artwork_url = thumbs.last().and_then(|t| t["url"].as_str()).map(|s| s.to_string());
+            }
+        }
+        if artist == "Artista" || artist.is_empty() {
+            if let Some(d) = mf.get("description").and_then(|x| x.as_str()) {
+                if let Some(part) = d.split('•').nth(1) {
+                    let a = part.trim();
+                    if !a.is_empty() {
+                        artist = a.to_string();
+                    }
+                }
             }
         }
     }
@@ -1546,8 +1742,16 @@ pub async fn get_album_details(session: &AuthSession, browse_id: &str) -> Result
 
     let json_val: Value = resp.json().await.map_err(|e| format!("Erro ao parsear dados do álbum: {e}"))?;
 
+    // Se recebemos um playlist ID (VL / OLAK5uy_) e não há header de álbum,
+    // verifica se encontramos o browseId canônico do álbum (MPREb_) para redirecionamento transparente
+    if find_header_renderer(&json_val).is_none() && clean_id.starts_with("VL") {
+        if let Some(canonical_mpreb) = find_mpreb_in_value(&json_val) {
+            return Box::pin(get_album_details(session, &canonical_mpreb)).await;
+        }
+    }
+
     // Extrair Header do Álbum
-    let (title, artist, artist_id, year, artwork_url, album_type, description, release_date, copyright) =
+    let (mut title, mut artist, artist_id, year, mut artwork_url, album_type, description, release_date, copyright) =
         extract_album_header(&json_val);
 
     // Extrair Faixas
@@ -1564,6 +1768,31 @@ pub async fn get_album_details(session: &AuthSession, browse_id: &str) -> Result
     // Deduplica faixas preservando ordem
     let mut seen_tracks = std::collections::HashSet::new();
     tracks.retain(|t| seen_tracks.insert(t.id.clone()));
+
+    // Fallbacks essenciais caso o header não tenha trazido metadados completos
+    if artwork_url.is_none() {
+        artwork_url = tracks.iter().find_map(|t| t.artwork_url.clone());
+    }
+    if (artist == "Artista" || artist.is_empty()) && !tracks.is_empty() {
+        artist = tracks[0].artist.clone();
+    }
+    if (title == "Álbum" || title.is_empty()) && !tracks.is_empty() {
+        if let Some(a) = tracks.iter().find_map(|t| t.album.clone()).filter(|a| !a.is_empty()) {
+            title = a;
+        }
+    }
+
+    // Garante que todas as faixas tenham artwork_url e álbum definidos
+    if let Some(art) = &artwork_url {
+        for t in &mut tracks {
+            if t.artwork_url.is_none() {
+                t.artwork_url = Some(art.clone());
+            }
+            if t.album.is_none() || t.album.as_deref() == Some("") {
+                t.album = Some(title.clone());
+            }
+        }
+    }
 
     let track_count = Some(tracks.len() as u32);
 
@@ -1599,7 +1828,7 @@ pub async fn get_album_details(session: &AuthSession, browse_id: &str) -> Result
     // Extrair álbuns relacionados (More by artist)
     let mut related_albums = Vec::new();
     extract_albums_from_value(&json_val, &mut related_albums);
-    related_albums.retain(|a| a.id != browse_id);
+    related_albums.retain(|a| a.id != browse_id && !a.title.is_empty() && a.title != title);
     related_albums.truncate(6);
 
     Ok(AlbumDetail {
@@ -1635,10 +1864,35 @@ pub async fn search_album_by_name(session: &AuthSession, query: &str) -> Result<
             }
         },
         "query": query,
-        "params": "EgWKAQIYAWoKEAMQBBAJEAoQBQ%3D%3D"
+        "params": "EgWKAQIYAWoKEAkQBRAKEAMQBA%3D%3D"
     });
 
-    if let Ok(resp) = client.post(url).headers(headers).json(&payload).send().await {
+    if let Ok(resp) = client.post(url).headers(headers.clone()).json(&payload).send().await {
+        if resp.status().is_success() {
+            if let Ok(json_val) = resp.json::<Value>().await {
+                let mut albums = Vec::new();
+                extract_albums_from_value(&json_val, &mut albums);
+                if let Some(first) = albums.into_iter().next() {
+                    return Ok(Some(first));
+                }
+            }
+        }
+    }
+
+    // Fallback de busca caso params restrito não retorne
+    let fallback_payload = json!({
+        "context": {
+            "client": {
+                "clientName": "WEB_REMIX",
+                "clientVersion": "1.20240401.01.00",
+                "hl": "pt",
+                "gl": "BR"
+            }
+        },
+        "query": format!("{query} album")
+    });
+
+    if let Ok(resp) = client.post(url).headers(headers).json(&fallback_payload).send().await {
         if resp.status().is_success() {
             if let Ok(json_val) = resp.json::<Value>().await {
                 let mut albums = Vec::new();

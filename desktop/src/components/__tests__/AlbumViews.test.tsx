@@ -180,4 +180,22 @@ describe("AlbumDetailView Component", () => {
     fireEvent.click(screen.getByText("Aerodynamic"));
     expect(handlePlayTrack).toHaveBeenCalledWith(mockTracks[1], 1, mockTracks);
   });
+
+  it("deve renderizar o indicador de onda sutil quando a faixa estiver em reprodução", () => {
+    render(
+      <AlbumDetailView
+        album={mockAlbums[0]}
+        albumDetail={mockAlbumDetail}
+        isLoading={false}
+        currentTrack={mockTracks[0]}
+        isPlaying={true}
+        loadingTrackId={null}
+        onBack={vi.fn()}
+        onPlayAlbum={vi.fn()}
+        onPlayTrack={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTitle("Reproduzindo faixa")).toBeInTheDocument();
+  });
 });

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   ArrowLeft,
   Disc3,
@@ -28,7 +28,42 @@ interface AlbumDetailViewProps {
   onPlayTrack: (track: Track, index: number, customQueue?: Track[]) => void;
   onTogglePlayPause?: () => void;
   onSelectRelatedAlbum?: (album: Album) => void;
+  onPlayAlbumQuick?: (album: Album, e: React.MouseEvent) => void;
 }
+
+const SubtleWaveIndicator = React.memo(function SubtleWaveIndicator({
+  isPlaying,
+}: {
+  isPlaying: boolean;
+}) {
+  return (
+    <div
+      className="flex items-end justify-center gap-[2.5px] h-3.5 w-5 px-0.5"
+      aria-hidden="true"
+      title={isPlaying ? "Reproduzindo faixa" : "Faixa pausada"}
+    >
+      {[
+        { dur: "1.4s", delay: "0s" },
+        { dur: "1.6s", delay: "0.35s" },
+        { dur: "1.3s", delay: "0.7s" },
+        { dur: "1.5s", delay: "1.05s" },
+      ].map((b, i) => (
+        <span
+          key={i}
+          className="w-[2.5px] h-full rounded-full bg-[var(--accent)] shadow-[0_0_5px_var(--accent-glow)] will-change-transform"
+          style={{
+            transformOrigin: "bottom",
+            animation: isPlaying
+              ? `subtle-equalizer-wave ${b.dur} ease-in-out infinite alternate`
+              : "none",
+            animationDelay: isPlaying ? b.delay : undefined,
+            transform: isPlaying ? undefined : "scaleY(0.25)",
+          }}
+        />
+      ))}
+    </div>
+  );
+});
 
 export const AlbumDetailView = React.memo(function AlbumDetailView({
   album,
@@ -42,6 +77,7 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
   onPlayTrack,
   onTogglePlayPause,
   onSelectRelatedAlbum,
+  onPlayAlbumQuick,
 }: AlbumDetailViewProps) {
   const { openContextMenu } = usePlayer();
   const [hasImageError, setHasImageError] = useState(false);
@@ -49,6 +85,35 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
 
   const displayAlbum = albumDetail || album;
   const tracks = useMemo(() => albumDetail?.tracks || [], [albumDetail]);
+
+  const artworkUrl = albumDetail?.artwork_url || album.artwork_url || tracks[0]?.artwork_url;
+
+  useEffect(() => {
+    setHasImageError(false);
+  }, [album.id, artworkUrl]);
+
+  const trackCount = displayAlbum.track_count || tracks.length;
+
+  const durationText = useMemo(() => {
+    if (displayAlbum.duration_text) return displayAlbum.duration_text;
+    if (tracks.length === 0) return null;
+    const totalSecs = tracks.reduce((acc, t) => {
+      if (t.duration_seconds) return acc + t.duration_seconds;
+      if (!t.duration) return acc;
+      const parts = t.duration.split(":").map(Number);
+      if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+        return acc + parts[0] * 60 + parts[1];
+      }
+      if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+        return acc + parts[0] * 3600 + parts[1] * 60 + parts[2];
+      }
+      return acc;
+    }, 0);
+    if (totalSecs === 0) return null;
+    const mins = Math.floor(totalSecs / 60);
+    const secs = totalSecs % 60;
+    return `${mins} min ${secs} s`;
+  }, [displayAlbum.duration_text, tracks]);
 
   const isCurrentAlbumPlaying = useMemo(() => {
     if (!currentTrack || tracks.length === 0) return false;
@@ -77,7 +142,6 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
     });
   };
 
-  const artworkUrl = displayAlbum.artwork_url;
   const albumTypeLabel =
     displayAlbum.album_type === "ep"
       ? "EP"
@@ -106,7 +170,7 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
           <div className="w-44 h-44 sm:w-52 sm:h-52 md:w-56 md:h-56 rounded-2xl overflow-hidden bg-[#161824] border border-white/10 shrink-0 shadow-2xl group relative">
             {artworkUrl && !hasImageError ? (
               <img
-                src={upgradeArtworkQuality(artworkUrl, album.id, "high")}
+                src={upgradeArtworkQuality(artworkUrl, undefined, "high")}
                 alt={displayAlbum.title}
                 referrerPolicy="no-referrer"
                 onError={() => setHasImageError(true)}
@@ -130,11 +194,29 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
             </h1>
 
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 text-xs sm:text-sm text-[#8c91a4] mt-2.5 font-medium">
-              <span className="text-white font-bold">{displayAlbum.artist}</span>
+              <span
+                onClick={() => {
+                  if (displayAlbum.artist && displayAlbum.artist !== "Artista") {
+                    window.dispatchEvent(
+                      new CustomEvent("tetplayer:search-artist", {
+                        detail: { query: displayAlbum.artist },
+                      })
+                    );
+                  }
+                }}
+                className="text-white font-bold hover:text-[var(--accent-text)] hover:underline cursor-pointer transition-colors"
+                title={`Buscar músicas de ${displayAlbum.artist}`}
+              >
+                {displayAlbum.artist}
+              </span>
               {displayAlbum.year && <span>• {displayAlbum.year}</span>}
-              {displayAlbum.track_count ? <span>• {displayAlbum.track_count} faixas</span> : null}
-              {displayAlbum.duration_text && (
-                <span className="font-mono text-[#71778c]">({displayAlbum.duration_text})</span>
+              {trackCount > 0 ? (
+                <span>
+                  • {trackCount} {trackCount === 1 ? "faixa" : "faixas"}
+                </span>
+              ) : null}
+              {durationText && (
+                <span className="font-mono text-[#71778c]">({durationText})</span>
               )}
             </div>
 
@@ -228,7 +310,13 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
               return (
                 <div
                   key={`${track.id}-${idx}`}
-                  onClick={() => onPlayTrack(track, idx, tracks)}
+                  onClick={() => {
+                    if (isCurrent && onTogglePlayPause) {
+                      onTogglePlayPause();
+                    } else {
+                      onPlayTrack(track, idx, tracks);
+                    }
+                  }}
                   onContextMenu={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -245,10 +333,17 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
                     <div className="w-6 text-center text-xs font-mono shrink-0 text-[#63697e] group-hover:text-white flex items-center justify-center">
                       {isLoadingThis ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--accent)]" />
-                      ) : isCurrent && isPlaying ? (
-                        <span className="text-[var(--accent)] font-bold tracking-tighter text-sm animate-pulse">
-                          ılı
-                        </span>
+                      ) : isCurrent ? (
+                        <>
+                          <div className="group-hover:hidden flex items-center justify-center">
+                            <SubtleWaveIndicator isPlaying={isPlaying} />
+                          </div>
+                          {isPlaying ? (
+                            <Pause className="w-3.5 h-3.5 fill-current hidden group-hover:block text-[var(--accent)]" />
+                          ) : (
+                            <Play className="w-3.5 h-3.5 fill-current hidden group-hover:block text-[var(--accent)]" />
+                          )}
+                        </>
                       ) : (
                         <>
                           <span className="group-hover:hidden">{idx + 1}</span>
@@ -318,6 +413,7 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
                   key={relAlbum.id}
                   album={relAlbum}
                   onSelect={(a) => onSelectRelatedAlbum && onSelectRelatedAlbum(a)}
+                  onPlay={onPlayAlbumQuick}
                 />
               ))}
             </div>

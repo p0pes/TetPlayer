@@ -131,6 +131,7 @@ export function TrackContextMenu({
           albumId: track.album_id,
           albumTitle: track.album,
           artist: track.artist,
+          artworkUrl: track.artwork_url,
         },
       })
     );

@@ -178,6 +178,7 @@ export function NowPlayingDrawer() {
                         albumId: currentTrack.album_id,
                         albumTitle: currentTrack.album,
                         artist: currentTrack.artist,
+                        artworkUrl: currentTrack.artwork_url,
                       },
                     })
                   );

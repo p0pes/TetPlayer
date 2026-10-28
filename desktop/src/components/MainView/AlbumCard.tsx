@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Play, Disc3 } from "lucide-react";
 import { Album } from "../../types";
 import { upgradeArtworkQuality } from "../../utils/artwork";
@@ -15,6 +15,10 @@ export const AlbumCard = React.memo(function AlbumCard({
   onPlay,
 }: AlbumCardProps) {
   const [hasImageError, setHasImageError] = useState(false);
+
+  useEffect(() => {
+    setHasImageError(false);
+  }, [album.id, album.artwork_url]);
 
   const handlePlayClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -37,7 +41,7 @@ export const AlbumCard = React.memo(function AlbumCard({
       <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-[#161822] border border-white/5 shrink-0 shadow-md">
         {album.artwork_url && !hasImageError ? (
           <img
-            src={upgradeArtworkQuality(album.artwork_url, album.id, "thumb")}
+            src={upgradeArtworkQuality(album.artwork_url, undefined, "thumb")}
             alt={album.title}
             loading="lazy"
             decoding="async"
@@ -94,3 +98,4 @@ export const AlbumCard = React.memo(function AlbumCard({
     </div>
   );
 });
+
