@@ -19,6 +19,7 @@ export function NowPlayingDrawer() {
     crossfadeSeconds,
     cycleCrossfade,
     isPlaying,
+    isDrawerClosing,
   } = usePlayer();
 
   const queueBtnRef = useRef<HTMLButtonElement>(null);
@@ -36,7 +37,11 @@ export function NowPlayingDrawer() {
   }, [nowPlayingTab, activeQueue.length]);
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative bg-[#0b0c10]/95 backdrop-blur-2xl animate-in fade-in duration-200">
+    <div
+      className={`absolute inset-0 z-30 flex flex-col min-h-0 overflow-hidden bg-[#0b0c10]/95 backdrop-blur-2xl ${
+        isDrawerClosing ? "animate-drawer-out pointer-events-none" : "animate-drawer-in"
+      }`}
+    >
       {/* Header da Gaveta: Tabs (Fila / Letras), Crossfade */}
       <div className="h-14 px-3 sm:px-4 md:px-6 border-b border-[#1f232e] flex items-center justify-between gap-2 sm:gap-4 shrink-0 bg-[#0e1017]/80 backdrop-blur-md z-20">
         {/* Esquerda: Identificador da faixa atual */}

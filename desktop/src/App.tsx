@@ -72,6 +72,7 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
   const {
     currentTrack,
     isNowPlayingOpen,
+    isDrawerClosing,
     nowPlayingTab,
     showLyrics,
     closeNowPlaying,
@@ -494,7 +495,7 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
             <main
               ref={mainScrollRef as React.RefObject<HTMLDivElement>}
               onScroll={(e) => {
-                if (!isNowPlayingOpen && !showLyrics) {
+                if (!isNowPlayingOpen && !showLyrics && !isDrawerClosing) {
                   playlistScrollPosRef.current = e.currentTarget.scrollTop;
                 }
               }}
@@ -513,21 +514,22 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
                       isPlaying={isPlaying}
                       loadingTrackId={loadingTrackId}
                       onBack={handleBackToPlaylists}
-                      onPlayPlaylist={() => {
-                        if (playlistTracks.length > 0) {
+                      onPlayPlaylist={(customTracks) => {
+                        const queue = customTracks && customTracks.length > 0 ? customTracks : playlistTracks;
+                        if (queue.length > 0) {
                           markPlaylistListened(selectedPlaylist.id);
                           playTrackWithQueue(
-                            playlistTracks[0],
-                            playlistTracks,
+                            queue[0],
+                            queue,
                             0,
                             selectedPlaylist.id
                           );
                         }
                       }}
-                      onPlayTrack={(track, idx) =>
+                      onPlayTrack={(track, idx, customQueue) =>
                         playTrackWithQueue(
                           track,
-                          playlistTracks,
+                          customQueue || playlistTracks,
                           idx,
                           selectedPlaylist.id
                         )
@@ -582,7 +584,7 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
             </main>
 
             {/* Gaveta de Reprodução */}
-            {(isNowPlayingOpen || showLyrics) && <NowPlayingDrawer />}
+            {(isNowPlayingOpen || showLyrics || isDrawerClosing) && <NowPlayingDrawer />}
           </div>
         </div>
 

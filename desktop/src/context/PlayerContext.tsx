@@ -51,6 +51,7 @@ interface PlayerContextType {
   toggleMiniPlayer: () => void;
 
   isNowPlayingOpen: boolean;
+  isDrawerClosing: boolean;
   nowPlayingTab: NowPlayingTab;
   showLyrics: boolean;
   showPastTracks: boolean;
@@ -152,6 +153,8 @@ export function PlayerProvider({
 
   // Gaveta de reprodução & Abas
   const [isNowPlayingOpen, setIsNowPlayingOpen] = useState(false);
+  const [isDrawerClosing, setIsDrawerClosing] = useState(false);
+  const closeDrawerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [nowPlayingTab, setNowPlayingTabState] = useState<NowPlayingTab>("lyrics");
   const [showLyrics, setShowLyrics] = useState(false);
   const [showPastTracks, setShowPastTracks] = useState(true);
@@ -270,6 +273,11 @@ export function PlayerProvider({
   }
 
   function openNowPlaying(tab: NowPlayingTab) {
+    if (closeDrawerTimeoutRef.current) {
+      clearTimeout(closeDrawerTimeoutRef.current);
+      closeDrawerTimeoutRef.current = null;
+    }
+    setIsDrawerClosing(false);
     if (mainScrollRef.current) {
       playlistScrollPosRef.current = mainScrollRef.current.scrollTop;
     }
@@ -284,8 +292,17 @@ export function PlayerProvider({
   }
 
   function closeNowPlaying() {
-    setIsNowPlayingOpen(false);
-    setShowLyrics(false);
+    if (!isNowPlayingOpen && !showLyrics) return;
+    setIsDrawerClosing(true);
+    if (closeDrawerTimeoutRef.current) {
+      clearTimeout(closeDrawerTimeoutRef.current);
+    }
+    closeDrawerTimeoutRef.current = setTimeout(() => {
+      setIsNowPlayingOpen(false);
+      setShowLyrics(false);
+      setIsDrawerClosing(false);
+      closeDrawerTimeoutRef.current = null;
+    }, 180);
   }
 
   function toggleNowPlaying() {
@@ -624,6 +641,7 @@ export function PlayerProvider({
       isMiniPlayer,
       toggleMiniPlayer,
       isNowPlayingOpen,
+      isDrawerClosing,
       nowPlayingTab,
       showLyrics,
       showPastTracks,
@@ -673,6 +691,7 @@ export function PlayerProvider({
       isAutoplayRadio,
       isMiniPlayer,
       isNowPlayingOpen,
+      isDrawerClosing,
       nowPlayingTab,
       showLyrics,
       showPastTracks,

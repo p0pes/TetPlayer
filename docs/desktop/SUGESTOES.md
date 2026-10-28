@@ -3,7 +3,7 @@
 > **Data de Elaboração / Última Revisão:** 27 de Outubro de 2026  
 > **Auditor Técnico:** Especialista em Arquitetura de Software, UX/UI e Sistemas de Mídia (`reviewer`)  
 > **Documento de Referência:** [`docs/desktop/SUGESTOES.md`](file:///d:/progrmação/programas/TetPlayer/docs/desktop/SUGESTOES.md)  
-> **Status:** 🟢 **46 Itens Concluídos e Validados no Histórico Consolidado (Release v1.3.3+)** | 💡 **21 Sugestões Futuras v1.4+ Mapeadas (incl. pesquisa de mercado e preparação para app público)**  
+> **Status:** 🟢 **47 Itens Concluídos e Validados no Histórico Consolidado (Milestone v1.4+)** | 💡 **20 Sugestões Futuras v1.4+ Mapeadas (incl. pesquisa de mercado e preparação para app público)**  
 > **Objetivo:** Fornecer um roadmap técnico, moderno e categorizado para elevar o TetPlayer Desktop ao estado da arte em reprodutores de mídia para desktop.
 
 ---
@@ -30,7 +30,7 @@ O **TetPlayer Desktop** opera sobre uma fundação de alta performance combinand
 └────────────────────────────────┴───────────────────────────────────────┘
 ```
 
-Abaixo encontram-se a **pesquisa de mercado**, as **21 sugestões ativas em aberto** para as próximas versões e o **Histórico Consolidado** com todos os 46 itens já implementados, testados e validados na base de código.
+Abaixo encontram-se a **pesquisa de mercado**, as **20 sugestões ativas em aberto** para as próximas versões e o **Histórico Consolidado** com todos os 47 itens já implementados, testados e validados na base de código.
 
 ---
 
@@ -44,7 +44,7 @@ Abaixo encontram-se a **pesquisa de mercado**, as **21 sugestões ativas em aber
 | App nativo leve, sem "cara de aba do navegador" | Reddit (queixa nº 1 do app oficial) | ✅ Já atendido (Tauri + Rust) |
 | Teclas de mídia globais, bandeja, mini player | Reddit, th-ch | ✅ Já atendido |
 | Letras sincronizadas | Reddit, th-ch | ✅ Já atendido (Kinetic Scroll suave) |
-| Buscar uma música **dentro** de uma playlist e ordenar | Reddit (muito citado) | ❌ Não existe → **2.2** |
+| Buscar uma música **dentro** de uma playlist e ordenar | Reddit (muito citado) | ✅ Já atendido (Busca em tempo real e ordenação em 2.2 / Item 47) |
 | Curtir/descurtir e ver se a faixa já está curtida | Reddit | ❌ Não existe → **2.3** |
 | Criar, editar e modificar playlists (adicionar, remover, renomear, reordenar) | Reddit, Spotify | ❌ Não existe → **2.4** |
 | Voltar de onde parou ao reabrir o app | Clientes alternativos | ❌ Não existe → **2.5** |
@@ -105,13 +105,10 @@ Abaixo encontram-se a **pesquisa de mercado**, as **21 sugestões ativas em aber
 ---
 
 #### 2.2 Busca e Ordenação Dentro de Playlists
-* **Status:** `[Em Aberto / Essencial]` 💡
+* **Status:** `[Concluído e Validado no Histórico Consolidado — Item 47]` ✅
 * **Impacto:** `[Alto]` | **Esforço:** `[Baixo]`
 * **Origem:** Uma das queixas mais repetidas no r/YoutubeMusic: numa playlist de 500 músicas não há como procurar uma faixa.
-* **Funcionalidades:**
-  - Campo de filtro no topo de [`PlaylistDetailView`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/) que filtra por título, artista e álbum em tempo real (no cliente, sobre as faixas já carregadas).
-  - Ordenação por: ordem original, título, artista, duração.
-  - Atalho `Ctrl+F` para focar o filtro. Compatível com a lista virtualizada existente.
+* **Implementação Concluída:** Ver detalhes completos no [Item 47 do Histórico Consolidado](#47-busca-instantânea-e-ordenação-flexível-dentro-de-playlists-item-22-da-pesquisa-de-mercado).
 
 ---
 
@@ -842,12 +839,25 @@ Abaixo encontram-se a **pesquisa de mercado**, as **21 sugestões ativas em aber
 
 ---
 
-## 📌 Conclusão & Próximos Passos (TetPlayer v1.3.3+ Concluído)
+### 47. Busca Instantânea e Ordenação Flexível Dentro de Playlists (Item 2.2 da Pesquisa de Mercado)
+* **Status:** `[Implementado e Validado]` ✅
+* **Localização:** [`desktop/src/components/MainView/PlaylistDetailView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/PlaylistDetailView.tsx) e [`desktop/src/components/__tests__/PlaylistDetailView.test.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/__tests__/PlaylistDetailView.test.tsx).
+* **Implementação Concluída:**
+  - Campo de busca responsivo integrado ao cabeçalho da playlist com filtro em tempo real sobre títulos, artistas e álbuns de todas as faixas carregadas.
+  - Atalho universal de teclado `Ctrl+F` / `Cmd+F` para focar imediatamente o input de busca, além de botão para limpar com 1 clique (`X`) e indicador visual de faixas encontradas (`X de Y`).
+  - Seletor de ordenação com suporte a: Ordem Original, Título (A-Z), Artista (A-Z), Duração (Mais longas) e Duração (Mais curtas).
+  - Estado de busca vazia estilizado com ícone `SearchX` e botão "Limpar busca" quando nenhuma faixa coincidir com os termos digitados.
+  - Tocar a playlist ou clicar em qualquer faixa filtrada despacha a fila reativa customizada para o player, garantindo que a ordem respeite perfeitamente a seleção do usuário.
+  - Suíte de 4 testes unitários automatizados validando busca, ordenação alfabética e atalho de teclado.
 
-Com a consolidação dos itens **42 (Animação Fluida na Troca de Letras)**, **43 (Login Google via Webview Isolada)**, **44 (Auto-Update Silencioso In-App via Tauri v2)**, **45 (Armazenamento Unificado na Pasta de Instalação)** e **46 (Fechamento da Gaveta na Navegação Lateral)**, o TetPlayer atinge a marca de **46 melhorias arquiteturais, funcionais e estéticas** totalmente validadas.
+---
 
-A versão **1.3.3** está estável e com o ecossistema de atualização silenciosa 100% funcional. A partir deste ponto, o desenvolvimento continua **exclusivamente na branch `develop`**. As prioridades imediatas para a milestone **v1.4.0** são:
-1. **2.2 Busca e Ordenação Dentro de Playlists:** Campo de filtro instantâneo por título/artista/álbum e ordenação no topo de playlists longas.
-2. **2.3 Curtir / Descurtir Sincronizado com o YouTube Music:** Botão de coração no PlayerBar, Mini Player e menu de contexto integrado aos endpoints InnerTube.
-3. **2.5 Restaurar a Sessão ao Reabrir o App:** Recuperar a última fila, faixa e posição pausada a partir do SQLite local.
-4. **2.1 Sleep Timer:** Temporizador de suspensão programável com fade-out suave de volume de 20 segundos.
+## 📌 Conclusão & Próximos Passos (TetPlayer v1.4+ em Desenvolvimento na develop)
+
+Com a consolidação do item **47 (Busca e Ordenação Dentro de Playlists — Item 2.2)** e as melhorias ergonômicas no layout do `PlayerBar` e na animação suave Slide & Fade da gaveta de reprodução, o TetPlayer atinge a marca de **47 melhorias arquiteturais, funcionais e estéticas** totalmente validadas.
+
+O desenvolvimento segue **exclusivamente na branch `develop`**. As prioridades imediatas para a sequência da milestone **v1.4.0** são:
+1. **2.3 Curtir / Descurtir Sincronizado com o YouTube Music:** Botão de coração no PlayerBar, Mini Player e menu de contexto integrado aos endpoints InnerTube.
+2. **2.5 Restaurar a Sessão ao Reabrir o App:** Recuperar a última fila, faixa e posição pausada a partir do SQLite local.
+3. **2.1 Sleep Timer:** Temporizador de suspensão programável com fade-out suave de volume de 20 segundos.
+4. **2.4 Edição e Modificação Avançada de Playlists:** Criação, exclusão de faixas e reorganização na nuvem do YouTube Music.

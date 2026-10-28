@@ -54,24 +54,16 @@ export const PlayerBar = memo(function PlayerBar() {
 
   return (
     <footer className="h-20 shrink-0 border-t border-[#1f232e] bg-[#0e1017]/95 backdrop-blur-md px-3 sm:px-4 md:px-6 flex items-center justify-between gap-2 sm:gap-4 md:gap-6 z-40">
-      {/* Faixa Atual e Botão da Gaveta de Reprodução */}
+      {/* Faixa Atual e Mini Player Isolado na Extrema Esquerda */}
       <div className="flex items-center gap-2 sm:gap-3 w-[28%] min-w-0 max-w-[280px]">
-        {/* Seta na Barra de Baixo para Abrir / Recolher a Gaveta */}
+        {/* Botão Mini Player Isolado em Destaque na Extrema Esquerda */}
         <button
-          onClick={toggleNowPlaying}
-          aria-label={isDrawerOpen ? "Recolher gaveta de reprodução" : "Abrir gaveta de reprodução"}
-          title={isDrawerOpen ? "Recolher gaveta [Shift+Up / Esc]" : "Abrir gaveta de reprodução (Fila & Letras) [Shift+Up]"}
-          className={`p-1.5 sm:p-2 rounded-xl border transition-all cursor-pointer shrink-0 ${
-            isDrawerOpen
-              ? "bg-[var(--accent)] text-white border-[var(--accent-border)] shadow-lg shadow-[var(--accent-glow)]"
-              : "bg-[#171a24] text-[#8c91a4] hover:text-white hover:bg-[#202534] border-[#252a3a]"
-          }`}
+          onClick={toggleMiniPlayer}
+          title="Modo Mini Player Flutuante (Always-on-Top / PiP)"
+          aria-label="Modo Mini Player"
+          className="p-1.5 sm:p-2 rounded-xl text-[#9da3b7] hover:text-white bg-[#151824] hover:bg-[#1f2436] border border-[#23283a] hover:border-[var(--accent-border)] transition-all cursor-pointer shrink-0 shadow-sm hover:shadow-[0_0_12px_var(--accent-glow)] group mr-0.5 sm:mr-1"
         >
-          {isDrawerOpen ? (
-            <ChevronDown className="w-4 h-4 transition-transform" />
-          ) : (
-            <ChevronUp className="w-4 h-4 transition-transform group-hover:-translate-y-0.5" />
-          )}
+          <Tv className="w-4 h-4 group-hover:scale-105 group-hover:text-[var(--accent-text)] transition-all" />
         </button>
 
         <div
@@ -226,18 +218,8 @@ export const PlayerBar = memo(function PlayerBar() {
         />
       </div>
 
-      {/* Volume, Fila, Letras & Mini Player */}
+      {/* Volume, Fila, Letras & Botão da Gaveta */}
       <div className="flex items-center justify-end gap-1.5 sm:gap-2 md:gap-2.5 w-[28%] min-w-0 max-w-[280px]">
-        {/* Botão Mini Player (Sugestão 2.1) */}
-        <button
-          onClick={toggleMiniPlayer}
-          title="Modo Mini Player Flutuante (Always-on-Top / PiP)"
-          aria-label="Modo Mini Player"
-          className="p-1.5 sm:p-2 rounded-xl text-[#8c91a4] hover:text-white hover:bg-[#1a1d28] border border-transparent hover:border-[#252a3a] transition-all cursor-pointer shrink-0"
-        >
-          <Tv className="w-4 h-4" />
-        </button>
-
         {/* Botão Fila de Reprodução */}
         <button
           onClick={toggleShowQueue}
@@ -270,6 +252,24 @@ export const PlayerBar = memo(function PlayerBar() {
         >
           <Mic2 className="w-4 h-4 shrink-0" />
           <span className="hidden xl:inline">Letras</span>
+        </button>
+
+        {/* Seta para Abrir / Recolher a Gaveta no Lado Direito */}
+        <button
+          onClick={toggleNowPlaying}
+          aria-label={isDrawerOpen ? "Recolher gaveta de reprodução" : "Abrir gaveta de reprodução"}
+          title={isDrawerOpen ? "Recolher gaveta [Shift+Up / Esc]" : "Abrir gaveta de reprodução (Fila & Letras) [Shift+Up]"}
+          className={`p-1.5 sm:p-2 rounded-xl border transition-all cursor-pointer shrink-0 ${
+            isDrawerOpen
+              ? "bg-[var(--accent)] text-white border-[var(--accent-border)] shadow-lg shadow-[var(--accent-glow)]"
+              : "bg-[#171a24] text-[#8c91a4] hover:text-white hover:bg-[#202534] border-[#252a3a]"
+          }`}
+        >
+          {isDrawerOpen ? (
+            <ChevronDown className="w-4 h-4 transition-transform" />
+          ) : (
+            <ChevronUp className="w-4 h-4 transition-transform group-hover:-translate-y-0.5" />
+          )}
         </button>
 
         {/* Visualizador de Áudio Mini & Status Badge (Sugestão 3.2) */}

@@ -2,10 +2,10 @@
 
 > **Data da Auditoria:** 27 de Outubro de 2026  
 > **Avaliador:** Agente Especialista em Code Review, Análise Estática e UX/UI Inspection (`reviewer`)  
-> **Status Geral da Aplicação:** 🟢 **Build, Compilação e Testes 100% Verificados (TypeScript + Rust `cargo test` & `vite build` com Zero Erros, 48 testes Vitest + 8 testes Rust passando)**.  
+> **Status Geral da Aplicação:** 🟢 **Build, Compilação e Testes 100% Verificados (TypeScript + Rust `cargo test` & `vite build` com Zero Erros, 53 testes Vitest + 8 testes Rust passando)**.  
 > **Status Comparativo:**  
 > - 📌 **0 Apontamentos Pendentes** (100% dos itens da rodada corrigidos, validados e cobertos por testes)  
-> - ✅ **52 Itens Integralmente Resolvidos e Validados** (Histórico técnico preservado na íntegra na seção inferior)  
+> - ✅ **53 Itens Integralmente Resolvidos e Validados** (Histórico técnico preservado na íntegra na seção inferior)  
 
 ---
 
@@ -17,13 +17,13 @@
 ├────┬───────────────────────────────────┬───────────────┬────────────────────────────────────────────────────────┤
 │ #  │ Categoria                         │ Severidade    │ Status / Descrição                                     │
 ├────┼───────────────────────────────────┼───────────────┼────────────────────────────────────────────────────────┤
-│ -- │ Nenhuma pendência ativa           │ [Resolvido]   │ Todos os 51 apontamentos técnicos foram solucionados   │
+│ -- │ Nenhuma pendência ativa           │ [Resolvido]   │ Todos os 53 apontamentos técnicos foram solucionados   │
 └────┴───────────────────────────────────┴───────────────┴────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## ✅ HISTÓRICO CONSOLIDADO: 51 Apontamentos Resolvidos e Validados
+## ✅ HISTÓRICO CONSOLIDADO: 53 Apontamentos Resolvidos e Validados
 
 > [!NOTE]
 > Todos os itens abaixo foram implementados, testados, compilados e validados no TetPlayer Desktop. Eles permanecem registrados na base deste documento como memória técnica da arquitetura, robustez e performance da aplicação.
@@ -664,10 +664,35 @@
 
 ---
 
-## 📋 Conclusão da Auditoria (Release v1.3.3 Oficial)
+### 63. Busca e Ordenação Dentro de Playlists, Reposicionamento Ergonômico de Controles e Animação Leve Slide & Fade na Gaveta
+* **Status:** `[Resolvido]` ✅
+* **Localização:** [`desktop/src/components/MainView/PlaylistDetailView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/PlaylistDetailView.tsx), [`desktop/src/components/Player/PlayerBar.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Player/PlayerBar.tsx), [`desktop/src/components/NowPlayingDrawer/NowPlayingDrawer.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/NowPlayingDrawer/NowPlayingDrawer.tsx), [`desktop/src/context/PlayerContext.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/context/PlayerContext.tsx), [`desktop/src/index.css`](file:///d:/progrmação/programas/TetPlayer/desktop/src/index.css), [`desktop/src/App.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/App.tsx) e [`desktop/src/components/__tests__/PlaylistDetailView.test.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/__tests__/PlaylistDetailView.test.tsx).
+* **Diagnóstico Técnico & Demandas de Usuário:**
+  - **Falta de busca interna e ordenação:** Em playlists extensas (mais de 100 faixas), localizar uma música específica exigia rolagem manual exaustiva, um dos pontos mais criticados por usuários de reprodutores de mídia desktop.
+  - **Disposição anti-intuitiva de botões na barra inferior:** O botão de expansão da gaveta (`ChevronUp`/`ChevronDown`) ficava na extrema esquerda, afastado dos botões de controle de Fila e Letras com os quais tem relação direta, enquanto o Mini Player não tinha destaque prioritário.
+  - **Transição abrupta de abertura e fechamento da gaveta:** A alternância de visibilidade da gaveta (`NowPlayingDrawer`) era instantânea, causando cortes visuais secos sobre a tela de fundo.
+* **Solução Implementada:**
+  - **Busca e Ordenação em Tempo Real (Item 2.2 do Roadmap):**
+    - Input de filtro inteligente integrado ao cabeçalho da playlist, filtrando instantaneamente por título, artista e álbum.
+    - Atalho universal de teclado `Ctrl+F` / `Cmd+F` com foco automático no campo, botão de limpar com 1 clique (`X`) e contador de faixas filtradas (`X de Y`).
+    - Seletor de ordenação: Ordem Original, Título (A-Z), Artista (A-Z), Duração (Mais longas) e Duração (Mais curtas).
+    - Estado vazio estilizado com ícone `SearchX` e botão "Limpar busca" quando nenhum resultado for encontrado.
+    - Fila personalizada reativa ao tocar a playlist ou qualquer faixa filtrada (`playTrackWithQueue`).
+  - **Novo Layout Ergonômico do `PlayerBar`:**
+    - Ícone do Mini Player (`Tv`) movido para a extrema esquerda com moldura isolada em destaque (`p-2 rounded-xl bg-white/[0.04] border border-white/5 hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-400 transition-all`), proporcionando acesso rápido e isolamento visual.
+    - Botão de abrir/recolher gaveta (`ChevronUp`/`ChevronDown`) movido para o lado direito, imediatamente posicionado ao lado dos botões de Fila e Letras para coerência funcional.
+  - **Animação Leve e Sutil Slide & Fade na Gaveta (GPU Acelerada em 180ms):**
+    - Keyframes `drawer-slide-fade-in` e `drawer-slide-fade-out` com aceleração por hardware via `transform: translateY(12px)` e `opacity` em 180ms suave (`cubic-bezier(0.16, 1, 0.3, 1)`).
+    - Adicionado estado transitório `isDrawerClosing` em `PlayerContext` com temporizador exato de 180ms e `pointer-events-none` durante o fechamento para evitar congelamentos e permitir resposta instantânea do mouse.
+  - **Cobertura de Testes:**
+    - Suíte com 4 novos testes unitários em `desktop/src/components/__tests__/PlaylistDetailView.test.tsx` cobrindo renderização, filtragem por texto, ordenação alfabética e atalho `Ctrl+F`.
 
-A versão **1.3.3** aprimora a fluidez da navegação com fechamento automático da gaveta de reprodução e consolida a infraestrutura de auto-update:
-- **Zero erros de compilação ou tipos:** `tsc && vite build`, 49 testes Vitest e 8 testes Rust 100% verdes (57 testes no total).
-- **Navegação Fluida:** A gaveta expandida de Fila/Letras é automaticamente recolhida ao alternar entre Biblioteca, Busca e Estatísticas na barra lateral.
-- **Auto-Update 100% In-App:** Pipeline com `createUpdaterArtifacts: true` gerando assinaturas Minisign e `latest.json` nas releases do GitHub.
-- **Bump Oficial v1.3.3:** Sincronizado em `package.json`, `Cargo.toml`, `tauri.conf.json`, `updater.ts`, `updater.test.ts` e `README.md`.
+---
+
+## 📋 Conclusão da Auditoria (Branch develop — Próxima Milestone v1.4.0)
+
+A suíte técnica atinge a marca de **53 itens corrigidos e consolidados**, com total estabilidade na branch `develop`:
+- **Zero erros de compilação ou tipos:** `tsc && vite build`, 53 testes Vitest e 8 testes Rust 100% verdes (61 testes no total).
+- **Busca e Ordenação (Item 2.2):** Alta performance em listas extensas com suporte a atalhos e seleção de ordem.
+- **Ergonomia e Animação Fluida:** PlayerBar reestruturado com Mini Player isolado à esquerda, botão de gaveta à direita e animação leve Slide & Fade acelerada por GPU.
+
