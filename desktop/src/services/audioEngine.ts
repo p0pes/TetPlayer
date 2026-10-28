@@ -189,3 +189,4 @@ export class AudioEngine {
 
 // Instância Singleton do motor de áudio para reutilização global
 export const nativeAudioEngine = new AudioEngine();
+

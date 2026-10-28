@@ -2,9 +2,9 @@
 
 > **Data da Auditoria:** 27 de Outubro de 2026  
 > **Avaliador:** Agente Especialista em Code Review, Análise Estática e UX/UI Inspection (`reviewer`)  
-> **Status Geral da Aplicação:** 🟢 **Build, Compilação e Testes 100% Verificados (TypeScript + Rust `cargo test` & `vite build` com Zero Erros, 58 testes Vitest + 11 testes Rust passando = 69 testes)**.  
-> **Status Comparativo:**  
-> - 📌 **0 Apontamentos Pendentes** (100% dos itens da rodada corrigidos, validados e cobertos por testes)  
+> **Status da Aplicação:** 🟢 **Build, Compilação e Testes 100% Verificados (TypeScript + Rust `cargo test` & `vite build` com Zero Erros, 58 testes Vitest + 11 testes Rust passando = 69 testes)**.  
+> **Status Comparativo da Auditoria:**  
+> - 📌 **5 Apontamentos Ativos Mapeados para Otimização e Prevenção de Falhas** (Mapeados na auditoria técnica de performance e concorrência)  
 > - ✅ **57 Itens Integralmente Resolvidos e Validados** (Histórico técnico preservado na íntegra na seção inferior)  
 
 ---
@@ -12,14 +12,86 @@
 ## 📌 EM DESTAQUE: Apontamentos Ativos Catalogados (Classificados por Prioridade)
 
 ```
-┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                       MAPA DE APONTAMENTOS ATIVOS                                              │
-├────┬───────────────────────────────────┬───────────────┬────────────────────────────────────────────────────────┤
-│ #  │ Categoria                         │ Severidade    │ Status / Descrição                                     │
+┌────┬───────────────────────────────────┬───────────────┬────────────────────────────────────────────────────────┐
+│ #  │ Categoria                         │ Severidade    │ Descrição do Apontamento                               │
 ├────┼───────────────────────────────────┼───────────────┼────────────────────────────────────────────────────────┤
-│ -- │ Nenhuma pendência ativa           │ [Resolvido]   │ Todos os 57 apontamentos técnicos foram solucionados   │
+│ 68 │ Concorrência & Reprodução         │ [Aviso]       │ Race Condition assíncrona em skips rápidos de faixa    │
+│ 69 │ Web Audio API & Performance       │ [Aviso]       │ Flooding contínuo de automação de volume a 12.5 FPS    │
+│ 70 │ Reatividade & CPU (Letras)        │ [Aviso]       │ Re-renderização e diffing de toda a lista de letras    │
+│ 71 │ Backend & I/O em Disco (SQLite)   │ [Sugestão]    │ Habilitação do modo WAL e synchronous=NORMAL no SQLite │
+│ 72 │ Gráficos & Reconciliação React    │ [Sugestão]    │ Re-render via useState a 25 FPS no SpectrumVisualizer   │
 └────┴───────────────────────────────────┴───────────────┴────────────────────────────────────────────────────────┘
 ```
+
+### 68. Concorrência Assíncrona e Race Condition em Trocas Rápidas de Música (`loadAndPlayVideo`)
+* **Severidade:** `[Aviso]` (Risco de reprodução fora de ordem ou corte inesperado de faixas em cliques rápidos)
+* **Localização:** [`desktop/src/hooks/useYouTubePlayer.ts:Linha 307-340`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useYouTubePlayer.ts#L307)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  Na função assíncrona `loadAndPlayVideo(videoId: string)`, é disparada a chamada IPC `invoke("get_stream_info", { videoId })`. Caso o usuário realize múltiplos skips rápidos ou clique em diferentes faixas da fila em sequência rápida, várias promises de requisição ao backend ficam pendentes em paralelo.
+  Como não há verificação de concorrência (`if (currentVideoIdRef.current !== videoId) return;`) após o `await invoke(...)`, se a resposta de uma faixa anterior resolver milissegundos após a mais recente, a faixa antiga substituirá indevidamente a mídia recém-iniciada no `nativeAudioEngine` ou acionará o fallback do IFrame para o vídeo desatualizado ("áudio fantasma").
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  Inserir verificação imediata de id de requisição após o `await invoke`:
+  ```ts
+  const stream = await invoke<StreamInfo | null>("get_stream_info", { videoId });
+  // Descarta resposta caso o usuário já tenha selecionado outra faixa enquanto o IPC estava em trânsito
+  if (currentVideoIdRef.current !== videoId) return;
+  ```
+
+---
+
+### 69. Flooding de Automação de Volume na Web Audio API (`setValueAtTime` a cada 80ms)
+* **Severidade:** `[Aviso]` (Gargalo desnecessário de agendamento na thread de áudio em reprodução contínua)
+* **Localização:** [`desktop/src/services/audioEngine.ts:Linha 155-170`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/audioEngine.ts#L155) e [`desktop/src/hooks/useYouTubePlayer.ts:Linha 95-108`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useYouTubePlayer.ts#L95)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  O loop de sincronização do player executa a cada 80ms (12.5 vezes por segundo). Durante a reprodução nativa, ele invoca `nativeAudioEngine.setVolume(target)` continuamente.
+  Em `audioEngine.ts`, o método executa `this.gainNode.gain.setValueAtTime(clamped, this.audioCtx.currentTime)` sem verificar se o volume efetivo sofreu qualquer alteração em relação ao valor anterior. Isso cria uma pilha desnecessária de automação de áudio no nó de ganho do Web Audio API mesmo com o volume 100% estático.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  Implementar sentinela de cache de volume no `AudioEngine` (`lastVolume`) ou no chamador em `useYouTubePlayer`, disparando `setValueAtTime` unicamente quando `Math.abs(this.lastVolume - clamped) > 0.001`:
+  ```ts
+  if (Math.abs(this.lastVolume - clamped) < 0.001) return;
+  this.lastVolume = clamped;
+  this.gainNode.gain.setValueAtTime(clamped, this.audioCtx.currentTime);
+  ```
+
+---
+
+### 70. Re-renderização e Reconciliação Contínua da Lista Inteira de Letras a 12.5 FPS (`LyricsView.tsx`)
+* **Severidade:** `[Aviso]` (Consumo desnecessário de CPU com a gaveta de letras aberta)
+* **Localização:** [`desktop/src/components/LyricsView/LyricsView.tsx:Linha 70-115`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/LyricsView/LyricsView.tsx#L70)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  O componente `LyricsView` consome `currentTime` de `usePlaybackProgress()`, que emite atualizações a cada 80ms.
+  Em cada tick de 80ms, o componente inteiro re-executa a renderização, mapeando todas as 50 a 100 estrofes da música (`parsedLyrics.map(...)`), concatenando classes CSS de tipografia e executando diffing no Virtual DOM do React, mesmo que a estrofe ativa (`activeLyricIndex`) só mude a cada 3 a 8 segundos.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  Isolar a renderização de cada linha em um subcomponente memoizado (`LyricLineRow = React.memo(...)`), ou alimentar o `useLyrics` diretamente com um seletor que só atualize o estado de renderização do componente quando `activeLyricIndex` mudar de valor.
+
+---
+
+### 71. Ausência de Modo WAL (Write-Ahead Logging) no Banco SQLite (`stats.rs`)
+* **Severidade:** `[Sugestão]` (Otimização de I/O em disco e prevenção de contenção entre threads)
+* **Localização:** [`desktop/src-tauri/src/stats.rs:Linha 91-100`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/stats.rs#L91)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  O banco SQLite `tetstats.db` é inicializado sem especificar o `journal_mode`. No padrão do SQLite (`DELETE` / `ROLLBACK`), qualquer operação de escrita (gravação de histórico de faixas ouvidas ou gravação de cache compactado do app) aplica um lock exclusivo em nível de arquivo no banco.
+  Isso pode gerar micro-esperas ou contenção com o `busy_timeout` quando comandos assíncronos do Tauri gravam e leem o banco concorrentemente.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  Em `stats::init_db()`, executar pragmas de alto desempenho recomendados para aplicações desktop:
+  ```rust
+  conn.execute_batch("
+      PRAGMA journal_mode = WAL;
+      PRAGMA synchronous = NORMAL;
+      PRAGMA temp_store = MEMORY;
+  ")?;
+  ```
+
+---
+
+### 72. Re-renderização baseada em State React no `SpectrumVisualizer` (25 FPS por instância)
+* **Severidade:** `[Sugestão]` (Eficiência de renderização da GPU e eliminação de ciclos do React)
+* **Localização:** [`desktop/src/components/Visualizer/SpectrumVisualizer.tsx:Linha 50-72`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Visualizer/SpectrumVisualizer.tsx#L50)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  O componente `SpectrumVisualizer` executa um loop via `requestAnimationFrame` que a cada 40ms calcula harmônicos de seno/cosseno e chama `setHeights(...)`.
+  Como existem múltiplas instâncias montadas simultaneamente (`PlayerBar`, `MiniPlayer`, etc.), cada instância dispara 25 re-renderizações por segundo no React, alocando novos arrays de alturas e recalculando a árvore de elementos.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  Substituir o estado React `setHeights` por animação pura em CSS (keyframes de pulso dinâmico com delays fracionados em cada barra) ou manipulação direta de estilos inline através de refs (`barRefs.current[i].style.transform = scaleY(...)`), eliminando 100% dos re-renders do componente.
 
 ---
 

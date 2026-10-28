@@ -65,3 +65,4 @@ describe("AudioEngine (Item 1.1 - Motor de Áudio Nativo)", () => {
     expect(onTimeUpdate).toHaveBeenCalled();
   });
 });
+
