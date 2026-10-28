@@ -3,7 +3,7 @@
 > **Data de Elaboração / Última Revisão:** 27 de Outubro de 2026  
 > **Auditor Técnico:** Especialista em Arquitetura de Software, UX/UI e Sistemas de Mídia (`reviewer`)  
 > **Documento de Referência:** [`docs/desktop/SUGESTOES.md`](file:///d:/progrmação/programas/TetPlayer/docs/desktop/SUGESTOES.md)  
-> **Status:** 🟢 **49 Itens Concluídos e Validados no Histórico Consolidado (Milestone v1.4+)** | 💡 **19 Sugestões Futuras v1.4+ Mapeadas (incl. pesquisa de mercado e preparação para app público)**  
+> **Status:** 🟢 **49 Itens Concluídos e Validados no Histórico Consolidado (Milestone v1.4+)** | 💡 **20 Sugestões Futuras v1.4+ Mapeadas (incl. pesquisa de mercado e preparação para app público)**  
 > **Objetivo:** Fornecer um roadmap técnico, moderno e categorizado para elevar o TetPlayer Desktop ao estado da arte em reprodutores de mídia para desktop.
 
 ---
@@ -30,7 +30,7 @@ O **TetPlayer Desktop** opera sobre uma fundação de alta performance combinand
 └────────────────────────────────┴───────────────────────────────────────┘
 ```
 
-Abaixo encontram-se a **pesquisa de mercado**, as **21 sugestões ativas em aberto** para as próximas versões e o **Histórico Consolidado** com todos os 47 itens já implementados, testados e validados na base de código.
+Abaixo encontram-se a **pesquisa de mercado**, as **22 sugestões ativas em aberto** para as próximas versões e o **Histórico Consolidado** com todos os 47 itens já implementados, testados e validados na base de código.
 
 ---
 
@@ -54,7 +54,7 @@ Abaixo encontram-se a **pesquisa de mercado**, as **21 sugestões ativas em aber
 | Bloquear músicas/artistas da rádio e recomendações | Reddit, Spotify | ❌ Não existe → **2.7** |
 | Botões Voltar/Avançar de navegação | th-ch (plugin Navigation), Reddit | ❌ Não existe → **2.8** |
 | Volume pela roda do mouse com passos precisos | th-ch (plugin Precise Volume) | ❌ Não existe → **2.9** |
-| Feed de lançamentos e biblioteca de álbuns/artistas | Reddit, Spotify | ❌ Não existe → **2.10** |
+| Feed de lançamentos e biblioteca de álbuns/artistas | Reddit, Spotify | ❌ Em concepção e design → **2.10** & **2.11** |
 | Sleep timer | Clientes alternativos | ❌ Não existe → **2.1** |
 | Discord Rich Presence | th-ch, Reddit | ❌ Não existe → **4.1** |
 | Equalizador / normalização real de volume | Clientes alternativos, audiófilos | ⚠️ Só um limitador simples acima de 85% → **4.2** |
@@ -261,6 +261,227 @@ Abaixo encontram-se a **pesquisa de mercado**, as **21 sugestões ativas em aber
   - Aba "Novidades" com lançamentos via browse InnerTube (`FEmusic_new_releases`).
   - Abas de biblioteca para álbuns salvos, artistas inscritos e músicas curtidas.
   - Página de artista com discografia organizada por álbuns.
+
+---
+
+#### 2.11 Suporte Completo a Álbuns — Arquitetura de Dados, Integração InnerTube e Experiência Visual Imersiva
+* **Status:** `[Em Aberto / Fase de Design & Idealização de UX]` 💡
+* **Impacto:** `[Crítico / Core Feature]` | **Esforço:** `[Médio / Alto]`
+* **Origem da Demanda:**
+  No ecossistema atual do TetPlayer, toda a navegação e reprodução foram estruturadas em torno de faixas individuais e playlists heterogêneas. No entanto, para amantes de música, audiófilos e usuários acostumados a serviços como Spotify, Apple Music e Tidal, o **Álbum** é o formato primordial de consumo musical: uma obra com conceito artístico fechado, sequência intencional de faixas, encarte visual, créditos de produção e identidade fonográfica única.
+  Esta proposta estabelece as bases conceituais completas de **UX/UI** e **Engenharia de Software** para integrar álbuns de forma orgânica e de alta performance no TetPlayer.
+
+---
+
+### 🎨 1. Experiência do Usuário (UX) & Design Visual da Funcionalidade
+
+#### 1.1 Filosofia Visual: O Álbum como Objeto de Arte ("Showcase de Vinil Moderno")
+Ao contrário das playlists (que são utilitárias, longas e com aspecto de tabela de streaming), a visualização de um álbum deve transmitir a sensação de segurar um encarte físico ou um disco de vinil:
+- **Atmosfera de Fundo Reativa (Aurora Blur):** Ao entrar em um álbum, a paleta Aurora da aplicação adota suavemente as cores dominantes da capa do disco com uma transição sedosa de 1,2 segundo (`filter: blur(100px) opacity(0.35)`).
+- **Proporção Monumental da Capa:** Uma capa imponente em alta resolução (800x800) no topo esquerdo com leve sombra 3D em camadas e acabamento em vidro escuro nas bordas.
+- **Tipografia Editorial:** O título do álbum recebe destaque hierárquico com peso `font-black`, seguido por um subtítulo contendo o nome do artista, ano de gravação, selo fonográfico e duração total.
+
+---
+
+#### 1.2 Wireframe 1: Seletor na Biblioteca (`Sidebar` & `LibraryTabs`)
+Na barra lateral e no topo da Biblioteca, o usuário ganha um segmented control refinado para alternar entre suas coleções:
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│  BIBLIOTECA                                                            │
+│  ┌───────────────────────┬───────────────────────┬──────────────────┐  │
+│  │   🎵 Playlists (18)   │   💿 Álbuns Salvos (24)│   🎤 Artistas (12)│  │
+│  └───────────────────────┴───────────────────────┴──────────────────┘  │
+│                                                                        │
+│  [🔍 Filtrar álbuns...]                      [Ordenar: Recentes ▾]    │
+│                                                                        │
+│  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐                │
+│  │ ┌──────────┐ │   │ ┌──────────┐ │   │ ┌──────────┐ │                │
+│  │ │          │ │   │ │          │ │   │ │          │ │   ...          │
+│  │ │   CAPA   │ │   │ │   CAPA   │ │   │ │   CAPA   │ │  (Grade 4 a 6   │
+│  │ │   800x   │ │   │ │   800x   │ │   │ │   800x   │ │   colunas)     │
+│  │ └──────────┘ │   │ └──────────┘ │   │ └──────────┘ │                │
+│  │ HIT ME HARD  │   │ Igor         │   │ Random Access│                │
+│  │ Billie Eilish│   │ Tyler The... │   │ Daft Punk    │                │
+│  │ 2024 • Álbum │   │ 2019 • Álbum │   │ 2013 • Álbum │                │
+│  └──────────────┘   └──────────────┘   └──────────────┘                │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+- **Cards de Álbum (`AlbumCard.tsx`):**
+  - **Proporção 1:1:** Capas quadradas perfeitas com borda sutil (`border border-white/5 hover:border-[var(--accent-border)]`).
+  - **Botão Flutuante de Play Rápido:** Ao passar o mouse (hover), um botão circular de play emerge no canto inferior direito da capa com escala suave (`scale-100 opacity-100 hover:scale-105`), permitindo tocar o disco inteiro imediatamente sem entrar nos detalhes.
+  - **Badges de Formato:** Discos que não sejam álbuns completos recebem uma etiqueta discreta translúcida no topo esquerdo do card (`EP` ou `SINGLE`).
+
+---
+
+#### 1.3 Wireframe 2: Tela Detalhada do Álbum (`AlbumDetailView.tsx`)
+Ao clicar em qualquer álbum, a tela central desliza suavemente para a visão de detalhes:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
+│  ← Voltar para todos os álbuns                                                                  │
+│                                                                                                 │
+│  ┌──────────────┐   ÁLBUM                                                                      │
+│  │              │   HIT ME HARD AND SOFT                                                        │
+│  │     CAPA     │   👤 Billie Eilish • 2024 • 10 faixas • 43 min 45 s                           │
+│  │   240x240    │                                                                               │
+│  │   COM GLOW   │   [ ▶ Reproduzir ]   [ 🔀 Aleatório ]   [ ♡ Salvar ]   [ ⋯ ]                   │
+│  └──────────────┘                                                                               │
+│  ─────────────────────────────────────────────────────────────────────────────────────────────  │
+│  #   TÍTULO                                                     REPRODUÇÕES           DURAÇÃO   │
+│  ─────────────────────────────────────────────────────────────────────────────────────────────  │
+│  1   SKINNY                                                     184.230.100              3:39   │
+│  2   LUNCH                                                      542.190.450              2:59   │
+│  3   CHIHIRO                                                    310.820.900              5:03   │
+│  4   BIRDS OF A FEATHER (▶ Tocando agora - ılı)                 890.410.220              3:30   │
+│  5   WILDFLOWER                                                 215.650.000              4:21   │
+│  6   THE GREATEST                                               140.900.800              4:53   │
+│  7   L’AMOUR DE MA VIE                                          290.340.110              5:33   │
+│  8   THE DINER                                                  120.780.400              3:06   │
+│  9   BITTERSUITE                                                105.400.120              4:58   │
+│  10  BLUE                                                       165.230.900              5:43   │
+│                                                                                                 │
+│  ─────────────────────────────────────────────────────────────────────────────────────────────  │
+│  Lançamento: 17 de Maio de 2024                                                                 │
+│  ℗ 2024 Darkroom / Interscope Records                                                           │
+│                                                                                                 │
+│  Mais de Billie Eilish                                                                          │
+│  [ Card: Happier Than Ever ]  [ Card: WHEN WE ALL FALL ASLEEP... ]  [ Card: dont smile at me ]  │
+└─────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+- **Diferenciais Chave de UX na Lista de Faixas de Álbuns:**
+  1. **Numeração Clássica de Vinil (`#`):** As faixas são identificadas por números fixos de ordem do disco (1, 2, 3...) e não por posição arbitrária de fila.
+  2. **Substituição Interativa no Hover:** Ao passar o mouse sobre o número `3`, ele se transforma em um ícone de play; ao clicar, toca a faixa no contexto do álbum.
+  3. **Indicador de Reprodução Dinâmica:** Se a faixa estiver tocando, o número `4` é substituído por um mini espectro animado de 3 barras sonoras (`ılı`) pulsando na cor de acento do tema.
+  4. **Metadados Oficiais no Rodapé:** A data exata de publicação e o texto legal da gravadora (*copyright line*) legitimam a sensação de produto oficial e profissional.
+  5. **Carrossel de Discografia Relacionada:** No fim da página, exibe outros álbuns do mesmo artista para navegação contínua sem precisar voltar à busca.
+
+---
+
+#### 1.4 Acesso Rápido Contextual (Como o Usuário Chega a um Álbum)
+O usuário não precisa estar na Biblioteca para chegar a um álbum. Foram idealizados **4 caminhos de entrada ultra-ergonômicos**:
+1. **Pelo Menu de Contexto da Música (`TrackContextMenu`):**
+   - Ao clicar com botão direito em qualquer música (na Fila, na Busca, na Biblioteca ou no Histórico), haverá a nova opção:  
+     `💿 Ver Álbum Completo`  
+     O TetPlayer extrai o `albumId` (ou pesquisa pelo título do álbum do metadado) e abre a página de detalhes em um clique.
+2. **Pela Gaveta de Reprodução (`NowPlayingDrawer`):**
+   - Na lateral esquerda onde exibe o título da música e artista, o nome do álbum passa a ser um link clicável estilizado com hover luminoso (`hover:text-white hover:underline cursor-pointer`), abrindo diretamente a obra correspondente.
+3. **Pela Tela de Busca Central (`SearchView`):**
+   - Os resultados da busca passam a ser segmentados em prateleiras:  
+     *Top Result* ➔ *Músicas* ➔ **Álbuns (Carrossel Horizontal de Capas)** ➔ *Playlists*.
+4. **Pelo Mini Player:**
+   - No menu de 3 pontos do Mini Player, opção rápida *"Ir para o Álbum"*.
+
+---
+
+### 💻 2. Arquitetura de Código, Dados & Integração com o Backend
+
+#### 2.1 Modelos de Tipagem TypeScript (`desktop/src/types/index.ts`)
+Para acomodar álbuns sem romper a compatibilidade com a estrutura de `Track` existente:
+
+```typescript
+export type AlbumType = "album" | "single" | "ep";
+
+export interface Album {
+  id: string;              // browseId do InnerTube (ex: "MPREb_xY9Z...")
+  title: string;           // Título do álbum
+  artist: string;          // Nome do artista principal
+  artistId?: string;       // browseId do artista (para navegação cruzada)
+  year?: string;           // Ano de lançamento (ex: "2024")
+  artwork_url?: string;    // Capa original em alta resolução
+  track_count?: number;    // Quantidade de faixas
+  duration_text?: string;  // Duração total formatada (ex: "43 min")
+  type: AlbumType;         // Tipo de lançamento
+}
+
+export interface AlbumDetail extends Album {
+  description?: string;    // Texto editorial descritivo (se presente no YTM)
+  release_date?: string;   // Data estendida (ex: "17 de maio de 2024")
+  copyright?: string;      // Selo fonográfico (ex: "℗ 2024 Interscope Records")
+  tracks: Track[];         // Lista completa de faixas do álbum
+  related_albums?: Album[];// Outros álbuns do mesmo artista recomendados
+}
+```
+
+---
+
+#### 2.2 Backend Rust: Endpoints do InnerTube (`desktop/src-tauri/src/ytm.rs`)
+O YouTube Music trata álbuns através de IDs que começam com o prefixo `MPREb_` (Music Playlist Release) no endpoint `/youtubei/v1/browse`:
+
+1. **Extração de Detalhes do Álbum (`get_album_details`):**
+   ```rust
+   pub async fn get_album_details(
+       session: &AuthSession,
+       browse_id: &str
+   ) -> Result<AlbumDetail, String> {
+       let client = &HTTP_CLIENT; // Utilizando o client HTTP com pool e timeout
+       let url = "https://music.youtube.com/youtubei/v1/browse?prettyPrint=false";
+       let headers = build_headers(session, "WEB_REMIX");
+       let payload = json!({
+           "context": {
+               "client": {
+                   "clientName": "WEB_REMIX",
+                   "clientVersion": "1.20240401.01.00",
+                   "hl": "pt",
+                   "gl": "BR"
+               }
+           },
+           "browseId": browse_id
+       });
+
+       // 1. Extração do Header do Álbum (musicResponsiveHeaderRenderer):
+       //    - Título, Artista, Ano, Selo, Capa Full HD (800x800)
+       // 2. Extração das Faixas (musicShelfRenderer -> musicResponsiveListItemRenderer):
+       //    - Track ID, Título, Duração, Índice Ordinal (1..N), Contagem de Plays
+       // 3. Extração de Álbuns Relacionados no rodapé (carouselLockupRenderer)
+   }
+   ```
+
+2. **Extração de Álbuns Salvos do Usuário (`get_user_saved_albums`):**
+   - O YouTube Music disponibiliza a biblioteca de álbuns salvos sob o browse ID `FEmusic_liked_albums`.
+   - O backend faz o parse dessa coleção e retorna a lista de `Vec<Album>` para alimentar a aba "Álbuns" na biblioteca do usuário.
+
+3. **Novo Comando Tauri Exportado (`lib.rs`):**
+   - `get_album_details(browse_id: String) -> Result<AlbumDetail, String>`
+   - `get_user_albums() -> Result<Vec<Album>, String>`
+
+---
+
+#### 2.3 Máquina de Estados e Reducer da Fila (`playerReducer.ts` & `PlayerContext.tsx`)
+Quando o usuário decide tocar um álbum, o comportamento da fila deve respeitar a obra como um todo:
+
+1. **Ação `PLAY_ALBUM` no `playerReducer`:**
+   - **Modo Padrão (Substituir Fila):** Define a faixa 1 como ativa, carrega as faixas 1 a N na `activeQueue` e preserva a ordem sequencial de masterização.
+   - **Modo Shuffle de Álbum:** O botão "Aleatório" no header do álbum permite iniciar o disco em ordem embaralhada, sem desorganizar a referência original do álbum.
+2. **Contexto de Reprodução Preservado:**
+   - A barra inferior (`PlayerBar`) e a gaveta (`NowPlayingDrawer`) passam a reconhecer que a fonte de reprodução atual é um álbum, permitindo que a navegação `Prev` e `Next` circule pelas faixas do disco sem saltar para músicas aleatórias de rádios antes do fim da obra.
+
+---
+
+#### 2.4 Performance, Cache Local em SQLite e Modo Offline
+- **Cache Local Imediato (SQLite `app_cache`):**
+  Ao abrir um álbum, seus dados e lista de faixas são salvos localmente na tabela `app_cache` com a chave `album:{browseId}`.
+  Se o usuário reabrir o mesmo álbum mais tarde, os dados surgem em **0 milissegundos** (tempo de acesso de RAM/SQLite local), enquanto uma validação silenciosa em background atualiza contadores de reprodução se houver internet.
+- **Pré-Amostragem Aurora das Capas:**
+  Ao listar álbuns na grade da biblioteca, o Web Worker existente (`colorWorker.ts`) faz o pré-cálculo das paletas de cor em segundo plano com baixa prioridade. Ao abrir qualquer álbum, o fundo já transiciona instantaneamente com a cor exata da capa.
+
+---
+
+### 📋 3. Tabela de Decisões de UX para Validação do Usuário
+
+Antes de partirmos para qualquer implementação de código, avalie os seguintes pontos para ajustarmos a proposta ao seu gosto pessoal de uso:
+
+| # | Decisão de Design / UX | Opção A (Recomendada) | Opção B (Alternativa) |
+|---|---|---|---|
+| **1** | **Disposição na Biblioteca** | Sub-abas segmentadas no topo: `[Playlists] [Álbuns] [Artistas]` | Seções verticais empilhadas com botão "Ver todos" |
+| **2** | **Ao Clicar em "Reproduzir" no Álbum** | Substitui a fila atual pelo álbum inteiro (comportamento Spotify/Apple Music) | Abre menu perguntando: *"Substituir fila"* ou *"Adicionar ao fim"* |
+| **3** | **Álbuns Duplos (Disco 1 / Disco 2)** | Dividir com cabeçalhos sutis de seção: *"Disco 1"* e *"Disco 2"* | Listar todas as faixas em sequência contínua de 1 a N |
+| **4** | **Exibição de Singles / EPs** | Agrupar juntos na aba de Álbuns com badges visuais (`EP` / `SINGLE`) | Criar uma aba separada exclusiva apenas para Singles/EPs |
+| **5** | **Fixação na Barra Lateral** | Permitir fixar álbuns no topo da barra lateral junto com playlists | Manter apenas playlists fixáveis na barra lateral |
+
+---
 
 ---
 
