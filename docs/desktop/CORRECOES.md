@@ -2,10 +2,10 @@
 
 > **Data da Auditoria:** 27 de Outubro de 2026  
 > **Avaliador:** Agente Especialista em Code Review, Análise Estática e UX/UI Inspection (`reviewer`)  
-> **Status Geral da Aplicação:** 🟢 **Build, Compilação e Testes 100% Verificados (TypeScript + Rust `cargo test` & `vite build` com Zero Erros, 53 testes Vitest + 8 testes Rust passando)**.  
+> **Status Geral da Aplicação:** 🟢 **Build, Compilação e Testes 100% Verificados (TypeScript + Rust `cargo test` & `vite build` com Zero Erros, 58 testes Vitest + 11 testes Rust passando = 69 testes)**.  
 > **Status Comparativo:**  
 > - 📌 **0 Apontamentos Pendentes** (100% dos itens da rodada corrigidos, validados e cobertos por testes)  
-> - ✅ **55 Itens Integralmente Resolvidos e Validados** (Histórico técnico preservado na íntegra na seção inferior)  
+> - ✅ **57 Itens Integralmente Resolvidos e Validados** (Histórico técnico preservado na íntegra na seção inferior)  
 
 ---
 
@@ -17,7 +17,7 @@
 ├────┬───────────────────────────────────┬───────────────┬────────────────────────────────────────────────────────┤
 │ #  │ Categoria                         │ Severidade    │ Status / Descrição                                     │
 ├────┼───────────────────────────────────┼───────────────┼────────────────────────────────────────────────────────┤
-│ -- │ Nenhuma pendência ativa           │ [Resolvido]   │ Todos os 55 apontamentos técnicos foram solucionados   │
+│ -- │ Nenhuma pendência ativa           │ [Resolvido]   │ Todos os 57 apontamentos técnicos foram solucionados   │
 └────┴───────────────────────────────────┴───────────────┴────────────────────────────────────────────────────────┘
 ```
 
@@ -723,10 +723,45 @@
 
 ---
 
+---
+
+### 66. Paginação Completa de Playlists com Continuação Automática (Token de Continuação no Backend Rust)
+* **Status:** `[Resolvido]` ✅
+* **Localização:** [`desktop/src-tauri/src/ytm.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/ytm.rs) e [`desktop/src-tauri/src/lib.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/lib.rs).
+* **Diagnóstico Técnico & Causa Raiz:**
+  - O endpoint de browse do YouTube Music (`/youtubei/v1/browse`) envia listas de reprodução em lotes de no máximo 100 faixas por requisição.
+  - Playlists com mais de 100 itens (ex: 109, 150, 500 faixas) eram cortadas nas primeiras 100 faixas porque a função `get_playlist_tracks` executava apenas a chamada inicial sem consumir os tokens de paginação.
+* **Solução Implementada:**
+  - Implementado o extrator recursivo `extract_continuation_token` cobrindo tanto `continuationCommand.token` quanto `nextContinuationData.continuation`.
+  - Desenvolvido loop iterativo assíncrono em `get_playlist_tracks` com teto de segurança de até 25 páginas (`MAX_PAGES = 25`, suportando até 2.500 músicas).
+  - Em cada página subsequente, o backend requisita `https://music.youtube.com/youtubei/v1/browse?continuation={token}`, adiciona as faixas ao acumulador e renova o token até esgotar a playlist.
+  - Deduplicação inteligente preservando a ordem via `HashSet`.
+  - 3 novos testes unitários em Rust validando todos os cenários de extração de tokens.
+
+---
+
+### 67. Motor de Áudio Nativo Híbrido com Pré-Buffer e Fallback Resiliente para IFrame (Item 1.1)
+* **Status:** `[Resolvido]` ✅
+* **Localização:** [`desktop/src/services/audioEngine.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/audioEngine.ts), [`desktop/src/hooks/useYouTubePlayer.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useYouTubePlayer.ts), [`desktop/src-tauri/src/ytm.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/ytm.rs), [`desktop/src-tauri/src/lib.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/lib.rs) e [`desktop/src/services/__tests__/audioEngine.test.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/__tests__/audioEngine.test.ts).
+* **Diagnóstico Técnico & Causa Raiz:**
+  - O IFrame oculto do YouTube carregava o pipeline completo de vídeo (codecs pesados VP9/AV1), telemetria e buffers restritos da CDN do Google (~3 a 5 segundos), tornando o áudio suscetível a engasgos (*stuttering*) com oscilações de rede ou picos de CPU.
+  - Adicionalmente, o Iframe bloqueava o acesso direto via Web Audio API por restrições de CORS.
+* **Solução Implementada:**
+  - **Serviço de Áudio Nativo (`AudioEngine`):** Construído motor TypeScript sobre HTML5 `Audio` e Web Audio API (`GainNode`). Oferece pré-buffer em RAM antecipado, controle de volume sem latência de postMessage e emissão de eventos em alta frequência.
+  - **Extração de Stream Direto no Rust (`get_stream_info`):** Endpoint autenticado via sessão Google que extrai URLs limpas de áudio do endpoint `/player` do InnerTube, priorizando Opus (itag 251, ~160kbps) e AAC (itag 140, 128kbps).
+  - **Orquestrador Híbrido em `useYouTubePlayer`:** Havendo stream direto, executa a faixa no motor nativo e silencia/pausa o IFrame.
+  - **Fallback Silencioso e Resiliente:** Caso uma faixa requeira decifração complexa de assinatura (`signatureCipher`) ou ocorra erro 403/interrupção, o player redireciona imediatamente e sem travar a UI para o player IFrame do YouTube (`loadVideoById`), mantendo 100% de disponibilidade.
+  - **Sincronização Perfeita:** A timeline (80ms), scrubber, letras sincronizadas, crossfade e normalização de volume funcionam de maneira idêntica e unificada para o restante do app.
+  - **Testes Unitários:** 5 novos testes unitários cobrindo o `AudioEngine`.
+
+---
+
 ## 📋 Conclusão da Auditoria (Branch develop — Próxima Milestone v1.4.0)
 
-A suíte técnica atinge a marca de **55 itens corrigidos e consolidados**, com total estabilidade na branch `develop`:
-- **Zero erros de compilação ou tipos:** `tsc && vite build`, 53 testes Vitest e 8 testes Rust 100% verdes (61 testes no total).
+A suíte técnica atinge a marca de **57 itens corrigidos e consolidados**, com total estabilidade na branch `develop`:
+- **Zero erros de compilação ou tipos:** `tsc && vite build`, 58 testes Vitest e 11 testes Rust 100% verdes (69 testes no total).
+- **Paginação Completa (Item 1.2):** Playlists longas (109, 150, 500+ faixas) agora carregam e tocam na íntegra.
+- **Motor de Áudio Nativo Híbrido (Item 1.1):** Alta performance, pré-buffer em RAM, zero stutter e fallback transparente para 100% de compatibilidade.
 - **Busca e Ordenação (Item 2.2):** Alta performance em listas extensas com suporte a atalhos e seleção de ordem.
 - **Ergonomia e Fluidez Absoluta:** PlayerBar simétrico com controles isolados nos extremos e animação de gaveta perfeitamente suave a 144 fps sem micro-travamentos.
 

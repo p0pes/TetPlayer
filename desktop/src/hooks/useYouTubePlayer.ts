@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { SettingsService } from "../services/settings";
+import { nativeAudioEngine, StreamInfo } from "../services/audioEngine";
 
 interface UseYouTubePlayerProps {
   crossfadeSeconds: number;
@@ -14,6 +16,9 @@ export function useYouTubePlayer({
 }: UseYouTubePlayerProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ytPlayerRef = useRef<any>(null);
+  const activeEngineRef = useRef<"native" | "iframe">("iframe");
+  const currentVideoIdRef = useRef<string | null>(null);
+
   const [isPlayerReady, setIsPlayerReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -41,6 +46,8 @@ export function useYouTubePlayer({
   // Refs para acesso dentro do loop de sincronização sem stale closures
   const isPlayingRef = useRef(isPlaying);
   isPlayingRef.current = isPlaying;
+  const currentTimeRef = useRef(currentTime);
+  currentTimeRef.current = currentTime;
   const isSeekingRef = useRef(false);
   const seekTimeoutRef = useRef<number | null>(null);
 
@@ -58,12 +65,73 @@ export function useYouTubePlayer({
   onTrackEndedRef.current = onTrackEnded;
   onTrackErrorRef.current = onTrackError;
 
+  // Inicializa callbacks do motor de áudio nativo e sincronizador de timeline
   useEffect(() => {
     initYouTubePlayer();
 
-    // Sincronizador de timeline em alta frequência (80ms para resposta imediata das letras + Crossfade suave)
+    // Callbacks do AudioEngine nativo (Item 1.1)
+    nativeAudioEngine.onEnded = () => {
+      if (activeEngineRef.current === "native") {
+        setIsPlaying(false);
+        onTrackEndedRef.current();
+      }
+    };
+
+    nativeAudioEngine.onPlay = () => {
+      if (activeEngineRef.current === "native") {
+        setIsPlaying(true);
+      }
+    };
+
+    nativeAudioEngine.onPause = () => {
+      if (activeEngineRef.current === "native") {
+        setIsPlaying(false);
+      }
+    };
+
+    nativeAudioEngine.onError = (err) => {
+      console.warn("[Player] Erro no stream direto nativo. Acionando fallback transparente para IFrame:", err);
+      if (activeEngineRef.current === "native" && currentVideoIdRef.current) {
+        const fallbackVid = currentVideoIdRef.current;
+        const seekPos = currentTimeRef.current;
+        activeEngineRef.current = "iframe";
+        nativeAudioEngine.stop();
+        playIframeVideo(fallbackVid, seekPos);
+      }
+    };
+
+    // Sincronizador unificado de timeline (80ms para sincronia de letras e scrubber)
     const interval = setInterval(() => {
-      if (ytPlayerRef.current && isPlayerReady) {
+      if (activeEngineRef.current === "native") {
+        const curr = nativeAudioEngine.getCurrentTime();
+        const dur = nativeAudioEngine.getDuration();
+        if (typeof curr === "number" && !isNaN(curr)) {
+          setCurrentTime(curr);
+        }
+        if (typeof dur === "number" && dur > 0 && !isNaN(dur)) {
+          setDuration(dur);
+        }
+
+        // Crossfade e Normalização de Volume no motor nativo
+        const cf = crossfadeSecondsRef.current;
+        const baseVol = isMutedRef.current ? 0 : volumeRef.current;
+        let target = baseVol;
+
+        if (cf > 0 && dur > 0 && typeof curr === "number" && !isNaN(curr)) {
+          const remaining = dur - curr;
+          if (remaining <= cf && remaining >= 0) {
+            target = baseVol * Math.max(0, remaining / cf);
+          } else if (curr <= cf) {
+            target = baseVol * Math.min(1, Math.max(0, curr / cf));
+          }
+        }
+
+        if (SettingsService.getSetting("normalizeVolume") && target > 0.85) {
+          target = 0.85 + (target - 0.85) * 0.5;
+        }
+
+        nativeAudioEngine.setVolume(target);
+      } else if (ytPlayerRef.current && isPlayerReady) {
         try {
           const state = ytPlayerRef.current.getPlayerState();
           if (state === 1) { // PLAYING
@@ -84,11 +152,9 @@ export function useYouTubePlayer({
             if (cf > 0 && dur > 0 && typeof curr === "number" && !isNaN(curr)) {
               const remaining = dur - curr;
               if (remaining <= cf && remaining >= 0) {
-                // Fade-out no final da faixa
                 const factor = Math.max(0, remaining / cf);
                 target = Math.round(baseVol * factor);
               } else if (curr <= cf) {
-                // Fade-in no início da nova faixa
                 const factor = Math.min(1, Math.max(0, curr / cf));
                 target = Math.round(baseVol * factor);
               }
@@ -164,6 +230,8 @@ export function useYouTubePlayer({
         },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onStateChange: (event: any) => {
+          if (activeEngineRef.current !== "iframe") return;
+
           if (event.data === 1) { // PLAYING
             isSeekingRef.current = false;
             setIsPlaying(true);
@@ -172,7 +240,6 @@ export function useYouTubePlayer({
             const dur = ytPlayerRef.current.getDuration();
             if (dur) setDuration(dur);
           } else if (event.data === 2) { // PAUSED
-            // Se o YouTube pausar temporariamente durante a busca e o app devia estar tocando:
             if (isSeekingRef.current && isPlayingRef.current) {
               try {
                 ytPlayerRef.current.playVideo();
@@ -190,6 +257,7 @@ export function useYouTubePlayer({
         },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onError: (err: any) => {
+          if (activeEngineRef.current !== "iframe") return;
           console.error("YouTube Player Error:", err);
           setLoadingTrackId(null);
           setIsPlaying(false);
@@ -200,34 +268,96 @@ export function useYouTubePlayer({
     });
   }
 
-  function loadAndPlayVideo(videoId: string) {
-    setLoadingTrackId(videoId);
+  function playIframeVideo(videoId: string, seekSec = 0) {
     if (ytPlayerRef.current && typeof ytPlayerRef.current.loadVideoById === "function") {
-      if (crossfadeSecondsRef.current > 0) {
-        ytPlayerRef.current.setVolume(0);
-        lastAppliedVolumeRef.current = 0;
+      if (isMutedRef.current) {
+        ytPlayerRef.current.mute();
+      } else {
+        ytPlayerRef.current.unMute();
       }
-      ytPlayerRef.current.loadVideoById(videoId);
+      const targetVol = crossfadeSecondsRef.current > 0 ? 0 : Math.round(volumeRef.current * 100);
+      ytPlayerRef.current.setVolume(targetVol);
+      lastAppliedVolumeRef.current = targetVol;
+      ytPlayerRef.current.loadVideoById(videoId, seekSec);
       ytPlayerRef.current.setPlaybackRate(1.0);
       ytPlayerRef.current.playVideo();
       setIsPlaying(true);
+      setLoadingTrackId(null);
     } else {
       setTimeout(() => {
         if (ytPlayerRef.current && typeof ytPlayerRef.current.loadVideoById === "function") {
-          if (crossfadeSecondsRef.current > 0) {
-            ytPlayerRef.current.setVolume(0);
-            lastAppliedVolumeRef.current = 0;
+          if (isMutedRef.current) {
+            ytPlayerRef.current.mute();
+          } else {
+            ytPlayerRef.current.unMute();
           }
-          ytPlayerRef.current.loadVideoById(videoId);
+          const targetVol = crossfadeSecondsRef.current > 0 ? 0 : Math.round(volumeRef.current * 100);
+          ytPlayerRef.current.setVolume(targetVol);
+          lastAppliedVolumeRef.current = targetVol;
+          ytPlayerRef.current.loadVideoById(videoId, seekSec);
           ytPlayerRef.current.setPlaybackRate(1.0);
           ytPlayerRef.current.playVideo();
           setIsPlaying(true);
+          setLoadingTrackId(null);
         }
       }, 500);
     }
   }
 
+  async function loadAndPlayVideo(videoId: string) {
+    setLoadingTrackId(videoId);
+    currentVideoIdRef.current = videoId;
+
+    // 1. Arquitetura Híbrida: tenta obter stream direto de áudio nativo (Item 1.1)
+    try {
+      const stream = await invoke<StreamInfo | null>("get_stream_info", { videoId });
+      if (stream && stream.stream_url) {
+        activeEngineRef.current = "native";
+
+        // Pausa e silencia o player IFrame para evitar playback em duplicidade ou processamento de vídeo
+        if (ytPlayerRef.current) {
+          try {
+            ytPlayerRef.current.pauseVideo();
+            ytPlayerRef.current.mute();
+          } catch {
+            // ignore
+          }
+        }
+
+        nativeAudioEngine.load(stream.stream_url);
+        const initialVol = isMutedRef.current ? 0 : volumeRef.current;
+        nativeAudioEngine.setVolume(crossfadeSecondsRef.current > 0 ? 0 : initialVol);
+        if (stream.duration_seconds) {
+          setDuration(stream.duration_seconds);
+        }
+
+        await nativeAudioEngine.play();
+        setIsPlaying(true);
+        setLoadingTrackId(null);
+        return;
+      }
+    } catch (err) {
+      console.warn("[Player] Stream direto nativo não disponível, utilizando IFrame fallback:", err);
+    }
+
+    // 2. Fallback Transparente para o IFrame Player do YouTube
+    activeEngineRef.current = "iframe";
+    nativeAudioEngine.stop();
+    playIframeVideo(videoId);
+  }
+
   function togglePlayPause() {
+    if (activeEngineRef.current === "native") {
+      if (isPlaying) {
+        nativeAudioEngine.pause();
+        setIsPlaying(false);
+      } else {
+        nativeAudioEngine.play().catch(console.error);
+        setIsPlaying(true);
+      }
+      return;
+    }
+
     if (!ytPlayerRef.current) return;
     if (isPlaying) {
       ytPlayerRef.current.pauseVideo();
@@ -241,6 +371,16 @@ export function useYouTubePlayer({
   function seekTo(seconds: number) {
     const clamped = Math.max(0, Math.min(seconds, duration || 99999));
     setCurrentTime(clamped);
+
+    if (activeEngineRef.current === "native") {
+      nativeAudioEngine.seek(clamped);
+      if (isPlayingRef.current) {
+        nativeAudioEngine.play().catch(console.error);
+        setIsPlaying(true);
+      }
+      return;
+    }
+
     if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === "function") {
       const wasPlaying = isPlayingRef.current;
       isSeekingRef.current = true;
@@ -272,43 +412,59 @@ export function useYouTubePlayer({
     } catch {
       // ignore
     }
-    const targetVol = Math.round(clamped * 100);
-    if (ytPlayerRef.current && typeof ytPlayerRef.current.setVolume === "function") {
-      ytPlayerRef.current.unMute();
-      ytPlayerRef.current.setVolume(targetVol);
-      lastAppliedVolumeRef.current = targetVol;
+
+    if (activeEngineRef.current === "native") {
+      nativeAudioEngine.setVolume(clamped);
+    } else {
+      const targetVol = Math.round(clamped * 100);
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.setVolume === "function") {
+        ytPlayerRef.current.unMute();
+        ytPlayerRef.current.setVolume(targetVol);
+        lastAppliedVolumeRef.current = targetVol;
+      }
     }
   }
 
   function toggleMute() {
-    if (!ytPlayerRef.current) return;
     if (isMuted) {
-      ytPlayerRef.current.unMute();
-      const target = Math.round(volume * 100);
-      ytPlayerRef.current.setVolume(target);
-      lastAppliedVolumeRef.current = target;
       setIsMuted(false);
       try {
         localStorage.setItem("tetplayer_muted", "false");
       } catch {
         // ignore
       }
+      if (activeEngineRef.current === "native") {
+        nativeAudioEngine.setVolume(volume);
+      } else if (ytPlayerRef.current) {
+        ytPlayerRef.current.unMute();
+        const target = Math.round(volume * 100);
+        ytPlayerRef.current.setVolume(target);
+        lastAppliedVolumeRef.current = target;
+      }
     } else {
-      ytPlayerRef.current.mute();
-      lastAppliedVolumeRef.current = 0;
       setIsMuted(true);
       try {
         localStorage.setItem("tetplayer_muted", "true");
       } catch {
         // ignore
       }
+      if (activeEngineRef.current === "native") {
+        nativeAudioEngine.setVolume(0);
+      } else if (ytPlayerRef.current) {
+        ytPlayerRef.current.mute();
+        lastAppliedVolumeRef.current = 0;
+      }
     }
   }
 
   function restartCurrentTrack() {
-    if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === "function") {
+    setCurrentTime(0);
+    if (activeEngineRef.current === "native") {
+      nativeAudioEngine.seek(0);
+      nativeAudioEngine.play().catch(console.error);
+      setIsPlaying(true);
+    } else if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === "function") {
       ytPlayerRef.current.seekTo(0, true);
-      setCurrentTime(0);
       ytPlayerRef.current.playVideo();
       setIsPlaying(true);
     }

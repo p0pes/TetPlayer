@@ -10,8 +10,9 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{Emitter, Manager, State};
 use ytm::{
     fetch_lyrics, get_home_recommendations, get_playlist_tracks as fetch_playlist_tracks,
-    get_radio_tracks as fetch_radio_tracks, get_user_playlists as fetch_user_playlists,
-    search_music, LyricsData, Playlist, Track,
+    get_radio_tracks as fetch_radio_tracks, get_stream_info as fetch_stream_info,
+    get_user_playlists as fetch_user_playlists, search_music, LyricsData, Playlist, StreamInfo,
+    Track,
 };
 
 pub struct AppState {
@@ -228,6 +229,15 @@ async fn get_radio_tracks(
 ) -> Result<Vec<Track>, String> {
     let session = { state.session.lock().unwrap().clone() };
     fetch_radio_tracks(&session, &video_id).await
+}
+
+#[tauri::command]
+async fn get_stream_info(
+    state: State<'_, AppState>,
+    video_id: String,
+) -> Result<Option<StreamInfo>, String> {
+    let session = { state.session.lock().unwrap().clone() };
+    fetch_stream_info(&session, &video_id).await
 }
 
 #[tauri::command]
@@ -781,6 +791,7 @@ pub fn run() {
             get_user_playlists,
             get_playlist_tracks,
             get_radio_tracks,
+            get_stream_info,
             get_track_lyrics,
             record_track_played,
             get_playback_stats,

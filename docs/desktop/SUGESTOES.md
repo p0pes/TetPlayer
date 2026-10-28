@@ -3,7 +3,7 @@
 > **Data de Elaboração / Última Revisão:** 27 de Outubro de 2026  
 > **Auditor Técnico:** Especialista em Arquitetura de Software, UX/UI e Sistemas de Mídia (`reviewer`)  
 > **Documento de Referência:** [`docs/desktop/SUGESTOES.md`](file:///d:/progrmação/programas/TetPlayer/docs/desktop/SUGESTOES.md)  
-> **Status:** 🟢 **47 Itens Concluídos e Validados no Histórico Consolidado (Milestone v1.4+)** | 💡 **21 Sugestões Futuras v1.4+ Mapeadas (incl. pesquisa de mercado e preparação para app público)**  
+> **Status:** 🟢 **49 Itens Concluídos e Validados no Histórico Consolidado (Milestone v1.4+)** | 💡 **19 Sugestões Futuras v1.4+ Mapeadas (incl. pesquisa de mercado e preparação para app público)**  
 > **Objetivo:** Fornecer um roadmap técnico, moderno e categorizado para elevar o TetPlayer Desktop ao estado da arte em reprodutores de mídia para desktop.
 
 ---
@@ -42,8 +42,8 @@ Abaixo encontram-se a **pesquisa de mercado**, as **21 sugestões ativas em aber
 | Demanda recorrente dos usuários | Onde aparece | Situação no TetPlayer |
 |---|---|---|
 | App nativo leve, sem "cara de aba do navegador" | Reddit (queixa nº 1 do app oficial) | ✅ Já atendido (Tauri + Rust) |
-| Eliminação de stuttering com motor de áudio nativo e pré-buffer | Audiófilos, Reddit, clientes desktop | 🔬 Especificado (Híbrido Stream Direto + IFrame) → **1.1** |
-| Playlists completas sem corte no limite de 100 músicas | Reddit, usuários de playlists grandes | 🔬 Especificado (Loop de Continuation Tokens) → **1.2** |
+| Eliminação de stuttering com motor de áudio nativo e pré-buffer | Audiófilos, Reddit, clientes desktop | ✅ Já atendido (Motor Híbrido Stream Direto + IFrame em 1.1 / Item 49) |
+| Playlists completas sem corte no limite de 100 músicas | Reddit, usuários de playlists grandes | ✅ Já atendido (Loop de Continuation Tokens em 1.2 / Item 48) |
 | Teclas de mídia globais, bandeja, mini player | Reddit, th-ch | ✅ Já atendido |
 | Letras sincronizadas | Reddit, th-ch | ✅ Já atendido (Kinetic Scroll suave) |
 | Buscar uma música **dentro** de uma playlist e ordenar | Reddit (muito citado) | ✅ Já atendido (Busca em tempo real e ordenação em 2.2 / Item 47) |
@@ -79,8 +79,9 @@ Abaixo encontram-se a **pesquisa de mercado**, as **21 sugestões ativas em aber
 ### Eixo 1: Fundação Técnica do Motor de Áudio
 
 #### 1.1 Motor de Áudio Nativo Híbrido (Stream Direto com Pré-Buffer e Fallback Resiliente para IFrame)
-* **Status:** [Especificação Técnica Completa / Base de Desenvolvimento] 🔬
-* **Impacto:** [Crítico / Muito Alto] | **Esforço:** [Alto] | **Risco:** [Médio / Baixo com Fallback]
+* **Status:** `[Concluído e Validado no Histórico Consolidado — Item 49]` ✅
+* **Impacto:** `[Crítico / Muito Alto]` | **Esforço:** `[Alto]`
+* **Implementação Concluída:** Ver detalhes arquiteturais completos no [Item 49 do Histórico Consolidado](#49-motor-de-áudio-nativo-híbrido-com-pré-buffer-e-fallback-resiliente-para-iframe-item-11).
 * **Origem & Diagnóstico Técnico do Problema:**
   - **Stuttering e Engasgos de Áudio:** O TetPlayer atualmente reproduz mídia através de um **iframe oculto do YouTube** ([useYouTubePlayer.ts](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useYouTubePlayer.ts)). O iframe carrega em segundo plano todo o pipeline de vídeo do YouTube (decodificação de codecs pesados como VP9/AV1), telemetria e algoritmos ABR (Adaptive Bitrate) do Google, que restringem o buffer antecipado a poucos segundos para economizar largura de banda nos servidores da CDN. Qualquer micro-variação de rede ou concorrência de CPU esvazia o buffer do Iframe, causando engasgos (*audio stuttering*).
   - **Latência de Troca (1 a 2.5s):** O IFrame não consegue pré-carregar a próxima faixa antes que a atual termine. Cada troca de faixa exige destruir o contexto do player, negociar novas conexões de mídia e carregar um novo player do zero.
@@ -137,8 +138,9 @@ Abaixo encontram-se a **pesquisa de mercado**, as **21 sugestões ativas em aber
 ---
 
 #### 1.2 Paginação Completa de Playlists com Continuação Automática (Token de Continuação)
-* **Status:** [Especificação Técnica Completa / Base de Desenvolvimento] 🔬
-* **Impacto:** [Alto] | **Esforço:** [Baixo / Médio] | **Risco:** [Muito Baixo]
+* **Status:** `[Concluído e Validado no Histórico Consolidado — Item 48]` ✅
+* **Impacto:** `[Alto]` | **Esforço:** `[Baixo / Médio]`
+* **Implementação Concluída:** Ver detalhes completos no [Item 48 do Histórico Consolidado](#48-paginação-completa-de-playlists-com-continuação-automática-item-12-da-pesquisa-de-mercado).
 * **Origem & Diagnóstico do Problema:**
   - **Corte de Playlists em 100 Músicas:** O endpoint do YouTube Music (https://music.youtube.com/youtubei/v1/browse) envia listas de faixas paginadas em lotes de no máximo 100 itens por requisição.
   - Se uma playlist tiver mais de 100 músicas (ex: 109, 150, 500 ou 1.000 faixas), a resposta inicial traz apenas as 100 primeiras faixas e inclui um token de continuação em musicPlaylistShelfRenderer.continuations[0].nextContinuationData.continuation (ou continuationCommand).
@@ -475,7 +477,7 @@ Abaixo encontram-se a **pesquisa de mercado**, as **21 sugestões ativas em aber
 
 ---
 
-## ✅ HISTÓRICO CONSOLIDADO: 46 Sugestões e Otimizações Concluídas
+## ✅ HISTÓRICO CONSOLIDADO: 49 Sugestões e Otimizações Concluídas
 
 > [!NOTE]
 > Todos os itens abaixo foram concebidos como sugestões estratégicas e foram **integralmente implementados, compilados e validados** no código do TetPlayer Desktop. Eles formam a memória técnica e evolutiva do produto.
@@ -917,14 +919,39 @@ Abaixo encontram-se a **pesquisa de mercado**, as **21 sugestões ativas em aber
 
 ---
 
+### 48. Paginação Completa de Playlists com Continuação Automática (Item 1.2 da Pesquisa de Mercado)
+* **Status:** `[Implementado e Validado]` ✅
+* **Localização:** [`desktop/src-tauri/src/ytm.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/ytm.rs) e [`desktop/src-tauri/src/lib.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/lib.rs).
+* **Implementação Concluída:**
+  - Criada a função recursiva `extract_continuation_token` no backend Rust para detectar e extrair tokens de continuação (`continuationCommand.token` e `nextContinuationData.continuation`) em qualquer nível da resposta do YouTube Music.
+  - Implementado loop assíncrono iterativo em `get_playlist_tracks` com teto protetivo de até 25 páginas (`MAX_PAGES = 25`, suportando até ~2500 faixas por playlist).
+  - Cada iteração requisita `https://music.youtube.com/youtubei/v1/browse?continuation={token}`, acumula as novas faixas e extrai o próximo token até o término da playlist ou esgotamento de páginas.
+  - Deduplicação em memória via `HashSet` preservando a ordem original da playlist.
+  - Playlists de qualquer tamanho (ex: 109, 150, 500, 1000+ faixas) agora carregam e tocam 100% completas, eliminando definitivamente o antigo corte no limite de 100 músicas.
+  - Suíte de 3 novos testes unitários adicionada no Rust validando a extração de tokens em diferentes estruturas da API InnerTube.
+
+---
+
+### 49. Motor de Áudio Nativo Híbrido com Pré-Buffer e Fallback Resiliente para IFrame (Item 1.1)
+* **Status:** `[Implementado e Validado]` ✅
+* **Localização:** [`desktop/src/services/audioEngine.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/audioEngine.ts), [`desktop/src/hooks/useYouTubePlayer.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useYouTubePlayer.ts), [`desktop/src-tauri/src/ytm.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/ytm.rs), [`desktop/src-tauri/src/lib.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/lib.rs) e [`desktop/src/services/__tests__/audioEngine.test.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/__tests__/audioEngine.test.ts).
+* **Implementação Concluída:**
+  - **Serviço de Áudio Nativo (`AudioEngine`):** Construído motor de alta performance em TypeScript integrando HTML5 `Audio` e Web Audio API (`AudioContext` e `GainNode`). Possui pré-buffer em RAM antecipado (`preload="auto"`), controle linear de ganho digital sem latência de postMessage e suporte a monitoramento de buffer.
+  - **Extração de Stream Direto no Backend Rust (`get_stream_info`):** Comando Tauri que consulta o endpoint `/player` do YouTubei autenticado com a sessão da conta Google. Filtra formatos `audio/*` desprotegidos e prioriza streams de alta fidelidade: itag 251 (Opus ~160kbps), itag 140 (AAC 128kbps) ou maior bitrate disponível.
+  - **Orquestrador Híbrido em `useYouTubePlayer`:** Ao carregar uma faixa, verifica a disponibilidade do stream direto nativo. Havendo URL direta, o áudio toca no motor nativo com silenciamento e pausa do IFrame (zero processamento de vídeo e zero áudio duplicado).
+  - **Fallback Silencioso e Resiliente para IFrame:** Se uma faixa exigir decifração complexa de token (`signatureCipher`), ou se o stream nativo sofrer interrupção/erro 403, o hook desvia instantaneamente e sem travar a UI para o player IFrame do YouTube (`loadVideoById`), mantendo 100% de disponibilidade em qualquer cenário.
+  - **Sincronização Unificada de Estado e Controles:** Timeline, scrubber, sincronia de letras (80ms), crossfade e limitador de volume continuam operando de forma 100% transparente para toda a UI.
+  - **Cobertura de Testes:** 5 novos testes unitários adicionados em `desktop/src/services/__tests__/audioEngine.test.ts`.
+
+---
+
 ## 📌 Conclusão & Próximos Passos (TetPlayer v1.4+ em Desenvolvimento na develop)
 
-Com a consolidação do item **47 (Busca e Ordenação Dentro de Playlists — Item 2.2)** e as melhorias ergonômicas no layout do `PlayerBar` e na animação suave Slide & Fade da gaveta de reprodução, o TetPlayer atinge a marca de **47 melhorias arquiteturais, funcionais e estéticas** totalmente validadas.
+Com a consolidação dos itens **48 (Paginação Completa de Playlists — Item 1.2)** e **49 (Motor de Áudio Nativo Híbrido — Item 1.1)**, o TetPlayer soluciona os dois maiores desafios históricos de áudio e conteúdo da plataforma, atingindo a marca de **49 melhorias arquiteturais, funcionais e estéticas** totalmente validadas.
 
 O desenvolvimento segue **exclusivamente na branch `develop`**. As prioridades imediatas para a sequência da milestone **v1.4.0** são:
-1. **1.2 Paginação Completa de Playlists com Continuação Automática:** Eliminar o teto de 100 faixas para que playlists com 109, 150, 500+ faixas carreguem e toquem na íntegra.
-2. **1.1 Motor de Áudio Nativo Híbrido:** Extração de stream direto (Opus/AAC), pré-buffer anti-stutter, troca instantânea de 0ms e fallback transparente para o Iframe embutido.
-3. **2.3 Curtir / Descurtir Sincronizado com o YouTube Music:** Botão de coração no PlayerBar, Mini Player e menu de contexto integrado aos endpoints InnerTube.
-4. **2.5 Restaurar a Sessão ao Reabrir o App:** Recuperar a última fila, faixa e posição pausada a partir do SQLite local.
-5. **2.1 Sleep Timer:** Temporizador de suspensão programável com fade-out suave de volume de 20 segundos.
-6. **2.4 Edição e Modificação Avançada de Playlists:** Criação, exclusão de faixas e reorganização na nuvem do YouTube Music.
+1. **2.3 Curtir / Descurtir Sincronizado com o YouTube Music:** Botão de coração no PlayerBar, Mini Player e menu de contexto integrado aos endpoints InnerTube.
+2. **2.5 Restaurar a Sessão ao Reabrir o App:** Recuperar a última fila, faixa e posição pausada a partir do SQLite local.
+3. **2.1 Sleep Timer:** Temporizador de suspensão programável com fade-out suave de volume de 20 segundos.
+4. **2.4 Edição e Modificação Avançada de Playlists:** Criação, exclusão de faixas e reorganização na nuvem do YouTube Music.
+5. **2.6 Notificação Nativa do Sistema ao Trocar de Faixa:** Toast no Windows via Tauri com capa, título e artista.

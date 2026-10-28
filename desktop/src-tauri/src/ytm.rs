@@ -243,6 +243,54 @@ pub async fn get_user_playlists(session: &AuthSession) -> Result<Vec<Playlist>, 
     Ok(playlists)
 }
 
+pub fn extract_continuation_token(val: &Value) -> Option<String> {
+    match val {
+        Value::Object(map) => {
+            if let Some(cmd) = map.get("continuationCommand") {
+                if let Some(token) = cmd.get("token").and_then(|t| t.as_str()) {
+                    if !token.is_empty() {
+                        return Some(token.to_string());
+                    }
+                }
+            }
+            if let Some(cont) = map.get("nextContinuationData") {
+                if let Some(token) = cont.get("continuation").and_then(|t| t.as_str()) {
+                    if !token.is_empty() {
+                        return Some(token.to_string());
+                    }
+                }
+            }
+            if let Some(Value::Array(conts)) = map.get("continuations") {
+                for c in conts {
+                    if let Some(tok) = extract_continuation_token(c) {
+                        return Some(tok);
+                    }
+                }
+            }
+            for (k, v) in map {
+                if k == "musicResponsiveListItemRenderer"
+                    || k == "playlistPanelVideoRenderer"
+                    || k == "musicTwoRowItemRenderer"
+                {
+                    continue;
+                }
+                if let Some(tok) = extract_continuation_token(v) {
+                    return Some(tok);
+                }
+            }
+        }
+        Value::Array(arr) => {
+            for v in arr {
+                if let Some(tok) = extract_continuation_token(v) {
+                    return Some(tok);
+                }
+            }
+        }
+        _ => {}
+    }
+    None
+}
+
 pub async fn get_playlist_tracks(session: &AuthSession, playlist_id: &str) -> Result<Vec<Track>, String> {
     let client = reqwest::Client::new();
     let url = "https://music.youtube.com/youtubei/v1/browse?prettyPrint=false";
@@ -268,7 +316,7 @@ pub async fn get_playlist_tracks(session: &AuthSession, playlist_id: &str) -> Re
 
     let resp = client
         .post(url)
-        .headers(headers)
+        .headers(headers.clone())
         .json(&payload)
         .send()
         .await
@@ -290,10 +338,158 @@ pub async fn get_playlist_tracks(session: &AuthSession, playlist_id: &str) -> Re
     let mut tracks = Vec::new();
     extract_tracks_from_value(&json_val, &mut tracks);
 
+    // Paginação Automática via Continuation Token (Item 1.2)
+    let mut continuation = extract_continuation_token(&json_val);
+    let mut page_count = 1;
+    const MAX_PAGES: usize = 25; // Suporta playlists longas de até 2500 faixas
+
+    while let Some(token) = continuation {
+        if page_count >= MAX_PAGES {
+            break;
+        }
+        let cont_url = format!("https://music.youtube.com/youtubei/v1/browse?continuation={token}&prettyPrint=false");
+        let cont_payload = json!({
+            "context": {
+                "client": {
+                    "clientName": "WEB_REMIX",
+                    "clientVersion": "1.20240401.01.00",
+                    "hl": "pt",
+                    "gl": "BR"
+                }
+            },
+            "continuation": token
+        });
+
+        match client.post(&cont_url).headers(headers.clone()).json(&cont_payload).send().await {
+            Ok(cont_resp) => {
+                if cont_resp.status().is_success() {
+                    if let Ok(cont_text) = cont_resp.text().await {
+                        if let Ok(cont_json) = serde_json::from_str::<Value>(&cont_text) {
+                            let prev_len = tracks.len();
+                            extract_tracks_from_value(&cont_json, &mut tracks);
+                            // Se nenhuma faixa nova foi extraída, encerra para evitar repetição/loop
+                            if tracks.len() == prev_len {
+                                break;
+                            }
+                            continuation = extract_continuation_token(&cont_json);
+                            page_count += 1;
+                            continue;
+                        }
+                    }
+                }
+                break;
+            }
+            Err(_) => break,
+        }
+    }
+
     let mut seen = std::collections::HashSet::new();
     tracks.retain(|t| seen.insert(t.id.clone()));
 
     Ok(tracks)
+}
+
+/// Obtém informações e stream direto de áudio nativo para reprodução de alta fidelidade sem stutter (Item 1.1)
+pub async fn get_stream_info(session: &AuthSession, video_id: &str) -> Result<Option<StreamInfo>, String> {
+    let client = reqwest::Client::new();
+    let url = "https://music.youtube.com/youtubei/v1/player?prettyPrint=false";
+    let headers = build_headers(session, "WEB_REMIX");
+
+    let payload = json!({
+        "context": {
+            "client": {
+                "clientName": "WEB_REMIX",
+                "clientVersion": "1.20240401.01.00",
+                "hl": "pt",
+                "gl": "BR"
+            }
+        },
+        "videoId": video_id
+    });
+
+    let resp = match client.post(url).headers(headers).json(&payload).send().await {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("[get_stream_info] Erro na requisição do player: {e}");
+            return Ok(None);
+        }
+    };
+
+    if !resp.status().is_success() {
+        return Ok(None);
+    }
+
+    let json_val: Value = match resp.json().await {
+        Ok(v) => v,
+        Err(_) => return Ok(None),
+    };
+
+    let status = json_val["playabilityStatus"]["status"].as_str().unwrap_or("");
+    if status != "OK" {
+        return Ok(None);
+    }
+
+    let video_details = &json_val["videoDetails"];
+    let title = video_details["title"].as_str().unwrap_or("Música").to_string();
+    let artist = video_details["author"].as_str().unwrap_or("Artista").to_string();
+    let duration_seconds = video_details["lengthSeconds"].as_str().and_then(|s| s.parse::<u64>().ok());
+    let artwork_url = video_details["thumbnail"]["thumbnails"]
+        .as_array()
+        .and_then(|arr| arr.last())
+        .and_then(|t| t["url"].as_str())
+        .map(|u| upgrade_artwork_url(u));
+
+    let formats = match json_val["streamingData"]["adaptiveFormats"].as_array() {
+        Some(f) => f,
+        None => return Ok(None),
+    };
+
+    // Filtra apenas formatos de áudio com stream direto (campo "url" presente sem necessidade de cipher)
+    let mut audio_formats: Vec<&Value> = formats
+        .iter()
+        .filter(|f| {
+            let mime = f["mimeType"].as_str().unwrap_or("");
+            mime.starts_with("audio/") && f.get("url").and_then(|u| u.as_str()).is_some()
+        })
+        .collect();
+
+    if audio_formats.is_empty() {
+        // Sem URL direta desprotegida: aciona fallback transparente para IFrame
+        return Ok(None);
+    }
+
+    // Ordena por qualidade de áudio: itag 251 (Opus ~160kbps), itag 140 (AAC 128kbps), maior bitrate
+    audio_formats.sort_by(|a, b| {
+        let itag_a = a["itag"].as_u64().unwrap_or(0);
+        let itag_b = b["itag"].as_u64().unwrap_or(0);
+        let priority_a = if itag_a == 251 { 2 } else if itag_a == 140 { 1 } else { 0 };
+        let priority_b = if itag_b == 251 { 2 } else if itag_b == 140 { 1 } else { 0 };
+
+        let bitrate_a = a["bitrate"].as_u64().unwrap_or(0);
+        let bitrate_b = b["bitrate"].as_u64().unwrap_or(0);
+
+        priority_b.cmp(&priority_a).then_with(|| bitrate_b.cmp(&bitrate_a))
+    });
+
+    let best = audio_formats[0];
+    let stream_url = match best["url"].as_str() {
+        Some(u) => u.to_string(),
+        None => return Ok(None),
+    };
+
+    let mime_type = best["mimeType"].as_str().map(|s| s.to_string());
+    let bitrate = best["bitrate"].as_u64();
+
+    Ok(Some(StreamInfo {
+        video_id: video_id.to_string(),
+        title,
+        artist,
+        artwork_url,
+        stream_url,
+        duration_seconds,
+        bitrate,
+        mime_type,
+    }))
 }
 
 pub async fn get_radio_tracks(session: &AuthSession, video_id: &str) -> Result<Vec<Track>, String> {
@@ -929,6 +1125,55 @@ pub async fn fetch_account_info(session: &AuthSession) -> (Option<String>, Optio
 mod tests {
     use super::*;
     use crate::auth::load_saved_google_session;
+
+    #[test]
+    fn test_extract_continuation_token_command() {
+        let json_data = json!({
+            "contents": {
+                "musicPlaylistShelfRenderer": {
+                    "continuations": [
+                        {
+                            "nextContinuationData": {
+                                "continuation": "token_abc_123"
+                            }
+                        }
+                    ]
+                }
+            }
+        });
+
+        assert_eq!(extract_continuation_token(&json_data), Some("token_abc_123".to_string()));
+    }
+
+    #[test]
+    fn test_extract_continuation_token_continuation_command() {
+        let json_data = json!({
+            "sectionListContinuation": {
+                "continuations": [
+                    {
+                        "continuationCommand": {
+                            "token": "token_xyz_456"
+                        }
+                    }
+                ]
+            }
+        });
+
+        assert_eq!(extract_continuation_token(&json_data), Some("token_xyz_456".to_string()));
+    }
+
+    #[test]
+    fn test_extract_continuation_token_none() {
+        let json_data = json!({
+            "contents": {
+                "musicPlaylistShelfRenderer": {
+                    "contents": []
+                }
+            }
+        });
+
+        assert_eq!(extract_continuation_token(&json_data), None);
+    }
 
     #[tokio::test]
     async fn test_fetch_liked() {
