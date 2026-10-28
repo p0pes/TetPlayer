@@ -5,7 +5,7 @@
 > **Status Geral da Aplicação:** 🟢 **Build, Compilação e Testes 100% Verificados (TypeScript + Rust `cargo test` & `vite build` com Zero Erros, 53 testes Vitest + 8 testes Rust passando)**.  
 > **Status Comparativo:**  
 > - 📌 **0 Apontamentos Pendentes** (100% dos itens da rodada corrigidos, validados e cobertos por testes)  
-> - ✅ **53 Itens Integralmente Resolvidos e Validados** (Histórico técnico preservado na íntegra na seção inferior)  
+> - ✅ **54 Itens Integralmente Resolvidos e Validados** (Histórico técnico preservado na íntegra na seção inferior)  
 
 ---
 
@@ -17,13 +17,13 @@
 ├────┬───────────────────────────────────┬───────────────┬────────────────────────────────────────────────────────┤
 │ #  │ Categoria                         │ Severidade    │ Status / Descrição                                     │
 ├────┼───────────────────────────────────┼───────────────┼────────────────────────────────────────────────────────┤
-│ -- │ Nenhuma pendência ativa           │ [Resolvido]   │ Todos os 53 apontamentos técnicos foram solucionados   │
+│ -- │ Nenhuma pendência ativa           │ [Resolvido]   │ Todos os 54 apontamentos técnicos foram solucionados   │
 └────┴───────────────────────────────────┴───────────────┴────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## ✅ HISTÓRICO CONSOLIDADO: 53 Apontamentos Resolvidos e Validados
+## ✅ HISTÓRICO CONSOLIDADO: 54 Apontamentos Resolvidos e Validados
 
 > [!NOTE]
 > Todos os itens abaixo foram implementados, testados, compilados e validados no TetPlayer Desktop. Eles permanecem registrados na base deste documento como memória técnica da arquitetura, robustez e performance da aplicação.
@@ -689,10 +689,31 @@
 
 ---
 
+### 64. Refinamento Cinético da Gaveta (300ms + 28px Slide), Breadcrumbs com Fade Suave no TitleBar e Seta da Gaveta na Extrema Direita
+* **Status:** `[Resolvido]` ✅
+* **Localização:** [`desktop/src/index.css`](file:///d:/progrmação/programas/TetPlayer/desktop/src/index.css), [`desktop/src/context/PlayerContext.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/context/PlayerContext.tsx), [`desktop/src/components/TitleBar/TitleBar.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/TitleBar/TitleBar.tsx) e [`desktop/src/components/Player/PlayerBar.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Player/PlayerBar.tsx).
+* **Diagnóstico Técnico & Demandas:**
+  - **Sensação Cinética Rápida Demais:** A animação de 180ms e 12px da gaveta ocorria de forma quase imperceptível em monitores com altas taxas de atualização, dificultando a percepção da suavidade do slide e do fade.
+  - **Transição Brusca nos Títulos/Caminho:** No `TitleBar`, o texto de breadcrumb (`Biblioteca > Nome da Playlist`) alternava de forma instantânea e sem transição ao navegar entre seções.
+  - **Posicionamento da Seta da Gaveta:** O botão ficava antes do controle de volume, quando a intenção ergonômica é deixá-lo no extremo oposto do Mini Player para simetria visual.
+* **Solução Implementada:**
+  - **Refinamento Cinético da Gaveta (300ms, 28px e Retenção de Fade):**
+    - Keyframes `drawer-slide-fade-in` e `drawer-slide-fade-out` ajustados para 300ms com amplitude de deslocamento de 28px (`translateY(28px)`).
+    - Inseridos pontos médios de opacidade (40% e 60% em 0.5) para que o efeito de dissolução/fade permaneça visível durante o movimento, mantendo aceleração de hardware total pela GPU via `transform` e `opacity`.
+    - Timeout de fechamento em `PlayerContext` sincronizado para 300ms.
+  - **Fade Suave no Caminho/Breadcrumbs:**
+    - Criada a animação `.animate-breadcrumb-fade` (260ms suave com leve drift de 2px).
+    - Adicionado `key={breadcrumbText}` no `TitleBar`, garantindo que qualquer alteração de tela ou navegação produza uma transição gradual e fluida.
+  - **Seta da Gaveta na Extrema Direita:**
+    - Botão `ChevronUp`/`ChevronDown` transferido para o final absoluto do `PlayerBar`, após o controle de volume, estabelecendo simetria perfeita: Mini Player na extrema esquerda e Seta da Gaveta na extrema direita.
+
+---
+
 ## 📋 Conclusão da Auditoria (Branch develop — Próxima Milestone v1.4.0)
 
-A suíte técnica atinge a marca de **53 itens corrigidos e consolidados**, com total estabilidade na branch `develop`:
+A suíte técnica atinge a marca de **54 itens corrigidos e consolidados**, com total estabilidade na branch `develop`:
 - **Zero erros de compilação ou tipos:** `tsc && vite build`, 53 testes Vitest e 8 testes Rust 100% verdes (61 testes no total).
 - **Busca e Ordenação (Item 2.2):** Alta performance em listas extensas com suporte a atalhos e seleção de ordem.
-- **Ergonomia e Animação Fluida:** PlayerBar reestruturado com Mini Player isolado à esquerda, botão de gaveta à direita e animação leve Slide & Fade acelerada por GPU.
+- **Ergonomia e Animação Fluida:** PlayerBar perfeitamente balanceado de ponta a ponta, transições de breadcrumbs suaves e animação cineticamente perceptível na gaveta.
+
 

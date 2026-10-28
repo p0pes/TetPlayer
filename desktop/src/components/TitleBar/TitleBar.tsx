@@ -119,6 +119,18 @@ export const TitleBar = React.memo(function TitleBar({
     }
   }
 
+  const breadcrumbText = isNowPlayingOpen
+    ? `Reprodução > ${nowPlayingTab === "queue" ? "Fila de Reprodução" : "Letras"} > ${currentTrack?.title || "Música Atual"}`
+    : showLyrics
+    ? `Letras Sincronizadas > ${currentTrack?.title || "Música Atual"}`
+    : activeTab === "library"
+    ? selectedPlaylist
+      ? `Biblioteca > ${selectedPlaylist.title}`
+      : "Biblioteca de Playlists"
+    : activeTab === "search"
+    ? "Busca de Músicas"
+    : "Estatísticas de Reprodução";
+
   return (
     <header
       data-tauri-drag-region
@@ -141,19 +153,12 @@ export const TitleBar = React.memo(function TitleBar({
       </div>
 
       {/* Centro: Breadcrumbs / Título da Visualização Ativa */}
-      <div data-tauri-drag-region className="flex-1 flex items-center px-4 h-full pointer-events-none min-w-0">
-        <span className="text-xs text-[#8c91a4] truncate">
-          {isNowPlayingOpen
-            ? `Reprodução > ${nowPlayingTab === "queue" ? "Fila de Reprodução" : "Letras"} > ${currentTrack?.title || "Música Atual"}`
-            : showLyrics
-            ? `Letras Sincronizadas > ${currentTrack?.title || "Música Atual"}`
-            : activeTab === "library"
-            ? selectedPlaylist
-              ? `Biblioteca > ${selectedPlaylist.title}`
-              : "Biblioteca de Playlists"
-            : activeTab === "search"
-            ? "Busca de Músicas"
-            : "Estatísticas de Reprodução"}
+      <div data-tauri-drag-region className="flex-1 flex items-center px-4 h-full pointer-events-none min-w-0 overflow-hidden">
+        <span
+          key={breadcrumbText}
+          className="text-xs text-[#8c91a4] truncate animate-breadcrumb-fade inline-block"
+        >
+          {breadcrumbText}
         </span>
       </div>
 

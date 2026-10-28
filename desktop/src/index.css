@@ -337,11 +337,14 @@ input[type="range"] {
   transform-origin: center center;
 }
 
-/* Animação Slide & Fade da Gaveta de Reprodução (GPU-Accelerated - 180ms cubic-bezier) */
+/* Animação Slide & Fade da Gaveta de Reprodução (GPU-Accelerated - 300ms) */
 @keyframes drawer-slide-fade-in {
   0% {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(28px);
+  }
+  40% {
+    opacity: 0.5;
   }
   100% {
     opacity: 1;
@@ -354,18 +357,39 @@ input[type="range"] {
     opacity: 1;
     transform: translateY(0);
   }
+  60% {
+    opacity: 0.5;
+  }
   100% {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(28px);
   }
 }
 
 .animate-drawer-in {
-  animation: drawer-slide-fade-in 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: drawer-slide-fade-in 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
   will-change: transform, opacity;
 }
 
 .animate-drawer-out {
-  animation: drawer-slide-fade-out 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: drawer-slide-fade-out 300ms cubic-bezier(0.25, 1, 0.5, 1) forwards;
   will-change: transform, opacity;
 }
+
+/* Animação Fade Suave dos Breadcrumbs / Caminho no TitleBar */
+@keyframes breadcrumb-fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-breadcrumb-fade {
+  animation: breadcrumb-fade-in 260ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: opacity, transform;
+}
+

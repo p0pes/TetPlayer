@@ -218,8 +218,8 @@ export const PlayerBar = memo(function PlayerBar() {
         />
       </div>
 
-      {/* Volume, Fila, Letras & Botão da Gaveta */}
-      <div className="flex items-center justify-end gap-1.5 sm:gap-2 md:gap-2.5 w-[28%] min-w-0 max-w-[280px]">
+      {/* Volume, Fila, Letras & Botão da Gaveta na Extrema Direita */}
+      <div className="flex items-center justify-end gap-1.5 sm:gap-2 md:gap-2.5 w-[28%] min-w-0 max-w-[310px]">
         {/* Botão Fila de Reprodução */}
         <button
           onClick={toggleShowQueue}
@@ -254,24 +254,6 @@ export const PlayerBar = memo(function PlayerBar() {
           <span className="hidden xl:inline">Letras</span>
         </button>
 
-        {/* Seta para Abrir / Recolher a Gaveta no Lado Direito */}
-        <button
-          onClick={toggleNowPlaying}
-          aria-label={isDrawerOpen ? "Recolher gaveta de reprodução" : "Abrir gaveta de reprodução"}
-          title={isDrawerOpen ? "Recolher gaveta [Shift+Up / Esc]" : "Abrir gaveta de reprodução (Fila & Letras) [Shift+Up]"}
-          className={`p-1.5 sm:p-2 rounded-xl border transition-all cursor-pointer shrink-0 ${
-            isDrawerOpen
-              ? "bg-[var(--accent)] text-white border-[var(--accent-border)] shadow-lg shadow-[var(--accent-glow)]"
-              : "bg-[#171a24] text-[#8c91a4] hover:text-white hover:bg-[#202534] border-[#252a3a]"
-          }`}
-        >
-          {isDrawerOpen ? (
-            <ChevronDown className="w-4 h-4 transition-transform" />
-          ) : (
-            <ChevronUp className="w-4 h-4 transition-transform group-hover:-translate-y-0.5" />
-          )}
-        </button>
-
         {/* Visualizador de Áudio Mini & Status Badge (Sugestão 3.2) */}
         <div className="hidden 2xl:flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[#141724] border border-[#212638] shrink-0">
           <SpectrumVisualizer isPlaying={isPlaying} variant="mini" barCount={4} />
@@ -301,6 +283,24 @@ export const PlayerBar = memo(function PlayerBar() {
             className="w-14 sm:w-16 md:w-20 h-1 bg-[#232733] rounded-full accent-[var(--accent)] cursor-pointer"
           />
         </div>
+
+        {/* Seta para Abrir / Recolher a Gaveta na Extrema Direita */}
+        <button
+          onClick={toggleNowPlaying}
+          aria-label={isDrawerOpen ? "Recolher gaveta de reprodução" : "Abrir gaveta de reprodução"}
+          title={isDrawerOpen ? "Recolher gaveta [Shift+Up / Esc]" : "Abrir gaveta de reprodução (Fila & Letras) [Shift+Up]"}
+          className={`p-1.5 sm:p-2 rounded-xl border transition-all cursor-pointer shrink-0 ml-0.5 sm:ml-1 ${
+            isDrawerOpen
+              ? "bg-[var(--accent)] text-white border-[var(--accent-border)] shadow-lg shadow-[var(--accent-glow)]"
+              : "bg-[#171a24] text-[#8c91a4] hover:text-white hover:bg-[#202534] border-[#252a3a]"
+          }`}
+        >
+          {isDrawerOpen ? (
+            <ChevronDown className="w-4 h-4 transition-transform" />
+          ) : (
+            <ChevronUp className="w-4 h-4 transition-transform group-hover:-translate-y-0.5" />
+          )}
+        </button>
       </div>
     </footer>
   );
