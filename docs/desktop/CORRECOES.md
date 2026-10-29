@@ -14,21 +14,219 @@
 
 ## 1. Sumário Executivo & Status Atual da Base de Código
 
-Todos os **11 apontamentos técnicos (#81 a #91)** identificados na auditoria profunda da versão **v1.4.0+** foram integralmente corrigidos, compilados e validados com 100% dos testes unitários e de integração passando (`tsc && vite build`, 77 testes Vitest e 11 testes Cargo/Rust).
+Uma nova auditoria técnica profunda foi realizada em todo o ecossistema desktop do **TetPlayer** (Frontend React 19 + TypeScript + Tailwind CSS e Backend Tauri v2 + Rust), com ênfase especial em **fluidez de interface, ausência de animações de transição, saltos visuais bruscos de layout (CLS), lacunas de UX/UI, estabilidade lógica e consistência de performance**.
+
+Foram catalogados **15 novos apontamentos técnicos ativos (#92 a #106)** para correção e refinamento prioritário.
 
 | Severidade | Pendentes Ativos | Resolvidos no Histórico | Status da Build & Testes |
 | :--- | :---: | :---: | :--- |
-| 🔴 **Críticos** | `0` | **100% Resolvidos** | ✅ `tsc && vite build` (0 erros) |
-| 🟡 **Avisos** | `0` | **100% Resolvidos** | ✅ `vitest` (77/77 testes passando) |
-| 🔵 **Sugestões** | `0` | **100% Resolvidos** | ✅ `cargo test` (11/11 testes passando) |
-| **Total Geral** | **`0`** | **`91 Itens Resolvidos`** | 🟢 **Produção Estável (144 FPS)** |
+| 🔴 **Críticos** | `1` (#104) | **91 Resolvidos** | ✅ `tsc && vite build` (0 erros) |
+| 🟡 **Avisos** | `8` (#92-#95, #97, #100, #105, #106) | **91 Resolvidos** | ✅ `vitest` (83/83 testes passando) |
+| 🔵 **Sugestões** | `6` (#96, #98, #99, #101-#103) | **91 Resolvidos** | ✅ `cargo test` (14/14 testes passando) |
+| **Total Geral** | **`15 Pendentes`** | **`91 Itens Resolvidos`** | 🟡 **Auditoria Ativa — Refinamento de Animações & UX** |
 
 ---
 
 ## 2. Apontamentos Ativos Catalogados (Pendentes de Correção)
 
-> [!TIP]
-> **Nenhum erro, bug ou apontamento pendente no momento!** Todos os itens até **#91** foram solucionados e movidos para o Histórico Consolidado abaixo. Novas auditorias futuras registrarão eventuais apontamentos nesta seção.
+> [!IMPORTANT]
+> **Foco da Rodada de Auditoria:** Eliminação de transições secas, implementação de animações de saída (*exit animations*), preservação ergonômica de scroll, polimento de micro-interações táteis e higienização resiliente de falhas de rede.
+
+### 92. Ausência de Animação de Saída (Exit Animation) e Desmontagem Abrupta em Todos os Modais
+* **Severidade:** `[Aviso]`
+* **Localização:** [`desktop/src/components/Modals/ConfirmDeleteModal.tsx:41`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Modals/ConfirmDeleteModal.tsx#L41), [`desktop/src/components/Modals/CreatePlaylistModal.tsx:45`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Modals/CreatePlaylistModal.tsx#L45), [`desktop/src/components/Modals/EditPlaylistModal.tsx:41`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Modals/EditPlaylistModal.tsx#L41), [`desktop/src/components/Modals/AddToPlaylistModal.tsx:64`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Modals/AddToPlaylistModal.tsx#L64), [`desktop/src/components/SettingsModal/SettingsModal.tsx:177`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/SettingsModal/SettingsModal.tsx#L177), [`desktop/src/components/UpdateModal/UpdateModal.tsx:47`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/UpdateModal/UpdateModal.tsx#L47)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  Todos os modais da aplicação utilizam a regra antecipada `if (!isOpen) return null;`. Embora possuam animação de entrada com classes Tailwind CSS (`animate-in fade-in zoom-in-95 duration-150`), no momento em que o usuário fecha a caixa de diálogo (pelo botão de fechar, clique no backdrop ou tecla `Escape`), o componente é sumariamente desmontado da árvore DOM em 0ms. Isso provoca o desaparecimento repentino do backdrop escurecido e do diálogo, cortando a experiência visual de forma seca e não polida.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  Implementar um estado interno de transição de fechamento (`isClosing`) ou usar um wrapper genérico de modal animado com atraso de unmount de 150ms. Ao solicitar o fechamento, aplicar classes de saída `animate-out fade-out zoom-out-95 duration-150` antes de invocar a remoção definitiva do componente.
+  ```tsx
+  // Exemplo ilustrativo de transição de saída para Modais:
+  const [shouldRender, setShouldRender] = useState(isOpen);
+  const [isClosing, setIsClosing] = useState(false);
+
+  const handleRequestClose = useCallback(() => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsClosing(false);
+      onClose();
+    }, 150);
+  }, [onClose]);
+  ```
+
+---
+
+### 93. Transição Seca de Telas Principais (Álbum, Playlist, Artista e Abas) sem Crossfade ou Slide
+* **Severidade:** `[Aviso]`
+* **Localização:** [`desktop/src/App.tsx:1367-1813`](file:///d:/progrmação/programas/TetPlayer/desktop/src/App.tsx#L1367-L1813)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  No contêiner `<main>`, as visões de detalhe (`ArtistDetailView`, `PlaylistDetailView`, `AlbumDetailView`, `LibraryOverview`, `SearchView`, `StatsView`) são alternadas por ternários diretos. Quando o usuário clica em um card de álbum ou no nome de um artista, o layout atual é imediatamente substituído pelo novo. A ausência de um efeito de fade ou slide sutil faz com que os blocos saltem na tela, dando a sensação de um reload rígido.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  Envolver os componentes centrais de visão em contêineres identificados com chaves determinísticas (`key={viewKey}`) com classes de entrada `animate-in fade-in slide-in-from-bottom-2 duration-200 ease-out` ou transições suaves de opacidade entre trocas de visualização.
+  ```tsx
+  <div key={selectedArtist?.id || selectedAlbum?.id || selectedPlaylist?.id || activeTab} className="animate-in fade-in slide-in-from-bottom-1.5 duration-200 ease-out">
+    {/* Visão de detalhe ativa */}
+  </div>
+  ```
+
+---
+
+### 94. Perda Brusca da Posição de Rolagem (Scroll Jump) ao Navegar de Volta para a Biblioteca
+* **Severidade:** `[Aviso]`
+* **Localização:** [`desktop/src/App.tsx:452, 492, 994, 1001, 1008`](file:///d:/progrmação/programas/TetPlayer/desktop/src/App.tsx#L452)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  Nos métodos de retorno (`handleBackToPlaylists`, `handleBackToAlbums`, `handleBackFromArtist`), o código executa `mainScrollRef.current.scrollTop = 0; playlistScrollPosRef.current = 0;`. Se o usuário rolou a grade da biblioteca até a 50ª playlist ou álbum, clicou para visualizar os detalhes e depois clicou no botão "Voltar", ele é abruptamente jogado para o topo da biblioteca. Essa perda de contexto de rolagem quebra o fluxo de navegação e obriga o usuário a rolar toda a lista novamente.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  Manter uma referência dedicada `libraryScrollPosRef` que registra o `scrollTop` antes de entrar em qualquer detalhe (Álbum/Playlist/Artista). Ao voltar para a biblioteca (`selectedPlaylist = null`, etc.), restaurar o valor previamente salvo em `libraryScrollPosRef.current`.
+  ```tsx
+  // Armazena antes de navegar para o detalhe:
+  libraryScrollPosRef.current = mainScrollRef.current?.scrollTop || 0;
+  // Ao voltar:
+  if (mainScrollRef.current) mainScrollRef.current.scrollTop = libraryScrollPosRef.current;
+  ```
+
+---
+
+### 95. Troca Instantânea de Faixa no PlayerBar e NowPlayingDrawer sem Transição Suave de Metadados
+* **Severidade:** `[Aviso]`
+* **Localização:** [`desktop/src/components/Player/PlayerBar.tsx:74-122`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Player/PlayerBar.tsx#L74-L122), [`desktop/src/components/NowPlayingDrawer/NowPlayingDrawer.tsx:165-208`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/NowPlayingDrawer/NowPlayingDrawer.tsx#L165-L208)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  Quando a faixa atual é alternada (`currentTrack` muda), os elementos de texto (título, artista e álbum) e a imagem da capa do player inferior são substituídos instantaneamente. Em reprodutores modernos de áudio (Spotify, Apple Music), há um leve slide/fade horizontal ou vertical nos textos e um suave crossfade na capa para evitar que a troca de faixa produza um corte seco no olhar do usuário.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  Atribuir `key={currentTrack?.id}` nos contêineres de texto com classes CSS de transição (`animate-in fade-in duration-250 slide-in-from-right-1`) e usar um componente de imagem com camada dupla de transição de opacidade para a arte da capa.
+
+---
+
+### 96. Desmontagem Instantânea sem Animação de Saída nos Menus de Contexto e Dropdown de Ordenação
+* **Severidade:** `[Sugestão]`
+* **Localização:** [`desktop/src/components/ContextMenu/TrackContextMenu.tsx:68`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/ContextMenu/TrackContextMenu.tsx#L68), [`desktop/src/components/ContextMenu/CollectionContextMenu.tsx:94`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/ContextMenu/CollectionContextMenu.tsx#L94), [`desktop/src/App.tsx:1603-1642`](file:///d:/progrmação/programas/TetPlayer/desktop/src/App.tsx#L1603-L1642)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  Os menus de contexto e o seletor de ordenação da biblioteca entram com classe `animate-in fade-in zoom-in-95 duration-100`. No entanto, ao clicar fora ou pressionar `Escape`, os componentes são destruídos imediatamente por retorno de `null` ou flag booleana direta, sem qualquer animação de saída. O menu simplesmente desaparece no ar sem fade-out.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  Adicionar um pequeno delay de fechamento com classe de saída `animate-out fade-out zoom-out-95 duration-100` acionada antes da desativação do estado no componente pai.
+
+---
+
+### 97. Flash Visual e Pop-In Abrupto no Carregamento de Capas na Grade da Biblioteca
+* **Severidade:** `[Aviso]`
+* **Localização:** [`desktop/src/components/MainView/AlbumCard.tsx:110-124`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/AlbumCard.tsx#L110-L124), [`desktop/src/components/MainView/PlaylistGridView.tsx:252-263`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/PlaylistGridView.tsx#L252-L263)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  As tags `<img>` dos cards de álbuns e playlists utilizam `loading="lazy"`, mas são renderizadas sem controle de opacidade progressiva durante o download. Assim que a rede conclui a requisição da imagem, a capa é estalada diretamente sobre a tela, gerando uma sensação de cintilação (*image flicker*) durante a rolagem de listas densas.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  Incluir controle de estado `isLoaded` via evento `onLoad`, iniciando a imagem com `opacity-0` e transitando para `opacity-100 transition-opacity duration-300 ease-out` assim que estiver completamente desenhada na memória gráfica.
+  ```tsx
+  const [isLoaded, setIsLoaded] = useState(false);
+  <img
+    onLoad={() => setIsLoaded(true)}
+    className={`w-full h-full object-cover transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+  />
+  ```
+
+---
+
+### 98. Expansão Repentina da Biografia do Artista sem Transição de Altura Suave (Accordion)
+* **Severidade:** `[Sugestão]`
+* **Localização:** [`desktop/src/components/MainView/ArtistDetailView.tsx:343-360`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/ArtistDetailView.tsx#L343-L360)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  Ao clicar em "Ler biografia completa", o estado `isBioExpanded` é alternado, trocando o estilo do texto entre a classe `line-clamp-2` e texto completo sem corte. Como a propriedade `line-clamp` é binária, a altura do cabeçalho do artista salta bruscamente de ~40px para 200px+, causando um solavanco de layout (*layout shift*) desconfortável.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  Substituir a alternância direta de classes por um contêiner animado usando CSS Grid (`grid-template-rows: 0fr` para `1fr`) com `transition: grid-template-rows 300ms ease-out`, permitindo que a biografia se expanda e recolha com amortecimento suave.
+
+---
+
+### 99. Alternância Brusca do Accordion de Músicas Anteriores na Fila de Reprodução
+* **Severidade:** `[Sugestão]`
+* **Localização:** [`desktop/src/components/QueueView/QueueView.tsx:34-48`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/QueueView/QueueView.tsx#L34-L48)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  A seção "Músicas que Já Passaram" é renderizada condicionalmente via `{showPastTracks && <div className="space-y-1 ...">}`. Ao expandir ou recolher a lista de músicas anteriores, o bloco é inserido/removido subitamente do DOM sem animação de colapso, deslocando a música atual e as próximas faixas de forma instantânea.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  Implementar um contêiner colapsável animado com transição de altura e opacidade (`transition-[max-height,opacity] duration-300 ease-in-out`), garantindo abertura e fechamento fluidos ao clicar no cabeçalho de faixas passadas.
+
+---
+
+### 100. Transição Seca entre Estados de Carregamento, Vazio e Exibição de Letras
+* **Severidade:** `[Aviso]`
+* **Localização:** [`desktop/src/components/LyricsView/LyricsView.tsx:129-170`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/LyricsView/LyricsView.tsx#L129-L170)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  A visão de letras transita entre o indicador de busca (`isLoadingLyrics`), estado vazio de letra não encontrada e a folha de estrofes sincronizadas através de operadores ternários. No instante em que as letras são retornadas da API, o spinner desaparece e dezenas de versos surgem de uma vez só sem qualquer transição de fade-in, gerando um impacto visual desagradável.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  Aplicar animações de entrada com fade suave (`animate-in fade-in duration-300 ease-out`) no bloco que contém as linhas da letra e no bloco de estado vazio.
+
+---
+
+### 101. Scrubber da Linha do Tempo Estático sem Expansão no Hover e sem Tooltip de Pré-Visualização Temporal
+* **Severidade:** `[Sugestão]`
+* **Localização:** [`desktop/src/components/Player/TimelineScrubber.tsx:84-108`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Player/TimelineScrubber.tsx#L84-L108)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  A barra de progresso da música utiliza um `<input type="range">` com altura fixa e visual estático (`h-1`). Ao passar o mouse sobre ela, a trilha não aumenta de espessura para facilitar o clique, não emite brilho de destaque e não exibe um balão flutuante (tooltip) informando qual timestamp (ex: `02:45`) o usuário alcançará se clicar ou arrastar naquele ponto.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  Adicionar efeito de hover suave que expanda a altura da barra (`group-hover:h-2 transition-all duration-150`) e calcular a posição do cursor via `onPointerMove` para exibir um tooltip flutuante animado com a minutagem exata da posição sob o mouse.
+
+---
+
+### 102. Botão de Play/Pause Alternando Ícones de Forma Brusca sem Micro-Animação de Transição ou Escala
+* **Severidade:** `[Sugestão]`
+* **Localização:** [`desktop/src/components/Player/PlayerBar.tsx:165-170`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Player/PlayerBar.tsx#L165-L170), [`desktop/src/components/MainView/AlbumCard.tsx:185-189`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/AlbumCard.tsx#L185-L189)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  Ao pausar ou retomar a reprodução, o botão central substitui imediatamente o elemento `<Play />` por `<Pause />`. A troca seca de ícone carece de micro-animação (como uma breve redução de escala seguida de expansão elástica `scale-90 -> scale-100` ou leve rotação/morfismo), resultando em uma interface que parece rígida aos comandos do usuário.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  Adicionar uma chave animada nos ícones de reprodução (`key={isPlaying ? 'pause' : 'play'}`) com classe `animate-in zoom-in-75 duration-150`, conferindo feedback elástico e agradável ao toque.
+
+---
+
+### 103. Troca Brusca de Abas no Modal de Configurações sem Transição de Conteúdo entre Seções
+* **Severidade:** `[Sugestão]`
+* **Localização:** [`desktop/src/components/SettingsModal/SettingsModal.tsx:210-245`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/SettingsModal/SettingsModal.tsx#L210-L245)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  Dentro do `SettingsModal`, a alternância entre abas verticais (*Áudio*, *Aparência*, *Sistema*, *Armazenamento*, *Sobre*) substitui o painel direito instantaneamente. Não há transição de fade ou deslocamento horizontal sutil, dando a impressão de cortes bruscos ao navegar pelas preferências do aplicativo.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  Aplicar `key={activeTab}` com classe `animate-in fade-in slide-in-from-right-1 duration-150 ease-out` no contêiner de opções da aba selecionada.
+
+---
+
+### 104. Exposição de Erros Técnicos Crús e Strings JSON de Status 403 na Interface do Usuário
+* **Severidade:** `[Crítico]`
+* **Localização:** [`desktop/src/components/Modals/ConfirmDeleteModal.tsx:50, 95`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Modals/ConfirmDeleteModal.tsx#L50), [`desktop/src/App.tsx:1346-1355`](file:///d:/progrmação/programas/TetPlayer/desktop/src/App.tsx#L1346-L1355)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  Quando operações assíncronas do backend falham (ex: tentativa de exclusão de playlist com permissão negada no YouTube Music), mensagens técnicas do protocolo HTTP ou estruturas JSON completas como `YouTube Music retornou status 403 Forbidden ao excluir playlist: { "error": { "code": 403, "message": "The caller does not have permission" ... } }` são expostas integralmente ao usuário final no modal e no banner de erro do topo. Isso degrada a experiência do usuário, expõe detalhes internos de API e quebra a harmonia visual da UI.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  Criar um sanitizador e tradutor de erros centralizado no frontend (`humanizeApiError(error)`), interceptando erros com códigos 403, 404 ou payloads JSON e traduzindo-os para mensagens elegantes e compreensíveis (ex: *"Permissão negada: esta playlist pertence a outro canal e só pode ser removida da sua biblioteca pelo YouTube Music."*).
+  ```typescript
+  export function humanizeApiError(rawError: unknown): string {
+    const errStr = String(rawError || '');
+    if (errStr.includes('403') || errStr.includes('PERMISSION_DENIED')) {
+      return 'Você não possui permissão para executar esta ação nesta playlist.';
+    }
+    return 'Ocorreu um erro ao processar sua solicitação. Tente novamente mais tarde.';
+  }
+  ```
+
+---
+
+### 105. Drag & Drop na Fila de Reprodução com Fantasma Translúcido Nativo HTML5 e Baixa Fluidez
+* **Severidade:** `[Aviso]`
+* **Localização:** [`desktop/src/components/QueueView/QueueView.tsx:198-231`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/QueueView/QueueView.tsx#L198-L231)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  A fila de reprodução ainda utiliza o mecanismo clássico `draggable` do HTML5. Nos navegadores e no WebKit do Tauri, o drag nativo do HTML5 gera uma miniatura estática semitransparente, com taxa de amostragem truncada e sem feedback tátil moderno. Isso contrasta diretamente com as listas de playlists (`VirtualizedTrackList.tsx`) e da barra lateral (`Sidebar.tsx`), que já utilizam arrasto fluido por Pointer Events a 144 FPS com card flutuante acelerado por GPU.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  Substituir o drag HTML5 em `QueueView.tsx` pelo padrão determinístico de Pointer Events (`onPointerDown`, `setPointerCapture`, `onPointerMove`), renderizando um card flutuante via `createPortal` com `transform: translate3d(...)` para garantir consistência de 144 FPS em todas as listas reordenáveis do player.
+
+---
+
+### 106. Potencial Race Condition ao Selecionar Rapidamente Múltiplos Artistas ou Álbuns Consecutivos
+* **Severidade:** `[Aviso]`
+* **Localização:** [`desktop/src/App.tsx:511-539, 564-580`](file:///d:/progrmação/programas/TetPlayer/desktop/src/App.tsx#L511-L539)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  Em `handleSelectAlbum` e `handleSelectArtist`, o código dispara `invoke<AlbumDetail>("get_album_details")` e `invoke<ArtistDetail>("get_artist_details")` de forma assíncrona. Caso o usuário clique em um artista e rapidamente clique em outro antes que a primeira resposta retorne, a resposta do primeiro artista (se demorar mais) pode resolver depois e sobrescrever o estado `artistDetail`, fazendo com que a tela do Artista B exiba as músicas do Artista A.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  Utilizar um contador de versão ou identificador único de requisição (`activeRequestRef.current = targetId`) e verificar se o ID retornado pela Promise ainda coincide com o item atualmente selecionado antes de atualizar o estado do React.
+  ```typescript
+  const currentRequestId = artist.id || artist.name;
+  activeArtistRequestIdRef.current = currentRequestId;
+  const detail = await invoke<ArtistDetail>('get_artist_details', { ... });
+  if (activeArtistRequestIdRef.current === currentRequestId) {
+    setArtistDetail(detail);
+  }
+  ```
 
 ---
 
