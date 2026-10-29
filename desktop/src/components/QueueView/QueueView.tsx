@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronUp, ChevronDown, Play, Pause, Trash2, ListMusic, MoreVertical, GripVertical } from "lucide-react";
+import { ChevronDown, Play, Pause, Trash2, ListMusic, MoreVertical, GripVertical } from "lucide-react";
 import { usePlayer } from "../../context/PlayerContext";
 import { formatTime } from "../../hooks/useLyrics";
 import { upgradeArtworkQuality, handleArtworkError } from "../../utils/artwork";
@@ -33,19 +33,26 @@ export function QueueView() {
           <div className="flex items-center justify-between pb-1">
             <button
               onClick={() => setShowPastTracks((prev) => !prev)}
+              aria-expanded={showPastTracks}
               className="flex items-center gap-1.5 text-xs font-bold text-[#71778c] hover:text-white uppercase tracking-wider transition-colors cursor-pointer"
             >
               <span>Músicas que Já Passaram ({pastTracks.length})</span>
-              {showPastTracks ? (
-                <ChevronUp className="w-3.5 h-3.5" />
-              ) : (
-                <ChevronDown className="w-3.5 h-3.5" />
-              )}
+              <ChevronDown
+                className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                  showPastTracks ? "rotate-180" : "rotate-0"
+                }`}
+              />
             </button>
           </div>
 
-          {showPastTracks && (
-            <div className="space-y-1 opacity-70 hover:opacity-100 transition-opacity">
+          <div
+            className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out overflow-hidden ${
+              showPastTracks
+                ? "grid-rows-[1fr] opacity-100"
+                : "grid-rows-[0fr] opacity-0 pointer-events-none"
+            }`}
+          >
+            <div className="min-h-0 space-y-1 opacity-70 hover:opacity-100 transition-opacity">
               {pastTracks.map((track, idx) => (
                 <div
                   key={`past-${track.id}-${idx}`}
@@ -105,7 +112,7 @@ export function QueueView() {
                 </div>
               ))}
             </div>
-          )}
+          </div>
         </div>
       )}
 
@@ -231,11 +238,11 @@ export function QueueView() {
                   }}
                   onClick={() => handlePlayFromQueue(actualIdx)}
                   onContextMenu={(e) => openContextMenu(e, track)}
-                  className={`flex items-center justify-between p-2.5 rounded-xl transition-all cursor-pointer group [content-visibility:auto] [contain-intrinsic-size:0_60px] ${
+                  className={`flex items-center justify-between p-2.5 rounded-xl transition-all duration-150 ease-out cursor-pointer group [content-visibility:auto] [contain-intrinsic-size:0_60px] ${
                     isBeingDragged
-                      ? "opacity-35 scale-[0.98] border-dashed border-[var(--accent)] bg-[#1e2334]"
+                      ? "opacity-35 scale-[0.98] border-dashed border-[var(--accent)] bg-[#1e2334] shadow-inner"
                       : isDragOver
-                      ? "border-t-2 border-t-[var(--accent)] bg-[#1c2030] shadow-lg shadow-[var(--accent-glow)]"
+                      ? "border-t-2 border-t-[var(--accent)] bg-[#1c2030] shadow-md shadow-[var(--accent-glow)]/30 -translate-y-0.5"
                       : "bg-[#141722]/70 hover:bg-[#1c2030] border border-[#1f2433] hover:border-[#2d3448]"
                   }`}
                 >

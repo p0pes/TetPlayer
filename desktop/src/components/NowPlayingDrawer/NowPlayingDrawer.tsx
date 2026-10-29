@@ -49,7 +49,7 @@ export function NowPlayingDrawer() {
           <span className="text-[10px] font-bold text-[var(--accent-text)] uppercase tracking-wider bg-[var(--accent-subtle)] border border-[var(--accent-border)] px-2 py-0.5 rounded-md hidden xl:inline-block shrink-0">
             Reproduzindo Agora
           </span>
-          <div className="min-w-0 flex-1">
+          <div key={currentTrack?.id || "empty-drawer-head"} className="min-w-0 flex-1 animate-view-fade">
             <p className="text-xs font-semibold text-white truncate">
               {currentTrack?.title || "Nenhuma faixa selecionada"}
             </p>
@@ -162,7 +162,7 @@ export function NowPlayingDrawer() {
           <MotionCover track={currentTrack} isPlaying={isPlaying} />
 
           {/* Metadados da Faixa Atual */}
-          <div className="relative z-10 mt-6 text-center max-w-sm w-full px-2">
+          <div key={currentTrack?.id || "empty-drawer-meta"} className="relative z-10 mt-6 text-center max-w-sm w-full px-2 animate-view-fade">
             <h2 className="text-lg sm:text-xl font-extrabold text-white tracking-tight truncate drop-shadow-md">
               {currentTrack?.title || "Nenhuma faixa selecionada"}
             </h2>

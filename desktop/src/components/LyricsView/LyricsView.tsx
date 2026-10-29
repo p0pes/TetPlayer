@@ -127,12 +127,12 @@ export function LyricsView() {
         className="flex-1 overflow-y-auto overflow-x-hidden px-4 sm:px-8 py-8 space-y-4 text-center relative scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
       >
         {isLoadingLyrics ? (
-          <div className="h-64 flex flex-col items-center justify-center gap-3 text-[#71778c]">
+          <div className="h-64 flex flex-col items-center justify-center gap-3 text-[#71778c] animate-view-fade">
             <Loader2 className="w-8 h-8 animate-spin text-[var(--accent)]" />
             <p className="text-sm font-medium">Buscando letra sincronizada...</p>
           </div>
         ) : lyricsError || (!lyricsData?.synced && !lyricsData?.plain) ? (
-          <div className="h-64 flex flex-col items-center justify-center gap-3 text-[#71778c]">
+          <div className="h-64 flex flex-col items-center justify-center gap-3 text-[#71778c] animate-view-fade">
             <div className="w-14 h-14 rounded-2xl bg-[#141722] border border-[#212638] flex items-center justify-center">
               <Mic2 className="w-7 h-7 text-[#4e556e]" />
             </div>
@@ -142,7 +142,7 @@ export function LyricsView() {
             </p>
           </div>
         ) : parsedLyrics.length > 0 ? (
-          <div className="py-16 space-y-5 max-w-2xl mx-auto w-full px-2 sm:px-4">
+          <div className="py-16 space-y-5 max-w-2xl mx-auto w-full px-2 sm:px-4 animate-view-fade">
             {parsedLyrics.map((line, idx) => {
               const isActive = idx === activeLyricIndex;
               const distance = activeLyricIndex !== -1 ? Math.abs(idx - activeLyricIndex) : 999;
@@ -163,7 +163,7 @@ export function LyricsView() {
             })}
           </div>
         ) : lyricsData?.plain ? (
-          <div className="py-8 max-w-xl mx-auto whitespace-pre-line text-base text-[#c4c8d8] leading-relaxed font-sans">
+          <div className="py-8 max-w-xl mx-auto whitespace-pre-line text-base text-[#c4c8d8] leading-relaxed font-sans animate-view-fade">
             {lyricsData.plain}
           </div>
         ) : null}

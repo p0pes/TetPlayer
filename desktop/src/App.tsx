@@ -46,6 +46,7 @@ import {
 } from "./components/ContextMenu/CollectionContextMenu";
 import { SettingsService } from "./services/settings";
 import { PerformanceTelemetry } from "./services/telemetry";
+import { humanizeApiError } from "./utils/errors";
 
 export default function App() {
   useEffect(() => {
@@ -245,6 +246,12 @@ function AppContent({
   const [selectedArtist, setSelectedArtist] = useState<{ id?: string; name: string } | null>(null);
   const [artistDetail, setArtistDetail] = useState<ArtistDetail | null>(null);
   const [isLoadingArtistDetail, setIsLoadingArtistDetail] = useState(false);
+
+  // Controle de posição de rolagem prévia da biblioteca e proteção contra Race Conditions
+  const libraryScrollPosRef = useRef<number>(0);
+  const activeAlbumRequestIdRef = useRef<string | null>(null);
+  const activeArtistRequestIdRef = useRef<string | null>(null);
+  const activePlaylistRequestIdRef = useRef<string | null>(null);
 
   // Busca
   const [searchQuery, setSearchQuery] = useState("");
@@ -448,6 +455,10 @@ function AppContent({
 
   // Selecionar Playlist com Stale-While-Revalidate e tolerância offline
   const handleSelectPlaylist = useCallback(async (playlist: Playlist) => {
+    if (!selectedPlaylistRef.current && !selectedAlbumRef.current && !selectedArtist) {
+      libraryScrollPosRef.current = mainScrollRef.current?.scrollTop || 0;
+    }
+    activePlaylistRequestIdRef.current = playlist.id;
     playlistScrollPosRef.current = 0;
     if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
     setSelectedPlaylist(playlist);
@@ -473,21 +484,31 @@ function AppContent({
       const tracks = await invoke<Track[]>("get_playlist_tracks", {
         playlistId: playlist.id,
       });
-      setPlaylistTracks(tracks);
-      LocalCacheService.saveCachedPlaylistTracks(playlist.id, tracks);
+      if (activePlaylistRequestIdRef.current === playlist.id) {
+        setPlaylistTracks(tracks);
+        LocalCacheService.saveCachedPlaylistTracks(playlist.id, tracks);
+      }
     } catch (err) {
-      if (cachedTracks && cachedTracks.length > 0) {
-        console.warn("Falha ao revalidar playlist pela rede, mantendo cache local offline:", err);
-      } else {
-        setErrorMessage(`Erro ao carregar músicas da playlist: ${String(err)}`);
+      if (activePlaylistRequestIdRef.current === playlist.id) {
+        if (cachedTracks && cachedTracks.length > 0) {
+          console.warn("Falha ao revalidar playlist pela rede, mantendo cache local offline:", err);
+        } else {
+          setErrorMessage(`Erro ao carregar músicas da playlist: ${String(err)}`);
+        }
       }
     } finally {
-      setIsLoadingPlaylistTracks(false);
+      if (activePlaylistRequestIdRef.current === playlist.id) {
+        setIsLoadingPlaylistTracks(false);
+      }
     }
-  }, [mainScrollRef, playlistScrollPosRef, setErrorMessage, closeNowPlaying]);
+  }, [mainScrollRef, playlistScrollPosRef, setErrorMessage, closeNowPlaying, selectedArtist]);
 
   // Selecionar Álbum com Stale-While-Revalidate (0ms instant display)
   const handleSelectAlbum = useCallback(async (album: Album) => {
+    if (!selectedPlaylistRef.current && !selectedAlbumRef.current && !selectedArtist) {
+      libraryScrollPosRef.current = mainScrollRef.current?.scrollTop || 0;
+    }
+    activeAlbumRequestIdRef.current = album.id;
     playlistScrollPosRef.current = 0;
     if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
     setSelectedAlbum(album);
@@ -511,6 +532,7 @@ function AppContent({
       const detail = await invoke<AlbumDetail>("get_album_details", {
         browseId: album.id,
       });
+      if (activeAlbumRequestIdRef.current !== album.id) return;
       const enrichedDetail: AlbumDetail = {
         ...detail,
         artwork_url: detail.artwork_url || album.artwork_url,
@@ -530,26 +552,34 @@ function AppContent({
       setAlbumDetail(enrichedDetail);
       LocalCacheService.saveCachedAlbumDetail(album.id, enrichedDetail);
     } catch (err) {
-      if (cachedDetail) {
-        console.warn("Falha ao revalidar álbum pela rede, mantendo cache local offline:", err);
-      } else {
-        setErrorMessage(`Erro ao carregar detalhes do álbum: ${String(err)}`);
+      if (activeAlbumRequestIdRef.current === album.id) {
+        if (cachedDetail) {
+          console.warn("Falha ao revalidar álbum pela rede, mantendo cache local offline:", err);
+        } else {
+          setErrorMessage(`Erro ao carregar detalhes do álbum: ${String(err)}`);
+        }
       }
     } finally {
-      setIsLoadingAlbumDetail(false);
+      if (activeAlbumRequestIdRef.current === album.id) {
+        setIsLoadingAlbumDetail(false);
+      }
     }
-  }, [mainScrollRef, playlistScrollPosRef, setErrorMessage, closeNowPlaying]);
+  }, [mainScrollRef, playlistScrollPosRef, setErrorMessage, closeNowPlaying, selectedArtist]);
 
   // Selecionar Artista com Stale-While-Revalidate (0ms instant display)
   const handleSelectArtist = useCallback(
     async (artist: { id?: string; name: string }) => {
       if (!artist.name || artist.name === "Artista") return;
+      if (!selectedPlaylistRef.current && !selectedAlbumRef.current && !selectedArtist) {
+        libraryScrollPosRef.current = mainScrollRef.current?.scrollTop || 0;
+      }
+      const cacheKey = artist.id || artist.name.trim().toLowerCase();
+      activeArtistRequestIdRef.current = cacheKey;
       if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
       setSelectedArtist(artist);
       setActiveTab("library");
       closeNowPlaying();
 
-      const cacheKey = artist.id || artist.name.trim().toLowerCase();
       const cached = LocalCacheService.getCachedArtistDetail(cacheKey);
       if (cached) {
         setArtistDetail(cached);
@@ -565,22 +595,27 @@ function AppContent({
           artistId: artist.id || null,
           artistName: artist.name,
         });
+        if (activeArtistRequestIdRef.current !== cacheKey) return;
         setArtistDetail(detail);
         LocalCacheService.saveCachedArtistDetail(cacheKey, detail);
         if (detail.id) {
           LocalCacheService.saveCachedArtistDetail(detail.id, detail);
         }
       } catch (err) {
-        if (cached) {
-          console.warn("Falha ao revalidar artista pela rede, mantendo cache local offline:", err);
-        } else {
-          setErrorMessage(`Erro ao carregar informações do artista: ${String(err)}`);
+        if (activeArtistRequestIdRef.current === cacheKey) {
+          if (cached) {
+            console.warn("Falha ao revalidar artista pela rede, mantendo cache local offline:", err);
+          } else {
+            setErrorMessage(`Erro ao carregar informações do artista: ${String(err)}`);
+          }
         }
       } finally {
-        setIsLoadingArtistDetail(false);
+        if (activeArtistRequestIdRef.current === cacheKey) {
+          setIsLoadingArtistDetail(false);
+        }
       }
     },
-    [mainScrollRef, setErrorMessage, closeNowPlaying]
+    [mainScrollRef, setErrorMessage, closeNowPlaying, selectedArtist]
   );
 
   // Escuta evento de abertura de perfil do artista
@@ -991,24 +1026,30 @@ function AppContent({
 
   const handleBackToPlaylists = useCallback(() => {
     playlistScrollPosRef.current = 0;
-    if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
     setSelectedPlaylist(null);
     closeNowPlaying();
+    requestAnimationFrame(() => {
+      if (mainScrollRef.current) mainScrollRef.current.scrollTop = libraryScrollPosRef.current;
+    });
   }, [mainScrollRef, playlistScrollPosRef, closeNowPlaying]);
 
   const handleBackToAlbums = useCallback(() => {
     playlistScrollPosRef.current = 0;
-    if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
     setSelectedAlbum(null);
     setAlbumDetail(null);
     closeNowPlaying();
+    requestAnimationFrame(() => {
+      if (mainScrollRef.current) mainScrollRef.current.scrollTop = libraryScrollPosRef.current;
+    });
   }, [mainScrollRef, playlistScrollPosRef, closeNowPlaying]);
 
   const handleBackFromArtist = useCallback(() => {
-    if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
     setSelectedArtist(null);
     setArtistDetail(null);
     closeNowPlaying();
+    requestAnimationFrame(() => {
+      if (mainScrollRef.current) mainScrollRef.current.scrollTop = libraryScrollPosRef.current;
+    });
   }, [mainScrollRef, closeNowPlaying]);
 
   const handleSidebarTabChange = useCallback((tab: ActiveTab) => {
@@ -1343,9 +1384,9 @@ function AppContent({
             )}
 
             {errorMessage && (
-              <div className="m-6 mb-0 bg-red-950/40 border border-red-800/60 text-red-300 text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 shrink-0">
+              <div className="m-6 mb-0 bg-red-950/40 border border-red-800/60 text-red-300 text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 shrink-0 animate-view-fade">
                 <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-                <span className="flex-1">{errorMessage}</span>
+                <span className="flex-1">{humanizeApiError(errorMessage)}</span>
                 <button
                   onClick={() => setErrorMessage(null)}
                   className="text-red-400 hover:text-white text-xs underline cursor-pointer"
@@ -1364,6 +1405,20 @@ function AppContent({
               }}
               className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar block"
             >
+              <div
+                key={
+                  activeTab === "library"
+                    ? selectedArtist
+                      ? `artist-${selectedArtist.id || selectedArtist.name}`
+                      : selectedPlaylist
+                      ? `playlist-${selectedPlaylist.id}`
+                      : selectedAlbum
+                      ? `album-${selectedAlbum.id}`
+                      : `library-${librarySection}`
+                    : activeTab
+                }
+                className="animate-view-fade space-y-6"
+              >
               {activeTab === "library" && (
                 <>
                   {selectedArtist ? (
@@ -1810,6 +1865,7 @@ function AppContent({
                   }
                 />
               )}
+              </div>
             </main>
 
             {/* Gaveta de Reprodução */}

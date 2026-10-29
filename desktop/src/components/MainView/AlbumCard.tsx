@@ -63,9 +63,11 @@ export const AlbumCard = React.memo(function AlbumCard({
   density = "comfortable",
 }: AlbumCardProps) {
   const [hasImageError, setHasImageError] = useState(false);
+  const [isImageLoaded, setIsImageLoaded] = useState(false);
 
   useEffect(() => {
     setHasImageError(false);
+    setIsImageLoaded(false);
   }, [album.id, album.artwork_url]);
 
   const handlePlayClick = (e: React.MouseEvent) => {
@@ -114,8 +116,11 @@ export const AlbumCard = React.memo(function AlbumCard({
             loading="lazy"
             decoding="async"
             referrerPolicy="no-referrer"
+            onLoad={() => setIsImageLoaded(true)}
             onError={() => setHasImageError(true)}
-            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+            className={`w-full h-full object-cover transition-all duration-300 group-hover:scale-105 ${
+              isImageLoaded ? "opacity-100" : "opacity-0"
+            }`}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#1c1f2e] to-[#12141d] text-[#63697e]">
@@ -183,9 +188,9 @@ export const AlbumCard = React.memo(function AlbumCard({
           }`}
         >
           {isActivePlaying && isPlaying ? (
-            <Pause className={isCompact ? "w-3.5 h-3.5 fill-current" : "w-4 h-4 fill-current"} />
+            <Pause key="album-pause" className={`${isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} fill-current animate-icon-pop`} />
           ) : (
-            <Play className={`${isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} fill-current ml-0.5`} />
+            <Play key="album-play" className={`${isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} fill-current ml-0.5 animate-icon-pop`} />
           )}
         </button>
       </div>

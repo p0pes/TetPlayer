@@ -341,18 +341,20 @@ export const ArtistDetailView = React.memo(function ArtistDetailView({
 
             {artistDetail?.description && (
               <div className="mt-3 max-w-2xl">
-                <p
-                  className={`text-xs text-[#a0a5b8] leading-relaxed ${
-                    isBioExpanded ? "" : "line-clamp-2"
+                <div
+                  className={`overflow-hidden transition-[max-height] duration-300 ease-out ${
+                    isBioExpanded ? "max-h-[600px]" : "max-h-[38px]"
                   }`}
                 >
-                  {artistDetail.description}
-                </p>
+                  <p className="text-xs text-[#a0a5b8] leading-relaxed">
+                    {artistDetail.description}
+                  </p>
+                </div>
                 {artistDetail.description.length > 140 && (
                   <button
                     type="button"
                     onClick={() => setIsBioExpanded((prev) => !prev)}
-                    className="text-[11px] font-semibold text-[var(--accent-text)] hover:underline mt-1 cursor-pointer"
+                    className="text-[11px] font-semibold text-[var(--accent-text)] hover:underline mt-1.5 cursor-pointer transition-colors block"
                   >
                     {isBioExpanded ? "Mostrar menos" : "Ler biografia completa"}
                   </button>

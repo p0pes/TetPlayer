@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Plus, X, Loader2, Lock, Globe, EyeOff } from "lucide-react";
+import { useModalAnimation } from "../../hooks/useModalAnimation";
+import { humanizeApiError } from "../../utils/errors";
 
 interface CreatePlaylistModalProps {
   isOpen: boolean;
@@ -21,6 +23,9 @@ export const CreatePlaylistModal: React.FC<CreatePlaylistModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const { shouldRender, requestClose, backdropClassName, modalClassName } =
+    useModalAnimation(isOpen, onClose, 140);
+
   useEffect(() => {
     if (isOpen) {
       setTitle(initialTitle || "");
@@ -30,19 +35,19 @@ export const CreatePlaylistModal: React.FC<CreatePlaylistModalProps> = ({
       setIsSubmitting(false);
       setTimeout(() => inputRef.current?.focus(), 50);
     }
-  }, [isOpen]);
+  }, [isOpen, initialTitle]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isOpen && !isSubmitting) {
-        onClose();
+        requestClose();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, isSubmitting, onClose]);
+  }, [isOpen, isSubmitting, requestClose]);
 
-  if (!isOpen) return null;
+  if (!shouldRender) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,9 +61,9 @@ export const CreatePlaylistModal: React.FC<CreatePlaylistModalProps> = ({
       setIsSubmitting(true);
       setError(null);
       await onCreate(trimmedTitle, description.trim() || undefined, privacy);
-      onClose();
+      requestClose();
     } catch (err) {
-      setError(String(err) || "Falha ao criar playlist no YouTube Music.");
+      setError(humanizeApiError(err, "Falha ao criar playlist no YouTube Music."));
     } finally {
       setIsSubmitting(false);
     }
@@ -70,13 +75,13 @@ export const CreatePlaylistModal: React.FC<CreatePlaylistModalProps> = ({
       aria-modal="true"
       aria-labelledby="create-playlist-title"
       onClick={(e) => {
-        if (e.target === e.currentTarget && !isSubmitting) onClose();
+        if (e.target === e.currentTarget && !isSubmitting) requestClose();
       }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-150 select-none cursor-pointer"
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md select-none cursor-pointer ${backdropClassName}`}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md bg-[#12141f]/95 border border-[#272c3f] rounded-2xl p-6 shadow-2xl relative cursor-default space-y-5 animate-in zoom-in-95 duration-150"
+        className={`w-full max-w-md bg-[#12141f]/95 border border-[#272c3f] rounded-2xl p-6 shadow-2xl relative cursor-default space-y-5 ${modalClassName}`}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[#212638] pb-4">
@@ -95,7 +100,7 @@ export const CreatePlaylistModal: React.FC<CreatePlaylistModalProps> = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             disabled={isSubmitting}
             className="p-1 rounded-lg text-[#8c91a4] hover:text-white hover:bg-white/5 transition-colors cursor-pointer disabled:opacity-50"
             aria-label="Fechar"
@@ -106,7 +111,7 @@ export const CreatePlaylistModal: React.FC<CreatePlaylistModalProps> = ({
 
         {/* Error message */}
         {error && (
-          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
+          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2 animate-view-fade">
             <span>{error}</span>
           </div>
         )}
@@ -195,7 +200,7 @@ export const CreatePlaylistModal: React.FC<CreatePlaylistModalProps> = ({
           <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#212638]">
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               disabled={isSubmitting}
               className="px-4 py-2 rounded-xl text-xs font-medium text-[#8c91a4] hover:text-white hover:bg-white/5 transition-colors cursor-pointer disabled:opacity-50"
             >
@@ -221,4 +226,3 @@ export const CreatePlaylistModal: React.FC<CreatePlaylistModalProps> = ({
     </div>
   );
 };
-

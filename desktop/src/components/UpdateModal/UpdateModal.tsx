@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Sparkles, Download, X, ExternalLink, ArrowRight, PackageCheck, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Sparkles, Download, X, ExternalLink, ArrowRight, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import {
   UpdateInfo,
   UpdateProgress,
@@ -8,6 +8,7 @@ import {
   formatBytes,
   openReleasePage,
 } from "../../services/updater";
+import { useModalAnimation } from "../../hooks/useModalAnimation";
 
 interface UpdateModalProps {
   updateInfo: UpdateInfo;
@@ -17,6 +18,14 @@ interface UpdateModalProps {
 export const UpdateModal: React.FC<UpdateModalProps> = ({ updateInfo, onClose }) => {
   const [installProgress, setInstallProgress] = useState<UpdateProgress | null>(null);
 
+  const { shouldRender, requestClose, backdropClassName, modalClassName } =
+    useModalAnimation(true, onClose, 140);
+
+  const isUpdating =
+    installProgress?.status === "downloading" ||
+    installProgress?.status === "installing" ||
+    installProgress?.status === "ready";
+
   const handleUpdateClick = async () => {
     if (updateInfo.isNativeUpdater) {
       setInstallProgress({
@@ -25,16 +34,12 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ updateInfo, onClose })
         downloadedBytes: 0,
       });
 
-      const started = await downloadAndInstallInAppUpdate(updateInfo, (prog) => {
+      await downloadAndInstallInAppUpdate(updateInfo, (prog) => {
         setInstallProgress(prog);
       });
-
-      if (!started) {
-        // Fallback automático já executado dentro do serviço se nativo falhou
-      }
     } else {
       await downloadAndInstallUpdate(updateInfo);
-      onClose();
+      requestClose();
     }
   };
 
@@ -47,30 +52,27 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ updateInfo, onClose })
     const handleKeyDown = (e: KeyboardEvent) => {
       // Bloqueia fechar acidentalmente com Esc se o download já estiver em progresso
       if (e.key === "Escape" && !installProgress) {
-        onClose();
+        requestClose();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, installProgress]);
+  }, [requestClose, installProgress]);
 
-  const isUpdating =
-    installProgress?.status === "downloading" ||
-    installProgress?.status === "installing" ||
-    installProgress?.status === "ready";
+  if (!shouldRender) return null;
 
   return (
     <div
       role="dialog"
       aria-modal="true"
       onClick={(e) => {
-        if (e.target === e.currentTarget && !isUpdating) onClose();
+        if (e.target === e.currentTarget && !isUpdating) requestClose();
       }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-md animate-in fade-in duration-200 select-none cursor-pointer"
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-md select-none cursor-pointer ${backdropClassName}`}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-md bg-[#13151f] border border-white/10 rounded-2xl shadow-2xl shadow-indigo-950/30 overflow-hidden text-[#e0e2ec] cursor-default"
+        className={`relative w-full max-w-md bg-[#13151f] border border-white/10 rounded-2xl shadow-2xl shadow-indigo-950/30 overflow-hidden text-[#e0e2ec] cursor-default ${modalClassName}`}
       >
         {/* Glow de destaque no topo */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-24 bg-gradient-to-b from-indigo-500/25 via-purple-500/10 to-transparent blur-xl pointer-events-none" />
@@ -78,8 +80,8 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ updateInfo, onClose })
         {/* Botão fechar (oculto durante instalação) */}
         {!isUpdating && (
           <button
-            onClick={onClose}
-            className="absolute top-4 right-4 p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors z-10"
+            onClick={requestClose}
+            className="absolute top-4 right-4 p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors z-10 cursor-pointer"
             title="Fechar"
             aria-label="Fechar"
           >
@@ -118,108 +120,87 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ updateInfo, onClose })
             <div className="mb-4 space-y-3 bg-black/40 border border-white/10 rounded-xl p-4">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
-                  {installProgress.status === "downloading" && "Baixando pacote oficial..."}
-                  {installProgress.status === "installing" && "Instalando nova versão..."}
-                  {installProgress.status === "ready" && "Pronto! Reiniciando o TetPlayer..."}
+                  {installProgress.status === "downloading" && "Baixando atualização..."}
+                  {installProgress.status === "installing" && "Instalando pacote silenciosamente..."}
+                  {installProgress.status === "ready" && "Pronto para reiniciar!"}
                   {installProgress.status === "error" && "Erro durante a atualização"}
                 </span>
-                <span className="font-mono text-indigo-400 font-bold">
+                <span className="font-mono text-zinc-400">
                   {installProgress.percent}%
                 </span>
               </div>
 
               {/* Barra de Progresso */}
-              <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden relative">
+              <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 transition-all duration-300 ease-out"
-                  style={{ width: `${installProgress.percent}%` }}
+                  className={`h-full transition-all duration-300 rounded-full ${
+                    installProgress.status === "error"
+                      ? "bg-rose-500"
+                      : installProgress.status === "ready"
+                      ? "bg-emerald-500"
+                      : "bg-gradient-to-r from-indigo-500 to-purple-500"
+                  }`}
+                  style={{ width: `${Math.max(5, installProgress.percent)}%` }}
                 />
               </div>
 
-              {/* Detalhes de Bytes */}
-              <div className="flex items-center justify-between text-[11px] font-mono text-zinc-400">
-                <span>
-                  {formatBytes(installProgress.downloadedBytes)}
-                  {installProgress.totalBytes ? ` de ${formatBytes(installProgress.totalBytes)}` : ""}
-                </span>
+              <div className="flex items-center justify-between text-[11px] text-zinc-400 font-mono">
+                {installProgress.totalBytes ? (
+                  <span>
+                    {formatBytes(installProgress.downloadedBytes)} de {formatBytes(installProgress.totalBytes)}
+                  </span>
+                ) : (
+                  <span>{formatBytes(installProgress.downloadedBytes)} baixados</span>
+                )}
                 {installProgress.status === "ready" && (
                   <span className="text-emerald-400 flex items-center gap-1">
-                    <CheckCircle2 size={12} />
-                    Sucesso
+                    <CheckCircle2 size={12} /> Reiniciando...
                   </span>
                 )}
               </div>
 
-              {/* Mensagem de Erro com Fallback */}
-              {installProgress.status === "error" && (
-                <div className="pt-2 text-xs text-rose-400 flex items-start gap-1.5">
-                  <AlertCircle size={14} className="shrink-0 mt-0.5" />
-                  <span>
-                    {installProgress.error || "O download in-app falhou. Deseja baixar pelo navegador?"}
-                  </span>
+              {installProgress.error && (
+                <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center gap-2">
+                  <AlertCircle size={14} className="shrink-0 text-rose-400" />
+                  <span>{installProgress.error}</span>
                 </div>
               )}
             </div>
           )}
 
-          {/* Texto descritivo (quando ainda não clicou em atualizar) */}
-          {!installProgress && (
-            <>
-              <p className="text-xs text-zinc-300 leading-relaxed mb-3">
-                Uma nova versão do <strong>TetPlayer</strong> está disponível.
-                {updateInfo.isNativeUpdater ? (
-                  <span> A atualização será baixada e instalada silenciosamente sem abrir o navegador.</span>
-                ) : (
-                  <span> Deseja atualizar agora para aproveitar as melhorias mais recentes?</span>
-                )}
-              </p>
-
-              {/* Pacote detectado para download em 1 clique */}
-              {updateInfo.downloadUrl && (
-                <div className="mb-3 p-2.5 rounded-xl bg-indigo-950/40 border border-indigo-800/40 flex items-center justify-between text-xs text-indigo-200">
-                  <div className="flex items-center gap-2 truncate">
-                    <PackageCheck size={16} className="text-indigo-400 shrink-0" />
-                    <span className="font-mono truncate">{updateInfo.assetName || "Instalador do Windows"}</span>
-                  </div>
-                  {updateInfo.assetSize && (
-                    <span className="font-mono text-[11px] text-zinc-400 shrink-0 ml-2">
-                      {formatBytes(updateInfo.assetSize)}
-                    </span>
-                  )}
-                </div>
+          {/* Notas de Lançamento */}
+          <div className="mb-5">
+            <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1.5">
+              O que há de novo:
+            </h3>
+            <div className="bg-black/30 border border-white/5 rounded-xl p-3.5 max-h-40 overflow-y-auto text-xs text-zinc-300 space-y-1.5 leading-relaxed font-sans custom-scrollbar select-text">
+              {updateInfo.releaseNotes ? (
+                <p className="whitespace-pre-wrap">{updateInfo.releaseNotes}</p>
+              ) : (
+                <p className="italic text-zinc-500">
+                  Melhorias de desempenho, correções de bugs e estabilidade de reprodução.
+                </p>
               )}
+            </div>
+          </div>
 
-              {/* Notas da Versão (se houver) */}
-              {updateInfo.releaseNotes && (
-                <div className="mb-4 bg-black/40 border border-white/5 rounded-xl p-3 text-xs text-zinc-400 max-h-32 overflow-y-auto custom-scrollbar">
-                  <div className="text-[11px] uppercase font-semibold text-zinc-500 tracking-wider mb-1">
-                    Novidades:
-                  </div>
-                  <div className="whitespace-pre-line text-zinc-300 leading-snug">
-                    {updateInfo.releaseNotes}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
+          {/* Rodapé com Ações */}
+          <div className="flex items-center justify-between pt-2 border-t border-white/5">
+            <button
+              type="button"
+              onClick={handleOpenReleasePage}
+              className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-colors cursor-pointer group"
+            >
+              <span>Ver no GitHub</span>
+              <ExternalLink size={12} className="group-hover:translate-x-0.5 transition-transform" />
+            </button>
 
-          {/* Ações */}
-          <div className="flex items-center justify-between pt-2">
-            {!isUpdating ? (
+            {!isUpdating && installProgress?.status !== "error" ? (
               <>
-                <button
-                  type="button"
-                  onClick={handleOpenReleasePage}
-                  className="text-xs text-zinc-400 hover:text-indigo-400 flex items-center gap-1 transition-colors cursor-pointer"
-                >
-                  <span>Ver release no GitHub</span>
-                  <ExternalLink size={12} />
-                </button>
-
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={onClose}
+                    onClick={requestClose}
                     className="px-3.5 py-2 text-xs font-medium text-zinc-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
                   >
                     Depois
@@ -245,7 +226,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ updateInfo, onClose })
                 </button>
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={requestClose}
                   className="px-3.5 py-2 text-xs font-medium text-zinc-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
                 >
                   Fechar

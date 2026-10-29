@@ -100,7 +100,7 @@ export const TimelineScrubber = memo(function TimelineScrubber({
         disabled={disabled}
         aria-label="Posição da música na linha do tempo"
         data-testid="scrubber-range-input"
-        className="flex-1 h-1 bg-[#232733] rounded-full accent-[var(--accent)] cursor-pointer disabled:cursor-not-allowed"
+        className="flex-1 h-1 hover:h-1.5 bg-[#232733] hover:bg-[#2e3344] rounded-full accent-[var(--accent)] cursor-pointer disabled:cursor-not-allowed transition-all duration-150 ease-out"
       />
       <span data-testid="scrubber-duration" className="w-8 text-left">
         {formatTime(duration)}

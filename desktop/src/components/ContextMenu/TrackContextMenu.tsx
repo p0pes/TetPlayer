@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   ListPlus,
   ListMusic,
@@ -37,33 +37,43 @@ export function TrackContextMenu({
     usePlayer();
   const menuRef = useRef<HTMLDivElement>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isClosing, setIsClosing] = useState(false);
+
+  const handleClose = useCallback(() => {
+    if (isClosing) return;
+    setIsClosing(true);
+    setTimeout(() => {
+      onClose();
+      setIsClosing(false);
+    }, 120);
+  }, [isClosing, onClose]);
 
   // Fecha o menu ao clicar fora ou pressionar Escape
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        onClose();
+        handleClose();
       }
     }
 
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
-        onClose();
+        handleClose();
       }
     }
 
     window.addEventListener("mousedown", handleClickOutside);
     window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("scroll", onClose, true);
-    window.addEventListener("resize", onClose);
+    window.addEventListener("scroll", handleClose, true);
+    window.addEventListener("resize", handleClose);
 
     return () => {
       window.removeEventListener("mousedown", handleClickOutside);
       window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("scroll", onClose, true);
-      window.removeEventListener("resize", onClose);
+      window.removeEventListener("scroll", handleClose, true);
+      window.removeEventListener("resize", handleClose);
     };
-  }, [onClose]);
+  }, [handleClose]);
 
   if (!track || !position) return null;
 
@@ -78,7 +88,7 @@ export function TrackContextMenu({
     setToastMessage(msg);
     setTimeout(() => {
       setToastMessage(null);
-      onClose();
+      handleClose();
     }, 900);
   }
 
@@ -101,7 +111,7 @@ export function TrackContextMenu({
         detail: { track },
       })
     );
-    onClose();
+    handleClose();
   }
 
   function onRemoveFromPlaylist() {
@@ -111,13 +121,13 @@ export function TrackContextMenu({
         detail: { track, playlistId: contextPlaylistId },
       })
     );
-    onClose();
+    handleClose();
   }
 
   function onStartRadio() {
     if (!track) return;
     handleStartRadio(track);
-    onClose();
+    handleClose();
   }
 
   async function onCopyLink() {
@@ -145,7 +155,7 @@ export function TrackContextMenu({
   function onSearchMoreArtist() {
     if (!track) return;
     searchArtist(track.artist, track.artist_id);
-    onClose();
+    handleClose();
   }
 
   function onOpenAlbum() {
@@ -160,7 +170,7 @@ export function TrackContextMenu({
         },
       })
     );
-    onClose();
+    handleClose();
   }
 
   return (
@@ -173,7 +183,7 @@ export function TrackContextMenu({
           top: `${Math.max(10, safeY)}px`,
           left: `${Math.max(10, safeX)}px`,
         }}
-        className="fixed z-50 w-60 bg-[#12141f]/95 backdrop-blur-2xl border border-[#272c3f] rounded-2xl shadow-2xl p-1.5 flex flex-col gap-0.5 select-none animate-in fade-in zoom-in-95 duration-100"
+        className={`fixed z-50 w-60 bg-[#12141f]/95 backdrop-blur-2xl border border-[#272c3f] rounded-2xl shadow-2xl p-1.5 flex flex-col gap-0.5 select-none ${isClosing ? "animate-modal-out" : "animate-modal-in"}`}
       >
         {/* Cabeçalho do Menu com Prévia da Faixa */}
         <div className="flex items-center gap-2.5 px-2.5 py-2 border-b border-[#212638] mb-1">

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { AlertTriangle, X, Loader2, Trash2 } from "lucide-react";
+import { useModalAnimation } from "../../hooks/useModalAnimation";
+import { humanizeApiError } from "../../utils/errors";
 
 interface ConfirmDeleteModalProps {
   isOpen: boolean;
@@ -21,6 +23,9 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const { shouldRender, requestClose, backdropClassName, modalClassName } =
+    useModalAnimation(isOpen, onClose, 140);
+
   useEffect(() => {
     if (isOpen) {
       setIsDeleting(false);
@@ -31,23 +36,23 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isOpen && !isDeleting) {
-        onClose();
+        requestClose();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, isDeleting, onClose]);
+  }, [isOpen, isDeleting, requestClose]);
 
-  if (!isOpen) return null;
+  if (!shouldRender) return null;
 
   const handleConfirm = async () => {
     try {
       setIsDeleting(true);
       setError(null);
       await onConfirm();
-      onClose();
+      requestClose();
     } catch (err) {
-      setError(String(err) || "Falha ao excluir item.");
+      setError(humanizeApiError(err, "Falha ao excluir item."));
       setIsDeleting(false);
     }
   };
@@ -58,13 +63,13 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
       aria-modal="true"
       aria-labelledby="confirm-delete-title"
       onClick={(e) => {
-        if (e.target === e.currentTarget && !isDeleting) onClose();
+        if (e.target === e.currentTarget && !isDeleting) requestClose();
       }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-150 select-none cursor-pointer"
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md select-none cursor-pointer ${backdropClassName}`}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md bg-[#12141f]/95 border border-[#272c3f] rounded-2xl p-6 shadow-2xl relative cursor-default space-y-5 animate-in zoom-in-95 duration-150"
+        className={`w-full max-w-md bg-[#12141f]/95 border border-[#272c3f] rounded-2xl p-6 shadow-2xl relative cursor-default space-y-5 ${modalClassName}`}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[#212638] pb-4">
@@ -81,7 +86,7 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             disabled={isDeleting}
             className="p-1 rounded-lg text-[#8c91a4] hover:text-white hover:bg-white/5 transition-colors cursor-pointer disabled:opacity-50"
             aria-label="Fechar"
@@ -92,7 +97,7 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
 
         {/* Error message */}
         {error && (
-          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
+          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2 animate-view-fade">
             <span>{error}</span>
           </div>
         )}
@@ -113,7 +118,7 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
         <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#212638]">
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             disabled={isDeleting}
             className="px-4 py-2 rounded-xl text-xs font-medium text-[#8c91a4] hover:text-white hover:bg-white/5 transition-colors cursor-pointer disabled:opacity-50"
           >
@@ -142,4 +147,3 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
     </div>
   );
 };
-

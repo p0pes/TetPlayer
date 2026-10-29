@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useModalAnimation } from "../../hooks/useModalAnimation";
 import {
   X,
   Volume2,
@@ -74,6 +75,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<SettingsTabId>("audio");
   const [settings, setSettings] = useState<AppSettings>(() => SettingsService.getSettings());
+  const { shouldRender, requestClose, backdropClassName, modalClassName } =
+    useModalAnimation(isOpen, onClose, 140);
   const [cacheSize, setCacheSize] = useState<string>("Calculando...");
   const [isClearingCache, setIsClearingCache] = useState(false);
   const [cacheClearSuccess, setCacheClearSuccess] = useState(false);
@@ -146,7 +149,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
         e.stopPropagation();
-        onClose();
+        requestClose();
       }
     }
 
@@ -174,19 +177,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   }
 
-  if (!isOpen) return null;
+  if (!shouldRender) return null;
 
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby="settings-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200"
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md select-none cursor-pointer ${backdropClassName}`}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) requestClose();
       }}
     >
-      <div className="w-full max-w-2xl h-[580px] bg-[#0d0f17] border border-[#232838] rounded-2xl shadow-2xl flex flex-col overflow-hidden text-white animate-in zoom-in-95 duration-200">
+      <div className={`w-full max-w-2xl h-[580px] bg-[#0d0f17] border border-[#232838] rounded-2xl shadow-2xl flex flex-col overflow-hidden text-white cursor-default ${modalClassName}`}>
         {/* Cabeçalho do Modal */}
         <div className="h-14 px-6 border-b border-[#1f2434] flex items-center justify-between shrink-0 bg-[#111420]/80">
           <div className="flex items-center gap-2.5">
@@ -196,7 +199,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </h2>
           </div>
           <button
-            onClick={onClose}
+            onClick={requestClose}
             aria-label="Fechar configurações"
             className="p-1.5 rounded-xl text-[#8c91a4] hover:text-white hover:bg-[#1f2436] transition-colors cursor-pointer"
           >
@@ -277,7 +280,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </aside>
 
           {/* Painel de Conteúdo da Aba Ativa */}
-          <main className="flex-1 p-6 overflow-y-auto space-y-6">
+          <main key={activeTab} className="flex-1 p-6 overflow-y-auto space-y-6 animate-view-fade">
             {/* ============================================================== */}
             {/* ABA 1: ÁUDIO & REPRODUÇÃO                                      */}
             {/* ============================================================== */}
@@ -1098,7 +1101,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           <span>Pressione <kbd className="px-1.5 py-0.5 rounded bg-[#1a1e2d] text-white font-mono text-[10px]">Esc</kbd> para fechar</span>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             className="px-4 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium transition-colors cursor-pointer"
           >
             Concluir

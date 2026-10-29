@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Edit3, X, Loader2 } from "lucide-react";
 import { Playlist } from "../../types";
+import { useModalAnimation } from "../../hooks/useModalAnimation";
+import { humanizeApiError } from "../../utils/errors";
 
 interface EditPlaylistModalProps {
   isOpen: boolean;
@@ -21,6 +23,9 @@ export const EditPlaylistModal: React.FC<EditPlaylistModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
 
+  const { shouldRender, requestClose, backdropClassName, modalClassName } =
+    useModalAnimation(isOpen, onClose, 140);
+
   useEffect(() => {
     if (isOpen && playlist) {
       setTitle(playlist.title);
@@ -34,14 +39,14 @@ export const EditPlaylistModal: React.FC<EditPlaylistModalProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isOpen && !isSubmitting) {
-        onClose();
+        requestClose();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, isSubmitting, onClose]);
+  }, [isOpen, isSubmitting, requestClose]);
 
-  if (!isOpen || !playlist) return null;
+  if (!shouldRender || !playlist) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,9 +60,9 @@ export const EditPlaylistModal: React.FC<EditPlaylistModalProps> = ({
       setIsSubmitting(true);
       setError(null);
       await onSave(playlist.id, trimmedTitle, description.trim() || undefined);
-      onClose();
+      requestClose();
     } catch (err) {
-      setError(String(err) || "Falha ao salvar detalhes da playlist.");
+      setError(humanizeApiError(err, "Falha ao salvar detalhes da playlist."));
     } finally {
       setIsSubmitting(false);
     }
@@ -69,13 +74,13 @@ export const EditPlaylistModal: React.FC<EditPlaylistModalProps> = ({
       aria-modal="true"
       aria-labelledby="edit-playlist-title"
       onClick={(e) => {
-        if (e.target === e.currentTarget && !isSubmitting) onClose();
+        if (e.target === e.currentTarget && !isSubmitting) requestClose();
       }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-150 select-none cursor-pointer"
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md select-none cursor-pointer ${backdropClassName}`}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md bg-[#12141f]/95 border border-[#272c3f] rounded-2xl p-6 shadow-2xl relative cursor-default space-y-5 animate-in zoom-in-95 duration-150"
+        className={`w-full max-w-md bg-[#12141f]/95 border border-[#272c3f] rounded-2xl p-6 shadow-2xl relative cursor-default space-y-5 ${modalClassName}`}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[#212638] pb-4">
@@ -94,7 +99,7 @@ export const EditPlaylistModal: React.FC<EditPlaylistModalProps> = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             disabled={isSubmitting}
             className="p-1 rounded-lg text-[#8c91a4] hover:text-white hover:bg-white/5 transition-colors cursor-pointer disabled:opacity-50"
             aria-label="Fechar"
@@ -105,7 +110,7 @@ export const EditPlaylistModal: React.FC<EditPlaylistModalProps> = ({
 
         {/* Error message */}
         {error && (
-          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
+          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2 animate-view-fade">
             <span>{error}</span>
           </div>
         )}
@@ -149,7 +154,7 @@ export const EditPlaylistModal: React.FC<EditPlaylistModalProps> = ({
           <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#212638]">
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               disabled={isSubmitting}
               className="px-4 py-2 rounded-xl text-xs font-medium text-[#8c91a4] hover:text-white hover:bg-white/5 transition-colors cursor-pointer disabled:opacity-50"
             >
@@ -175,4 +180,3 @@ export const EditPlaylistModal: React.FC<EditPlaylistModalProps> = ({
     </div>
   );
 };
-

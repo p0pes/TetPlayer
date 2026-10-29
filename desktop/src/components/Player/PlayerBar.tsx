@@ -73,11 +73,12 @@ export const PlayerBar = memo(function PlayerBar() {
         >
           {currentTrack?.artwork_url || currentTrack?.id ? (
             <img
+              key={currentTrack?.id || "empty-art"}
               src={upgradeArtworkQuality(currentTrack?.artwork_url, currentTrack?.id)}
               alt={currentTrack?.title || "Capa do álbum"}
               referrerPolicy="no-referrer"
               onError={(e) => handleArtworkError(e, currentTrack?.id)}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform animate-view-fade"
             />
           ) : (
             <Music className="w-5 h-5 text-[#5e6479]" />
@@ -89,36 +90,38 @@ export const PlayerBar = memo(function PlayerBar() {
           className="min-w-0 flex-1 overflow-hidden cursor-pointer"
           title={isDrawerOpen ? "Recolher gaveta de reprodução" : "Abrir gaveta de reprodução"}
         >
-          <div className="flex items-center gap-1.5">
-            <p className="text-xs font-semibold text-white truncate hover:text-[var(--accent-text)] transition-colors">
-              {currentTrack?.title || "Nenhuma faixa selecionada"}
+          <div key={currentTrack?.id || "empty-meta"} className="animate-view-fade">
+            <div className="flex items-center gap-1.5">
+              <p className="text-xs font-semibold text-white truncate hover:text-[var(--accent-text)] transition-colors">
+                {currentTrack?.title || "Nenhuma faixa selecionada"}
+              </p>
+            </div>
+            <p className="text-[11px] text-[#8c91a4] truncate">
+              <span
+                onClick={(e) => {
+                  if (currentTrack?.artist) {
+                    e.stopPropagation();
+                    window.dispatchEvent(
+                      new CustomEvent("tetplayer:search-artist", {
+                        detail: {
+                          query: currentTrack.artist,
+                          artistId: currentTrack.artist_id,
+                        },
+                      })
+                    );
+                  }
+                }}
+                title={currentTrack?.artist ? `Ir para o artista ${currentTrack.artist}` : undefined}
+                className={
+                  currentTrack?.artist
+                    ? "hover:text-white hover:underline cursor-pointer transition-colors"
+                    : ""
+                }
+              >
+                {currentTrack?.artist || "Escolha uma playlist para tocar"}
+              </span>
             </p>
           </div>
-          <p className="text-[11px] text-[#8c91a4] truncate">
-            <span
-              onClick={(e) => {
-                if (currentTrack?.artist) {
-                  e.stopPropagation();
-                  window.dispatchEvent(
-                    new CustomEvent("tetplayer:search-artist", {
-                      detail: {
-                        query: currentTrack.artist,
-                        artistId: currentTrack.artist_id,
-                      },
-                    })
-                  );
-                }
-              }}
-              title={currentTrack?.artist ? `Ir para o artista ${currentTrack.artist}` : undefined}
-              className={
-                currentTrack?.artist
-                  ? "hover:text-white hover:underline cursor-pointer transition-colors"
-                  : ""
-              }
-            >
-              {currentTrack?.artist || "Escolha uma playlist para tocar"}
-            </span>
-          </p>
         </div>
       </div>
 
@@ -163,9 +166,9 @@ export const PlayerBar = memo(function PlayerBar() {
             className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white hover:scale-105 active:scale-95 disabled:opacity-40 text-black flex items-center justify-center shadow-lg shadow-white/10 transition-transform cursor-pointer shrink-0"
           >
             {isPlaying ? (
-              <Pause className="w-4 h-4 fill-current" />
+              <Pause key="pause-icon" className="w-4 h-4 fill-current animate-icon-pop" />
             ) : (
-              <Play className="w-4 h-4 fill-current ml-0.5" />
+              <Play key="play-icon" className="w-4 h-4 fill-current ml-0.5 animate-icon-pop" />
             )}
           </button>
 

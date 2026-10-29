@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { Loader2, Flame, ListMusic, Pin, Play, Pause, Plus } from "lucide-react";
 import { Playlist } from "../../types";
 import { upgradeArtworkQuality } from "../../utils/artwork";
@@ -63,6 +63,179 @@ function parseTrackCount(pl: Playlist): number {
   const match = String(raw).match(/(\d+)/);
   return match ? parseInt(match[1], 10) : 0;
 }
+
+interface PlaylistCardItemProps {
+  pl: Playlist;
+  isPinned: boolean;
+  isActivePlaying: boolean;
+  isPlaying: boolean;
+  isCompact: boolean;
+  onSelect: (playlist: Playlist) => void;
+  onTogglePin: (playlistId: string, e: React.MouseEvent) => void;
+  onPlayQuick?: (playlist: Playlist, e: React.MouseEvent) => void;
+  onTogglePlayPause?: () => void;
+}
+
+const PlaylistCardItem = React.memo(function PlaylistCardItem({
+  pl,
+  isPinned,
+  isActivePlaying,
+  isPlaying,
+  isCompact,
+  onSelect,
+  onTogglePin,
+  onPlayQuick,
+  onTogglePlayPause,
+}: PlaylistCardItemProps) {
+  const [isImageLoaded, setIsImageLoaded] = useState(false);
+  const [hasImageError, setHasImageError] = useState(false);
+  const isLiked = pl.id === "VLLM";
+
+  const handlePlayClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isActivePlaying && onTogglePlayPause) {
+      onTogglePlayPause();
+      return;
+    }
+    if (onPlayQuick) {
+      onPlayQuick(pl, e);
+    } else {
+      onSelect(pl);
+    }
+  };
+
+  return (
+    <div
+      onClick={() => onSelect(pl)}
+      onContextMenu={(e) =>
+        triggerCollectionContextMenu(e, {
+          kind: "playlist",
+          playlist: pl,
+          isPinned,
+        })
+      }
+      data-testid="playlist-card"
+      className={`bg-[#11131b]/75 hover:bg-[#181b26] ${
+        isCompact ? "p-2.5 rounded-xl" : "p-3 rounded-2xl"
+      } border transition-all duration-200 group cursor-pointer flex flex-col justify-between relative shadow-sm hover:shadow-xl hover:shadow-[var(--accent-glow)]/10 ${
+        isActivePlaying
+          ? "border-[var(--accent)] ring-1 ring-[var(--accent-glow)]/40 bg-[#161926]"
+          : isPinned
+          ? "border-[var(--accent-border)] ring-1 ring-[var(--accent-subtle)]"
+          : "border-[#1d212e] hover:border-[var(--accent-border)]"
+      }`}
+    >
+      <div className="relative w-full aspect-square rounded-xl overflow-hidden shadow-md flex items-center justify-center bg-gradient-to-br from-indigo-700 via-purple-800 to-pink-700 border border-white/5">
+        {pl.artwork_url && !hasImageError ? (
+          <img
+            src={upgradeArtworkQuality(pl.artwork_url, undefined, "card")}
+            alt={pl.title}
+            loading="lazy"
+            decoding="async"
+            referrerPolicy="no-referrer"
+            onLoad={() => setIsImageLoaded(true)}
+            onError={() => setHasImageError(true)}
+            className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-300 ${
+              isImageLoaded ? "opacity-100" : "opacity-0"
+            }`}
+          />
+        ) : isLiked ? (
+          <Flame className={isCompact ? "w-10 h-10 text-[var(--accent-text)]" : "w-14 h-14 text-[var(--accent-text)]"} />
+        ) : (
+          <ListMusic className={isCompact ? "w-9 h-9 text-white/50" : "w-12 h-12 text-white/50"} />
+        )}
+
+        {/* Indicador de Onda Sonora quando a playlist está em reprodução */}
+        {isActivePlaying && (
+          <div className="absolute bottom-2.5 left-2.5 z-10 px-2 py-1 rounded-lg bg-black/75 backdrop-blur-md border border-[var(--accent-border)] flex items-center gap-1.5 shadow-md">
+            <SubtleWaveIndicator isPlaying={isPlaying} />
+            {!isCompact && (
+              <span className="text-[10px] font-bold text-[var(--accent-text)]">
+                {isPlaying ? "Tocando" : "Pausada"}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Botão de Fixar / Desafixar no Card */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onTogglePin(pl.id, e);
+          }}
+          title={isPinned ? "Desafixar playlist do topo" : "Fixar playlist no topo"}
+          aria-label={isPinned ? `Desafixar ${pl.title}` : `Fixar ${pl.title}`}
+          className={`absolute top-2 right-2 z-10 p-2 rounded-full backdrop-blur-md transition-all cursor-pointer ${
+            isPinned
+              ? "bg-[var(--accent)] text-white shadow-lg shadow-[var(--accent-glow)] opacity-100"
+              : "bg-black/60 text-zinc-300 hover:text-white hover:bg-black/80 opacity-0 group-hover:opacity-100"
+          }`}
+        >
+          <Pin className={`w-3.5 h-3.5 ${isPinned ? "fill-current" : ""}`} />
+        </button>
+
+        {/* Overlay escuro sutil no hover */}
+        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none" />
+
+        {/* Botão Interativo de Play/Pause Rápido Flutuante */}
+        <button
+          type="button"
+          onClick={handlePlayClick}
+          title={
+            isActivePlaying && isPlaying
+              ? `Pausar ${pl.title}`
+              : `Reproduzir ${pl.title} agora`
+          }
+          aria-label={
+            isActivePlaying && isPlaying
+              ? `Pausar playlist ${pl.title}`
+              : `Reproduzir playlist ${pl.title}`
+          }
+          className={`absolute bottom-2.5 right-2.5 ${
+            isCompact ? "w-8 h-8" : "w-10 h-10"
+          } rounded-full bg-[var(--accent)] text-white flex items-center justify-center shadow-lg shadow-black/50 hover:scale-105 active:scale-95 transition-all duration-200 z-10 cursor-pointer ${
+            isActivePlaying
+              ? "opacity-100 translate-y-0"
+              : "opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0"
+          }`}
+        >
+          {isActivePlaying && isPlaying ? (
+            <Pause key="pl-pause" className={`${isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} fill-current animate-icon-pop`} />
+          ) : (
+            <Play key="pl-play" className={`${isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} fill-current ml-0.5 animate-icon-pop`} />
+          )}
+        </button>
+      </div>
+
+      <div className={`${isCompact ? "mt-2" : "mt-3"} flex flex-col min-w-0`}>
+        <h4
+          title={pl.title}
+          className={`${
+            isCompact ? "text-xs" : "text-xs sm:text-sm"
+          } font-bold truncate transition-colors ${
+            isActivePlaying
+              ? "text-[var(--accent-text)]"
+              : "text-white group-hover:text-[var(--accent-text)]"
+          }`}
+        >
+          {pl.title}
+        </h4>
+        <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
+          {isPinned && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--accent-text)] bg-[var(--accent-subtle)] px-1.5 py-0.5 rounded shrink-0">
+              <Pin className="w-2.5 h-2.5 fill-current" />
+              {!isCompact && "Fixada"}
+            </span>
+          )}
+          <p className="text-[11px] text-[#8c91a4] truncate font-medium">
+            {pl.subtitle || pl.track_count || "Playlist"}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+});
 
 export const PlaylistGridView = React.memo(function PlaylistGridView({
   playlists,
@@ -208,156 +381,20 @@ export const PlaylistGridView = React.memo(function PlaylistGridView({
             </div>
           )}
 
-          {filteredAndSortedPlaylists.map((pl) => {
-            const isLiked = pl.id === "VLLM";
-            const isPinned = pinnedSet.has(pl.id);
-            const isActivePlaying = activeCollectionId === pl.id;
-
-            const handlePlayClick = (e: React.MouseEvent) => {
-              e.stopPropagation();
-              if (isActivePlaying && onTogglePlayPause) {
-                onTogglePlayPause();
-                return;
-              }
-              if (onPlayPlaylistQuick) {
-                onPlayPlaylistQuick(pl, e);
-              } else {
-                onSelectPlaylist(pl);
-              }
-            };
-
-            return (
-              <div
-                key={pl.id}
-                onClick={() => onSelectPlaylist(pl)}
-                onContextMenu={(e) =>
-                  triggerCollectionContextMenu(e, {
-                    kind: "playlist",
-                    playlist: pl,
-                    isPinned,
-                  })
-                }
-                data-testid="playlist-card"
-                className={`bg-[#11131b]/75 hover:bg-[#181b26] ${
-                  isCompact ? "p-2.5 rounded-xl" : "p-3 rounded-2xl"
-                } border transition-all duration-200 group cursor-pointer flex flex-col justify-between relative shadow-sm hover:shadow-xl hover:shadow-[var(--accent-glow)]/10 ${
-                  isActivePlaying
-                    ? "border-[var(--accent)] ring-1 ring-[var(--accent-glow)]/40 bg-[#161926]"
-                    : isPinned
-                    ? "border-[var(--accent-border)] ring-1 ring-[var(--accent-subtle)]"
-                    : "border-[#1d212e] hover:border-[var(--accent-border)]"
-                }`}
-              >
-                <div className="relative w-full aspect-square rounded-xl overflow-hidden shadow-md flex items-center justify-center bg-gradient-to-br from-indigo-700 via-purple-800 to-pink-700 border border-white/5">
-                  {pl.artwork_url ? (
-                    <img
-                      src={upgradeArtworkQuality(pl.artwork_url, undefined, "card")}
-                      alt={pl.title}
-                      loading="lazy"
-                      decoding="async"
-                      referrerPolicy="no-referrer"
-                      onError={(e) => {
-                        (e.target as HTMLElement).style.display = "none";
-                      }}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                  ) : isLiked ? (
-                    <Flame className={isCompact ? "w-10 h-10 text-[var(--accent-text)]" : "w-14 h-14 text-[var(--accent-text)]"} />
-                  ) : (
-                    <ListMusic className={isCompact ? "w-9 h-9 text-white/50" : "w-12 h-12 text-white/50"} />
-                  )}
-
-                  {/* Indicador de Onda Sonora quando a playlist está em reprodução */}
-                  {isActivePlaying && (
-                    <div className="absolute bottom-2.5 left-2.5 z-10 px-2 py-1 rounded-lg bg-black/75 backdrop-blur-md border border-[var(--accent-border)] flex items-center gap-1.5 shadow-md">
-                      <SubtleWaveIndicator isPlaying={isPlaying} />
-                      {!isCompact && (
-                        <span className="text-[10px] font-bold text-[var(--accent-text)]">
-                          {isPlaying ? "Tocando" : "Pausada"}
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Botão de Fixar / Desafixar no Card */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onTogglePinPlaylist(pl.id, e);
-                    }}
-                    title={isPinned ? "Desafixar playlist do topo" : "Fixar playlist no topo"}
-                    aria-label={isPinned ? `Desafixar ${pl.title}` : `Fixar ${pl.title}`}
-                    className={`absolute top-2 right-2 z-10 p-2 rounded-full backdrop-blur-md transition-all cursor-pointer ${
-                      isPinned
-                        ? "bg-[var(--accent)] text-white shadow-lg shadow-[var(--accent-glow)] opacity-100"
-                        : "bg-black/60 text-zinc-300 hover:text-white hover:bg-black/80 opacity-0 group-hover:opacity-100"
-                    }`}
-                  >
-                    <Pin className={`w-3.5 h-3.5 ${isPinned ? "fill-current" : ""}`} />
-                  </button>
-
-                  {/* Overlay escuro sutil no hover */}
-                  <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none" />
-
-                  {/* Botão Interativo de Play/Pause Rápido Flutuante */}
-                  <button
-                    type="button"
-                    onClick={handlePlayClick}
-                    title={
-                      isActivePlaying && isPlaying
-                        ? `Pausar ${pl.title}`
-                        : `Reproduzir ${pl.title} agora`
-                    }
-                    aria-label={
-                      isActivePlaying && isPlaying
-                        ? `Pausar playlist ${pl.title}`
-                        : `Reproduzir playlist ${pl.title}`
-                    }
-                    className={`absolute bottom-2.5 right-2.5 ${
-                      isCompact ? "w-8 h-8" : "w-10 h-10"
-                    } rounded-full bg-[var(--accent)] text-white flex items-center justify-center shadow-lg shadow-black/50 hover:scale-105 active:scale-95 transition-all duration-200 z-10 cursor-pointer ${
-                      isActivePlaying
-                        ? "opacity-100 translate-y-0"
-                        : "opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0"
-                    }`}
-                  >
-                    {isActivePlaying && isPlaying ? (
-                      <Pause className={isCompact ? "w-3.5 h-3.5 fill-current" : "w-4 h-4 fill-current"} />
-                    ) : (
-                      <Play className={`${isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} fill-current ml-0.5`} />
-                    )}
-                  </button>
-                </div>
-
-                <div className={`${isCompact ? "mt-2" : "mt-3"} flex flex-col min-w-0`}>
-                  <h4
-                    title={pl.title}
-                    className={`${
-                      isCompact ? "text-xs" : "text-xs sm:text-sm"
-                    } font-bold truncate transition-colors ${
-                      isActivePlaying
-                        ? "text-[var(--accent-text)]"
-                        : "text-white group-hover:text-[var(--accent-text)]"
-                    }`}
-                  >
-                    {pl.title}
-                  </h4>
-                  <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
-                    {isPinned && (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--accent-text)] bg-[var(--accent-subtle)] px-1.5 py-0.5 rounded shrink-0">
-                        <Pin className="w-2.5 h-2.5 fill-current" />
-                        {!isCompact && "Fixada"}
-                      </span>
-                    )}
-                    <p className="text-[11px] text-[#8c91a4] truncate font-medium">
-                      {pl.subtitle || pl.track_count || "Playlist"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {filteredAndSortedPlaylists.map((pl) => (
+            <PlaylistCardItem
+              key={pl.id}
+              pl={pl}
+              isPinned={pinnedSet.has(pl.id)}
+              isActivePlaying={activeCollectionId === pl.id}
+              isPlaying={isPlaying}
+              isCompact={isCompact}
+              onSelect={onSelectPlaylist}
+              onTogglePin={onTogglePinPlaylist}
+              onPlayQuick={onPlayPlaylistQuick}
+              onTogglePlayPause={onTogglePlayPause}
+            />
+          ))}
         </div>
       )}
     </div>
