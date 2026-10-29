@@ -65,6 +65,7 @@ interface PlaylistDetailViewProps {
   onTogglePlayPause?: () => void;
   onEditPlaylist?: (playlist: Playlist) => void;
   onDeletePlaylist?: (playlist: Playlist) => void;
+  onReorderTrack?: (fromIndex: number, toIndex: number) => void;
   scrollRef: React.RefObject<HTMLElement | null>;
 }
 
@@ -81,6 +82,7 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
   onTogglePlayPause,
   onEditPlaylist,
   onDeletePlaylist,
+  onReorderTrack,
   scrollRef,
 }: PlaylistDetailViewProps) {
   const [hasImageError, setHasImageError] = useState(false);
@@ -270,7 +272,7 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
 
       {/* Barra de Filtro e Ordenação (Sugestão 2.2) */}
       {tracks.length > 0 && (
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 rounded-xl bg-[#121520]/80 border border-[#212638] backdrop-blur-md">
+        <div className="relative z-30 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 rounded-xl bg-[#121520]/80 border border-[#212638] backdrop-blur-md">
           {/* Campo de Busca Rápida */}
           <div className="relative flex-1 min-w-0 max-w-md">
             <Search className="w-4 h-4 text-[#6c7287] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -387,7 +389,7 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
       )}
 
       {/* Lista de Faixas com Virtualização */}
-      <div className="space-y-2">
+      <div className="relative z-10 space-y-2">
         {isLoadingTracks && tracks.length === 0 ? (
           <div className="h-48 flex flex-col items-center justify-center gap-2 text-[#71778c]">
             <Loader2 className="w-6 h-6 animate-spin text-[var(--accent)]" />
@@ -421,6 +423,13 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
             isPlaying={isPlaying}
             loadingTrackId={loadingTrackId}
             playlistId={playlist.id}
+            canReorder={
+              playlist.id !== "VLLM" &&
+              sortBy === "original" &&
+              !searchFilter.trim() &&
+              !!onReorderTrack
+            }
+            onReorderTrack={onReorderTrack}
             onPlayTrack={(track, idx) => onPlayTrack(track, idx, displayedTracks)}
             onTogglePlayPause={onTogglePlayPause}
             parentRef={scrollRef}

@@ -199,7 +199,10 @@ pub async fn search_music(session: &AuthSession, query: &str) -> Result<Vec<Trac
     extract_tracks_from_value(&json_val, &mut tracks);
 
     let mut seen = std::collections::HashSet::new();
-    tracks.retain(|t| seen.insert(t.id.clone()));
+    tracks.retain(|t| {
+        let key = t.set_video_id.clone().unwrap_or_else(|| t.id.clone());
+        seen.insert(key)
+    });
 
     Ok(tracks)
 }
@@ -463,7 +466,10 @@ pub async fn get_playlist_tracks(session: &AuthSession, playlist_id: &str) -> Re
     }
 
     let mut seen = std::collections::HashSet::new();
-    tracks.retain(|t| seen.insert(t.id.clone()));
+    tracks.retain(|t| {
+        let key = t.set_video_id.clone().unwrap_or_else(|| t.id.clone());
+        seen.insert(key)
+    });
 
     Ok(tracks)
 }
@@ -916,6 +922,16 @@ fn parse_responsive_item(item: &Value) -> Option<Track> {
 
     let set_video_id = item["playlistItemData"]["playlistSetVideoId"]
         .as_str()
+        .or_else(|| {
+            item["overlay"]["musicItemThumbnailOverlayRenderer"]["content"]["musicPlayButtonRenderer"]["playNavigationEndpoint"]["watchEndpoint"]["playlistSetVideoId"].as_str()
+        })
+        .or_else(|| {
+            flex_columns
+                .first()
+                .and_then(|c| c["musicResponsiveListItemFlexColumnRenderer"]["text"]["runs"].as_array())
+                .and_then(|runs| runs.first())
+                .and_then(|r| r["navigationEndpoint"]["watchEndpoint"]["playlistSetVideoId"].as_str())
+        })
         .map(|s| s.to_string())
         .or_else(|| {
             if let Some(items) = item["menu"]["menuRenderer"]["items"].as_array() {
@@ -2379,6 +2395,107 @@ pub async fn delete_playlist(
 
     if !status.is_success() {
         return Err(format!("YouTube Music retornou status {status} ao excluir playlist: {text}"));
+    }
+
+    Ok(())
+}
+
+pub async fn reorder_playlist_track(
+    session: &AuthSession,
+    playlist_id: &str,
+    set_video_id: &str,
+    successor_set_video_id: Option<&str>,
+    predecessor_set_video_id: Option<&str>,
+    was_adjacent_to_end: bool,
+) -> Result<(), String> {
+    if !session.is_authenticated {
+        return Err("Usuário não autenticado no YouTube Music".to_string());
+    }
+
+    if set_video_id.trim().is_empty() {
+        return Err("Esta faixa ainda não possui identificador de posição (setVideoId). Recarregue a playlist.".to_string());
+    }
+
+    let client = &HTTP_CLIENT;
+    let url = "https://music.youtube.com/youtubei/v1/browse/edit_playlist?prettyPrint=false";
+    let headers = build_headers(session, "WEB_REMIX");
+
+    let clean_id = playlist_id.strip_prefix("VL").unwrap_or(playlist_id);
+
+    let actions = if let Some(succ) = successor_set_video_id.filter(|s| !s.trim().is_empty()) {
+        vec![json!({
+            "action": "ACTION_MOVE_VIDEO_BEFORE",
+            "setVideoId": set_video_id,
+            "movedSetVideoIdSuccessor": succ
+        })]
+    } else if let Some(pred) = predecessor_set_video_id.filter(|s| !s.trim().is_empty()) {
+        // Movendo para a última posição da playlist de forma 100% determinística via ACTION_MOVE_VIDEO_BEFORE:
+        // Se já estava imediatamente antes do último item (was_adjacent_to_end), basta mover o último antes dele.
+        // Caso contrário, posiciona antes do último e em seguida move o último para antes dele na mesma transação.
+        if was_adjacent_to_end {
+            vec![json!({
+                "action": "ACTION_MOVE_VIDEO_BEFORE",
+                "setVideoId": pred,
+                "movedSetVideoIdSuccessor": set_video_id
+            })]
+        } else {
+            vec![
+                json!({
+                    "action": "ACTION_MOVE_VIDEO_BEFORE",
+                    "setVideoId": set_video_id,
+                    "movedSetVideoIdSuccessor": pred
+                }),
+                json!({
+                    "action": "ACTION_MOVE_VIDEO_BEFORE",
+                    "setVideoId": pred,
+                    "movedSetVideoIdSuccessor": set_video_id
+                }),
+            ]
+        }
+    } else {
+        vec![json!({
+            "action": "ACTION_MOVE_VIDEO_BEFORE",
+            "setVideoId": set_video_id
+        })]
+    };
+
+    let payload = json!({
+        "context": {
+            "client": {
+                "clientName": "WEB_REMIX",
+                "clientVersion": "1.20240401.01.00",
+                "hl": "pt",
+                "gl": "BR"
+            }
+        },
+        "playlistId": clean_id,
+        "actions": actions
+    });
+
+    let resp = client
+        .post(url)
+        .headers(headers)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("Falha de conexão ao reordenar música: {e}"))?;
+
+    let status = resp.status();
+    let text = resp
+        .text()
+        .await
+        .map_err(|e| format!("Falha ao ler resposta da reordenação: {e}"))?;
+
+    if !status.is_success() {
+        return Err(format!("YouTube Music retornou status {status} ao reordenar playlist: {text}"));
+    }
+
+    let json_val: Value = serde_json::from_str(&text)
+        .map_err(|e| format!("Resposta inválida ao reordenar música: {e}"))?;
+
+    let res_status = json_val["status"].as_str().unwrap_or("");
+    if !res_status.is_empty() && res_status != "STATUS_SUCCEEDED" && res_status != "STATUS_SUCCESS" {
+        return Err(format!("Reordenação rejeitada pelo YouTube Music: {res_status}"));
     }
 
     Ok(())

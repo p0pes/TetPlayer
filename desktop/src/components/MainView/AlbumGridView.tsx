@@ -98,7 +98,7 @@ export const AlbumGridView = React.memo(function AlbumGridView({
   return (
     <div className="space-y-6">
       {/* Barra de Filtro e Ordenação */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+      <div className="relative z-30 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         {/* Campo de Busca de Álbuns */}
         <div className="relative flex-1 max-w-md">
           <Search className="w-4 h-4 text-[#71778c] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />

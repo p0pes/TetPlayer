@@ -1,5 +1,5 @@
 import React from "react";
-import { Music, Play, Pause, Loader2, MoreVertical } from "lucide-react";
+import { Music, Play, Pause, Loader2, MoreVertical, GripVertical } from "lucide-react";
 import { Track } from "../../types";
 import { upgradeArtworkQuality, handleArtworkError } from "../../utils/artwork";
 import { usePlayer } from "../../context/PlayerContext";
@@ -11,6 +11,11 @@ interface TrackRowProps {
   isPlaying: boolean;
   isLoadingThis: boolean;
   playlistId?: string;
+  canReorder?: boolean;
+  isDraggingThis?: boolean;
+  dropPosition?: "before" | "after" | null;
+  onDragStart?: (e: React.PointerEvent, index: number) => void;
+  shouldSuppressClick?: () => boolean;
   onPlay: () => void;
   onTogglePlayPause?: () => void;
   onContextMenu?: (e: React.MouseEvent, track: Track) => void;
@@ -23,6 +28,11 @@ export const TrackRow = React.memo(function TrackRow({
   isPlaying,
   isLoadingThis,
   playlistId,
+  canReorder = false,
+  isDraggingThis = false,
+  dropPosition = null,
+  onDragStart,
+  shouldSuppressClick,
   onPlay,
   onTogglePlayPause,
   onContextMenu,
@@ -40,6 +50,11 @@ export const TrackRow = React.memo(function TrackRow({
   }
 
   function handleClick(e: React.MouseEvent) {
+    if (shouldSuppressClick?.()) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     if (isCurrent && onTogglePlayPause) {
       e.stopPropagation();
       onTogglePlayPause();
@@ -50,17 +65,48 @@ export const TrackRow = React.memo(function TrackRow({
 
   return (
     <div
+      data-track-index={index}
       onClick={handleClick}
       onContextMenu={handleContextMenu}
-      className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer group ${isCurrent
+      className={`relative flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer group ${
+        isDraggingThis
+          ? "opacity-45 scale-[0.99] bg-[#1c202d] border-[var(--accent)] shadow-lg"
+          : isCurrent
           ? "bg-[#1c202d] border-[var(--accent)]"
           : "bg-[#12141c] border-[#1f232e] hover:bg-[#171a24] hover:border-[#2b3040]"
-        }`}
+      }`}
     >
-      <div className="flex items-center gap-3.5 min-w-0 flex-1">
-        <span className="w-6 text-center text-xs font-mono text-[#5e6479] shrink-0">
-          {index + 1}
-        </span>
+      {/* Indicador de destino do Drag-and-Drop (antes ou depois do item) */}
+      {dropPosition === "before" && (
+        <div className="pointer-events-none absolute -top-1.5 left-2 right-2 h-0.5 bg-[var(--accent)] rounded-full shadow-[0_0_10px_var(--accent)] z-20" />
+      )}
+      {dropPosition === "after" && (
+        <div className="pointer-events-none absolute -bottom-1.5 left-2 right-2 h-0.5 bg-[var(--accent)] rounded-full shadow-[0_0_10px_var(--accent)] z-20" />
+      )}
+
+      {/* Área esquerda arrastável (índice, capa, título e artista) */}
+      <div
+        onPointerDown={(e) => {
+          if (canReorder && e.button === 0) {
+            onDragStart?.(e, index);
+          }
+        }}
+        className={`flex items-center gap-3.5 min-w-0 flex-1 ${
+          canReorder ? "cursor-grab active:cursor-grabbing select-none" : ""
+        }`}
+      >
+        <div className="w-6 flex items-center justify-center shrink-0 relative">
+          <span
+            className={`text-center text-xs font-mono text-[#5e6479] transition-opacity ${
+              canReorder ? "group-hover:opacity-0" : ""
+            }`}
+          >
+            {index + 1}
+          </span>
+          {canReorder && (
+            <GripVertical className="w-3.5 h-3.5 text-[#8c91a4] opacity-0 group-hover:opacity-100 transition-opacity absolute" />
+          )}
+        </div>
 
         {/* Artwork */}
         <div className="w-11 h-11 rounded-lg bg-[#1a1d28] overflow-hidden shrink-0 flex items-center justify-center relative">
@@ -70,9 +116,10 @@ export const TrackRow = React.memo(function TrackRow({
               alt={track.title}
               loading="lazy"
               decoding="async"
+              draggable={false}
               referrerPolicy="no-referrer"
               onError={(e) => handleArtworkError(e, track.id)}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover pointer-events-none"
             />
           ) : (
             <Music className="w-4 h-4 text-[#5e6479]" />

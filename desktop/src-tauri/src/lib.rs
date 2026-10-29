@@ -12,6 +12,7 @@ use ytm::{
     create_playlist as api_create_playlist, add_track_to_playlist as api_add_track_to_playlist,
     remove_track_from_playlist as api_remove_track_from_playlist,
     edit_playlist_metadata as api_edit_playlist_metadata, delete_playlist as api_delete_playlist,
+    reorder_playlist_track as api_reorder_playlist_track,
     fetch_lyrics, get_home_recommendations, get_playlist_tracks as fetch_playlist_tracks,
     get_radio_tracks as fetch_radio_tracks, get_stream_info as fetch_stream_info,
     get_user_playlists as fetch_user_playlists, get_user_albums as fetch_user_albums,
@@ -276,6 +277,27 @@ async fn delete_playlist(
 ) -> Result<(), String> {
     let session = { state.session.lock().unwrap().clone() };
     api_delete_playlist(&session, &playlist_id).await
+}
+
+#[tauri::command]
+async fn reorder_playlist_track(
+    state: State<'_, AppState>,
+    playlist_id: String,
+    set_video_id: String,
+    successor_set_video_id: Option<String>,
+    predecessor_set_video_id: Option<String>,
+    was_adjacent_to_end: bool,
+) -> Result<(), String> {
+    let session = { state.session.lock().unwrap().clone() };
+    api_reorder_playlist_track(
+        &session,
+        &playlist_id,
+        &set_video_id,
+        successor_set_video_id.as_deref(),
+        predecessor_set_video_id.as_deref(),
+        was_adjacent_to_end,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -875,6 +897,7 @@ pub fn run() {
             remove_track_from_playlist,
             edit_playlist_metadata,
             delete_playlist,
+            reorder_playlist_track,
             get_user_albums,
             get_album_details,
             search_album_by_name,

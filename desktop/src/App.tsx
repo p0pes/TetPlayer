@@ -602,6 +602,84 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
     [playlistTracks, showPlaylistToast, setErrorMessage]
   );
 
+  const handleReorderPlaylistTrack = useCallback(
+    async (fromIndex: number, toIndex: number) => {
+      const playlist = selectedPlaylistRef.current;
+      if (
+        !playlist ||
+        fromIndex === toIndex ||
+        fromIndex < 0 ||
+        toIndex < 0 ||
+        fromIndex >= playlistTracks.length ||
+        toIndex >= playlistTracks.length
+      ) {
+        return;
+      }
+
+      const playlistId = playlist.id;
+      const previousTracks = [...playlistTracks];
+      const reordered = [...previousTracks];
+      const [movedTrack] = reordered.splice(fromIndex, 1);
+      if (!movedTrack) return;
+      reordered.splice(toIndex, 0, movedTrack);
+
+      // 0ms Optimistic UI update (sem flicker ou espera de rede)
+      setPlaylistTracks(reordered);
+      LocalCacheService.saveCachedPlaylistTracks(playlistId, reordered);
+
+      try {
+        let workingMoved = movedTrack;
+        let workingReordered = reordered;
+
+        // Se o cache local for antigo e não tiver set_video_id, sincroniza uma vez antes de enviar a reordenação
+        if (!workingMoved.set_video_id) {
+          const fresh = await invoke<Track[]>("get_playlist_tracks", { playlistId });
+          if (fresh && fresh.length === previousTracks.length) {
+            const enrichedPrev = previousTracks.map((t, idx) => ({
+              ...t,
+              set_video_id: fresh[idx]?.id === t.id ? fresh[idx]?.set_video_id : t.set_video_id,
+            }));
+            const enrichedReordered = [...enrichedPrev];
+            const [enrichedMoved] = enrichedReordered.splice(fromIndex, 1);
+            enrichedReordered.splice(toIndex, 0, enrichedMoved);
+            workingMoved = enrichedMoved;
+            workingReordered = enrichedReordered;
+            setPlaylistTracks(enrichedReordered);
+            LocalCacheService.saveCachedPlaylistTracks(playlistId, enrichedReordered);
+          }
+        }
+
+        const setVideoId = workingMoved.set_video_id;
+        if (!setVideoId) {
+          throw new Error("Identificador da faixa na playlist (setVideoId) indisponível para sincronizar.");
+        }
+
+        const successorSetVideoId =
+          toIndex < workingReordered.length - 1
+            ? workingReordered[toIndex + 1]?.set_video_id || null
+            : null;
+        const predecessorSetVideoId =
+          toIndex === workingReordered.length - 1
+            ? workingReordered[toIndex - 1]?.set_video_id || null
+            : null;
+        const wasAdjacentToEnd = fromIndex === workingReordered.length - 2;
+
+        await invoke("reorder_playlist_track", {
+          playlistId,
+          setVideoId,
+          successorSetVideoId,
+          predecessorSetVideoId,
+          wasAdjacentToEnd,
+        });
+      } catch (err) {
+        setPlaylistTracks(previousTracks);
+        LocalCacheService.saveCachedPlaylistTracks(playlistId, previousTracks);
+        setErrorMessage(`Erro ao reordenar música na playlist: ${String(err)}`);
+      }
+    },
+    [playlistTracks, setErrorMessage]
+  );
+
   const handleEditPlaylistMetadata = useCallback(
     async (playlistId: string, title: string, description?: string) => {
       try {
@@ -922,6 +1000,7 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
                       onBack={handleBackToPlaylists}
                       onEditPlaylist={(pl) => setEditingPlaylist(pl)}
                       onDeletePlaylist={(pl) => setDeletingPlaylist(pl)}
+                      onReorderTrack={handleReorderPlaylistTrack}
                       onPlayPlaylist={(customTracks) => {
                         const queue = customTracks && customTracks.length > 0 ? customTracks : playlistTracks;
                         if (queue.length > 0) {
