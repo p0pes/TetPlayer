@@ -269,8 +269,16 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
     setIsLoadingPlaylists(true);
     try {
       const res = await invoke<Playlist[]>("get_user_playlists");
-      setPlaylists(res);
-      LocalCacheService.saveCachedPlaylists(res);
+      if (res && res.length > 1) {
+        setPlaylists(res);
+        LocalCacheService.saveCachedPlaylists(res);
+      } else if (res && res.length === 1 && res[0].id === "VLLM") {
+        // Se a rede retornou apenas a playlist padrão de Curtidas, preserva playlists em cache se existirem
+        setPlaylists((prev) => (prev.length > 1 ? prev : res));
+      } else if (res && res.length > 0) {
+        setPlaylists(res);
+        LocalCacheService.saveCachedPlaylists(res);
+      }
     } catch (err) {
       console.warn("Falha ao carregar playlists da rede, mantendo cache local:", err);
     } finally {
@@ -283,8 +291,10 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
     setIsLoadingAlbums(true);
     try {
       const res = await invoke<Album[]>("get_user_albums");
-      setAlbums(res);
-      LocalCacheService.saveCachedAlbums(res);
+      if (res && res.length > 0) {
+        setAlbums(res);
+        LocalCacheService.saveCachedAlbums(res);
+      }
     } catch (err) {
       console.warn("Falha ao carregar álbuns da rede, mantendo cache local:", err);
     } finally {
