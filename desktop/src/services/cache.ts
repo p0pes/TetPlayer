@@ -233,13 +233,19 @@ export const LocalCacheService = {
     this.saveToDbCache(cacheKey, serialized).catch(() => {});
   },
 
-  // Inicialização e hidratação do cache a partir do SQLite nativo
+  // Inicialização e hidratação do cache a partir do SQLite nativo (#83)
   async initDbCache(): Promise<void> {
     try {
       if (!localStorage.getItem(PLAYLISTS_CACHE_KEY)) {
         const dbData = await this.getFromDbCache(PLAYLISTS_CACHE_KEY);
         if (dbData) {
           localStorage.setItem(PLAYLISTS_CACHE_KEY, dbData);
+        }
+      }
+      if (!localStorage.getItem(ALBUMS_CACHE_KEY)) {
+        const dbAlbums = await this.getFromDbCache(ALBUMS_CACHE_KEY);
+        if (dbAlbums) {
+          localStorage.setItem(ALBUMS_CACHE_KEY, dbAlbums);
         }
       }
     } catch {
@@ -285,6 +291,7 @@ export const LocalCacheService = {
         }
       });
       saveLruList([]);
+      saveAlbumLruList([]);
 
       // Limpa cache na tabela app_cache do SQLite nativo
       try {

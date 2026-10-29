@@ -122,10 +122,16 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
     };
   }, [isSortOpen]);
 
-  // Atalho global Ctrl+F / Cmd+F para focar imediatamente o campo de filtro
+  // Atalho global Ctrl+F / Cmd+F para focar imediatamente o campo de filtro (#91)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
+        if (
+          filterInputRef.current?.closest("[inert]") ||
+          document.querySelector("[role='dialog']")
+        ) {
+          return;
+        }
         e.preventDefault();
         filterInputRef.current?.focus();
         filterInputRef.current?.select();

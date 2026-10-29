@@ -1,4 +1,4 @@
-import { memo, useCallback, useState, useRef } from "react";
+import { memo, useCallback, useState, useRef, useEffect } from "react";
 import { usePlaybackProgress } from "../../context/PlayerContext";
 import { formatTime } from "../../hooks/useLyrics";
 
@@ -40,12 +40,20 @@ export const TimelineScrubber = memo(function TimelineScrubber({
     [onSeek]
   );
 
-  const handlePointerDown = useCallback(() => {
-    isDraggingRef.current = true;
-    dragValueRef.current = currentTime;
-    setIsDragging(true);
-    setDragValue(currentTime);
-  }, [currentTime]);
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLInputElement>) => {
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        // Ignorado em ambientes de teste (jsdom) sem suporte a setPointerCapture
+      }
+      isDraggingRef.current = true;
+      dragValueRef.current = currentTime;
+      setIsDragging(true);
+      setDragValue(currentTime);
+    },
+    [currentTime]
+  );
 
   const handlePointerUp = useCallback(() => {
     if (isDraggingRef.current) {
@@ -54,6 +62,23 @@ export const TimelineScrubber = memo(function TimelineScrubber({
       onSeek(dragValueRef.current);
     }
   }, [onSeek]);
+
+  useEffect(() => {
+    if (!isDragging) return;
+    const handleWindowPointerUp = () => {
+      if (isDraggingRef.current) {
+        isDraggingRef.current = false;
+        setIsDragging(false);
+        onSeek(dragValueRef.current);
+      }
+    };
+    window.addEventListener("pointerup", handleWindowPointerUp);
+    window.addEventListener("pointercancel", handleWindowPointerUp);
+    return () => {
+      window.removeEventListener("pointerup", handleWindowPointerUp);
+      window.removeEventListener("pointercancel", handleWindowPointerUp);
+    };
+  }, [isDragging, onSeek]);
 
   return (
     <div

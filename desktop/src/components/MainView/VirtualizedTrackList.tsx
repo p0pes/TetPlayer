@@ -386,9 +386,29 @@ function VirtualContainer({
   const [scrollMargin, setScrollMargin] = React.useState(0);
 
   React.useLayoutEffect(() => {
-    if (containerRef.current) {
-      setScrollMargin(containerRef.current.offsetTop);
+    const el = containerRef.current;
+    if (!el) return;
+
+    const updateMargin = () => {
+      if (containerRef.current) {
+        const next = containerRef.current.offsetTop;
+        setScrollMargin((prev) => (prev !== next ? next : prev));
+      }
+    };
+
+    updateMargin();
+    window.addEventListener("resize", updateMargin);
+
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined" && el.parentElement) {
+      observer = new ResizeObserver(updateMargin);
+      observer.observe(el.parentElement);
     }
+
+    return () => {
+      window.removeEventListener("resize", updateMargin);
+      observer?.disconnect();
+    };
   }, []);
 
   const rowVirtualizer = useVirtualizer({

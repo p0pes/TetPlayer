@@ -7,6 +7,7 @@ vi.mock("../../context/PlayerContext", () => ({
   usePlayer: () => ({
     openContextMenu: vi.fn(),
   }),
+  triggerTrackContextMenu: vi.fn(),
 }));
 
 const mockPlaylist: Playlist = {

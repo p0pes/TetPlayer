@@ -51,7 +51,7 @@ export function QueueView() {
                   key={`past-${track.id}-${idx}`}
                   onClick={() => handlePlayFromQueue(idx)}
                   onContextMenu={(e) => openContextMenu(e, track)}
-                  className="flex items-center justify-between p-2.5 rounded-xl bg-[#12141c]/60 hover:bg-[#1a1e2c] border border-transparent hover:border-[#282d3d] transition-all cursor-pointer group"
+                  className="flex items-center justify-between p-2.5 rounded-xl bg-[#12141c]/60 hover:bg-[#1a1e2c] border border-transparent hover:border-[#282d3d] transition-all cursor-pointer group [content-visibility:auto] [contain-intrinsic-size:0_56px]"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <span className="w-5 text-center text-[11px] font-mono text-[#52576b] group-hover:text-[#8c91a4]">
@@ -61,6 +61,7 @@ export function QueueView() {
                       <img
                         src={upgradeArtworkQuality(track.artwork_url, track.id)}
                         alt={track.title}
+                        loading="lazy"
                         referrerPolicy="no-referrer"
                         onError={(e) => handleArtworkError(e, track.id)}
                         className="w-full h-full object-cover"
@@ -85,7 +86,10 @@ export function QueueView() {
                     <button
                       title="Mais opções"
                       aria-label="Mais opções"
-                      onClick={(e) => openContextMenu(e, track)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openContextMenu(e, track);
+                      }}
                       className="p-1 rounded-lg text-[#71778c] hover:text-white hover:bg-[#252b3d] opacity-80 group-hover:opacity-100 transition-opacity cursor-pointer"
                     >
                       <MoreVertical className="w-3.5 h-3.5" />
@@ -227,7 +231,7 @@ export function QueueView() {
                   }}
                   onClick={() => handlePlayFromQueue(actualIdx)}
                   onContextMenu={(e) => openContextMenu(e, track)}
-                  className={`flex items-center justify-between p-2.5 rounded-xl transition-all cursor-pointer group ${
+                  className={`flex items-center justify-between p-2.5 rounded-xl transition-all cursor-pointer group [content-visibility:auto] [contain-intrinsic-size:0_60px] ${
                     isBeingDragged
                       ? "opacity-35 scale-[0.98] border-dashed border-[var(--accent)] bg-[#1e2334]"
                       : isDragOver
@@ -253,6 +257,7 @@ export function QueueView() {
                       <img
                         src={upgradeArtworkQuality(track.artwork_url, track.id)}
                         alt={track.title}
+                        loading="lazy"
                         referrerPolicy="no-referrer"
                         onError={(e) => handleArtworkError(e, track.id)}
                         className="w-full h-full object-cover"

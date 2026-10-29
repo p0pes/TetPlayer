@@ -86,6 +86,25 @@ export function useMediaSession({
     } catch (err) {
       console.warn("Erro ao configurar handlers de MediaSession:", err);
     }
+
+    return () => {
+      const actions: MediaSessionAction[] = [
+        "play",
+        "pause",
+        "previoustrack",
+        "nexttrack",
+        "seekto",
+        "seekbackward",
+        "seekforward",
+      ];
+      for (const action of actions) {
+        try {
+          navigator.mediaSession.setActionHandler(action, null);
+        } catch {
+          // ignore unsupported actions
+        }
+      }
+    };
   }, [currentTrack?.id]);
 
   // 2. Sincronizar estado de reprodução no SMTC

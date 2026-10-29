@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::{Read, Write};
 use std::path::PathBuf;
+use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -88,19 +89,17 @@ pub fn get_db_path() -> PathBuf {
     db_path
 }
 
-pub fn init_db() -> Result<Connection, String> {
-    let path = get_db_path();
-    let conn = Connection::open(&path)
-        .map_err(|e| format!("Falha ao abrir banco de estatísticas ({:?}): {e}", path))?;
-    let _ = conn.busy_timeout(std::time::Duration::from_secs(5));
+static DB_SCHEMA_INIT: OnceLock<PathBuf> = OnceLock::new();
 
-    // Modo WAL e pragmas de alta performance para concorrência desktop sem contenção de I/O (Item 71)
-    let _ = conn.execute_batch("
+fn ensure_schema(conn: &Connection) -> Result<(), String> {
+    let _ = conn.execute_batch(
+        "
         PRAGMA journal_mode = WAL;
         PRAGMA synchronous = NORMAL;
         PRAGMA temp_store = MEMORY;
         PRAGMA cache_size = -8000;
-    ");
+    ",
+    );
 
     conn.execute(
         "CREATE TABLE IF NOT EXISTS playback_history (
@@ -150,6 +149,34 @@ pub fn init_db() -> Result<Connection, String> {
         [],
     )
     .map_err(|e| format!("Falha ao criar índice por updated_at no cache: {e}"))?;
+
+    Ok(())
+}
+
+pub fn init_db() -> Result<Connection, String> {
+    if let Some(cached_path) = DB_SCHEMA_INIT.get() {
+        if cached_path.exists() {
+            let conn = Connection::open(cached_path)
+                .map_err(|e| format!("Falha ao abrir banco de estatísticas ({:?}): {e}", cached_path))?;
+            let _ = conn.busy_timeout(std::time::Duration::from_secs(5));
+            let _ = conn.execute_batch(
+                "
+                PRAGMA synchronous = NORMAL;
+                PRAGMA temp_store = MEMORY;
+                PRAGMA cache_size = -8000;
+            ",
+            );
+            return Ok(conn);
+        }
+    }
+
+    let path = get_db_path();
+    let conn = Connection::open(&path)
+        .map_err(|e| format!("Falha ao abrir banco de estatísticas ({:?}): {e}", path))?;
+    let _ = conn.busy_timeout(std::time::Duration::from_secs(5));
+
+    ensure_schema(&conn)?;
+    let _ = DB_SCHEMA_INIT.set(path);
 
     Ok(conn)
 }
@@ -392,8 +419,11 @@ pub fn delete_cache_entry(key: &str) -> Result<(), String> {
 
 pub fn clear_all_cache() -> Result<(), String> {
     let conn = init_db()?;
-    conn.execute("DELETE FROM app_cache", [])
-        .map_err(|e| format!("Falha ao limpar cache SQLite: {e}"))?;
+    conn.execute(
+        "DELETE FROM app_cache WHERE key != 'tetplayer_google_session'",
+        [],
+    )
+    .map_err(|e| format!("Falha ao limpar cache SQLite: {e}"))?;
     Ok(())
 }
 
@@ -434,10 +464,19 @@ mod tests {
     #[test]
     fn test_clear_all_cache_lifecycle() {
         let _ = set_cache_entry("test_temp_key", "temporary_val");
+        let _ = set_cache_entry("tetplayer_google_session", "mock_session_payload");
         assert!(get_cache_entry("test_temp_key").unwrap().is_some());
+        assert!(get_cache_entry("tetplayer_google_session").unwrap().is_some());
+
         let res = clear_all_cache();
         assert!(res.is_ok());
         assert!(get_cache_entry("test_temp_key").unwrap().is_none());
+        assert_eq!(
+            get_cache_entry("tetplayer_google_session").unwrap().as_deref(),
+            Some("mock_session_payload")
+        );
+
+        let _ = delete_cache_entry("tetplayer_google_session");
     }
 }
 

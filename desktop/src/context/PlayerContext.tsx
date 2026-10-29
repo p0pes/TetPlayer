@@ -97,6 +97,18 @@ interface PlayerContextType {
 
 const PlayerContext = createContext<PlayerContextType | null>(null);
 
+let globalOpenContextMenuHandler: ((e: React.MouseEvent, track: Track, playlistId?: string) => void) | null = null;
+
+/**
+ * Aciona o menu de contexto de faixa sem exigir subscrição ao PlayerContext,
+ * preservando o isolamento de React.memo em componentes de linha (#85).
+ */
+export function triggerTrackContextMenu(e: React.MouseEvent, track: Track, playlistId?: string) {
+  if (globalOpenContextMenuHandler) {
+    globalOpenContextMenuHandler(e, track, playlistId);
+  }
+}
+
 interface PlayerProviderProps {
   children: ReactNode;
   onMarkPlaylistListened?: (playlistId?: string) => void;
@@ -150,6 +162,8 @@ export function PlayerProvider({
 
   // Modo Mini Player Flutuante (Sugestão 2.1)
   const [isMiniPlayer, setIsMiniPlayer] = useState(false);
+  const isMiniPlayerRef = useRef(isMiniPlayer);
+  isMiniPlayerRef.current = isMiniPlayer;
 
   // Gaveta de reprodução & Abas
   const [isNowPlayingOpen, setIsNowPlayingOpen] = useState(false);
@@ -221,11 +235,10 @@ export function PlayerProvider({
 
   // Alternar Mini Player com controle de janela nativo (Sugestão 2.1)
   function toggleMiniPlayer() {
-    setIsMiniPlayer((prev) => {
-      const next = !prev;
-      invoke("set_mini_player_mode", { enabled: next }).catch(console.error);
-      return next;
-    });
+    const next = !isMiniPlayerRef.current;
+    isMiniPlayerRef.current = next;
+    setIsMiniPlayer(next);
+    invoke("set_mini_player_mode", { enabled: next }).catch(console.error);
   }
 
   // Alternar Autoplay Infinito / Rádio Contínua (Sugestão 2.6)
@@ -235,22 +248,35 @@ export function PlayerProvider({
     SettingsService.updateSetting("isAutoplayRadio", next);
   }
 
-  // Escuta de Ações do System Tray (Sugestão 2.2)
+  const trayHandlersRef = useRef({
+    togglePlayPause,
+    handleNextTrack,
+    handlePrevTrack,
+    toggleMiniPlayer,
+  });
+  trayHandlersRef.current = {
+    togglePlayPause,
+    handleNextTrack,
+    handlePrevTrack,
+    toggleMiniPlayer,
+  };
+
+  // Escuta de Ações do System Tray e Teclas Globais de Mídia (Sugestão 2.2 & #82)
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     listen<string>("tray-action", (event) => {
       switch (event.payload) {
         case "toggle-play":
-          togglePlayPause();
+          trayHandlersRef.current.togglePlayPause();
           break;
         case "next-track":
-          handleNextTrack();
+          trayHandlersRef.current.handleNextTrack();
           break;
         case "prev-track":
-          handlePrevTrack();
+          trayHandlersRef.current.handlePrevTrack();
           break;
         case "toggle-mini-player":
-          toggleMiniPlayer();
+          trayHandlersRef.current.toggleMiniPlayer();
           break;
       }
     })
@@ -329,6 +355,13 @@ export function PlayerProvider({
     }
   }
 
+  // Registrar reprodução no SQLite para o Resumo Musical (#81)
+  function recordTrackPlayed(track: Track) {
+    invoke("record_track_played", { track }).catch((err) => {
+      console.warn("Erro ao registrar reprodução no SQLite:", err);
+    });
+  }
+
   // Reproduzir faixa com fila e registrar no SQLite (Sugestão 4.4)
   function playTrackWithQueue(
     track: Track,
@@ -342,10 +375,8 @@ export function PlayerProvider({
       markPlaylistListened(playlistId);
     }
 
-    // Registrar no SQLite para o TetStats
-    invoke("record_track_played", { track }).catch((err) => {
-      console.warn("Erro ao registrar reprodução no SQLite:", err);
-    });
+    // Registrar no SQLite para o Resumo Musical
+    recordTrackPlayed(track);
 
     const enqueueMode = SettingsService.getSetting("playlistEnqueueMode");
     if (enqueueMode === "append" && activeQueueRef.current.length > 0) {
@@ -392,6 +423,7 @@ export function PlayerProvider({
     const queue = activeQueueRef.current;
     if (idx >= 0 && idx < queue.length) {
       const track = queue[idx];
+      recordTrackPlayed(track);
       dispatchQueue({ type: "PLAY_FROM_QUEUE", payload: { index: idx } });
       loadAndPlayVideo(track.id);
     }
@@ -419,6 +451,9 @@ export function PlayerProvider({
     if (queue.length === 0 || currentIndex === -1) return;
 
     if (repeat === "one") {
+      if (queue[currentIndex]) {
+        recordTrackPlayed(queue[currentIndex]);
+      }
       restartCurrentTrack();
       return;
     }
@@ -426,10 +461,12 @@ export function PlayerProvider({
     const nextIndex = currentIndex + 1;
     if (nextIndex < queue.length) {
       const nextTrack = queue[nextIndex];
+      recordTrackPlayed(nextTrack);
       dispatchQueue({ type: "PLAY_FROM_QUEUE", payload: { index: nextIndex } });
       loadAndPlayVideo(nextTrack.id);
     } else if (repeat === "all" && queue.length > 0) {
       const firstTrack = queue[0];
+      recordTrackPlayed(firstTrack);
       dispatchQueue({ type: "PLAY_FROM_QUEUE", payload: { index: 0 } });
       loadAndPlayVideo(firstTrack.id);
     } else if (isAutoplayRadioRef.current && currentTrackRef.current) {
@@ -439,6 +476,7 @@ export function PlayerProvider({
         .then((radioTracks) => {
           if (radioTracks && radioTracks.length > 0) {
             const nextIdx = activeQueueRef.current.length;
+            recordTrackPlayed(radioTracks[0]);
             dispatchQueue({
               type: "APPEND_RADIO_TRACKS",
               payload: { tracks: radioTracks },
@@ -471,11 +509,13 @@ export function PlayerProvider({
     const prevIndex = currentIndex - 1;
     if (prevIndex >= 0) {
       const prevTrack = queue[prevIndex];
+      recordTrackPlayed(prevTrack);
       dispatchQueue({ type: "PLAY_FROM_QUEUE", payload: { index: prevIndex } });
       loadAndPlayVideo(prevTrack.id);
     } else if (repeat === "all" && queue.length > 0) {
       const lastIndex = queue.length - 1;
       const lastTrack = queue[lastIndex];
+      recordTrackPlayed(lastTrack);
       dispatchQueue({ type: "PLAY_FROM_QUEUE", payload: { index: lastIndex } });
       loadAndPlayVideo(lastTrack.id);
     }
@@ -527,6 +567,15 @@ export function PlayerProvider({
     setContextMenuPosition({ x: e.clientX, y: e.clientY });
     setContextMenuPlaylistId(playlistId || null);
   }, []);
+
+  useEffect(() => {
+    globalOpenContextMenuHandler = openContextMenu;
+    return () => {
+      if (globalOpenContextMenuHandler === openContextMenu) {
+        globalOpenContextMenuHandler = null;
+      }
+    };
+  }, [openContextMenu]);
 
   const closeContextMenu = React.useCallback(() => {
     setContextMenuTrack(null);

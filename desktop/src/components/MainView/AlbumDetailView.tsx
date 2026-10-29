@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { Album, AlbumDetail, Track } from "../../types";
 import { upgradeArtworkQuality } from "../../utils/artwork";
-import { usePlayer } from "../../context/PlayerContext";
+import { triggerTrackContextMenu } from "../../context/PlayerContext";
 import { AlbumCard } from "./AlbumCard";
 
 interface AlbumDetailViewProps {
@@ -79,7 +79,6 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
   onSelectRelatedAlbum,
   onPlayAlbumQuick,
 }: AlbumDetailViewProps) {
-  const { openContextMenu } = usePlayer();
   const [hasImageError, setHasImageError] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
 
@@ -320,7 +319,7 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
                   onContextMenu={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    openContextMenu(e, track);
+                    triggerTrackContextMenu(e, track);
                   }}
                   className={`flex items-center justify-between py-3 px-3 rounded-xl transition-all cursor-pointer group ${
                     isCurrent
@@ -377,7 +376,7 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        openContextMenu(e, track);
+                        triggerTrackContextMenu(e, track);
                       }}
                       aria-label="Mais opções"
                       className="p-1 rounded-lg text-[#71778c] hover:text-white hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"

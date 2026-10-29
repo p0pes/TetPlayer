@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { SettingsService } from "../services/settings";
 import { nativeAudioEngine, StreamInfo } from "../services/audioEngine";
@@ -365,27 +365,31 @@ export function useYouTubePlayer({
     playIframeVideo(videoId);
   }
 
-  function togglePlayPause() {
+  const togglePlayPause = useCallback(() => {
     if (activeEngineRef.current === "native") {
-      if (isPlaying) {
+      if (isPlayingRef.current) {
         nativeAudioEngine.pause();
+        isPlayingRef.current = false;
         setIsPlaying(false);
       } else {
         nativeAudioEngine.play().catch(console.error);
+        isPlayingRef.current = true;
         setIsPlaying(true);
       }
       return;
     }
 
     if (!ytPlayerRef.current) return;
-    if (isPlaying) {
+    if (isPlayingRef.current) {
       ytPlayerRef.current.pauseVideo();
+      isPlayingRef.current = false;
       setIsPlaying(false);
     } else {
       ytPlayerRef.current.playVideo();
+      isPlayingRef.current = true;
       setIsPlaying(true);
     }
-  }
+  }, []);
 
   function seekTo(seconds: number) {
     const clamped = Math.max(0, Math.min(seconds, duration || 99999));

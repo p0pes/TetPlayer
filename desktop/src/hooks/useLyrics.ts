@@ -152,9 +152,13 @@ export function useLyrics({
   const activeLyricRef = useRef<HTMLDivElement>(null);
   const userScrollingLyricsRef = useRef(false);
   const userScrollTimeoutRef = useRef<number | null>(null);
+  const lastActiveIndexRef = useRef<number>(-1);
 
   // Carregamento de Letras Sincronizadas com Resiliência e Cache Global
   useEffect(() => {
+    lastActiveIndexRef.current = -1;
+    setActiveLyricIndex(-1);
+
     if (!currentTrack) {
       setLyricsData(null);
       setParsedLyrics([]);
@@ -235,7 +239,6 @@ export function useLyrics({
   const [isFastScrolling, setIsFastScrolling] = useState(false);
   const rafIdRef = useRef<number | null>(null);
   const seekDebounceTimerRef = useRef<number | null>(null);
-  const lastActiveIndexRef = useRef<number>(-1);
   const isProgrammaticScrollRef = useRef(false);
   const programmaticScrollTimeoutRef = useRef<number | null>(null);
 

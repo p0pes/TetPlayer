@@ -122,10 +122,10 @@ export function TrackContextMenu({
 
   async function onCopyLink() {
     if (!track) return;
-    const url = `https://www.youtube.com/watch?v=${track.id}`;
+    const url = `https://music.youtube.com/watch?v=${track.id}`;
     try {
       await navigator.clipboard.writeText(url);
-      showToast("Link do YouTube copiado!");
+      showToast("Link do YouTube Music copiado!");
     } catch {
       showToast("Erro ao copiar link");
     }

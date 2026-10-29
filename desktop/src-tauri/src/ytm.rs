@@ -1087,16 +1087,15 @@ pub async fn fetch_lyrics(
     artist_name: &str,
     video_id: &str,
 ) -> Result<LyricsData, String> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(6))
-        .build()
-        .map_err(|e| format!("Falha ao construir client HTTP: {e}"))?;
+    let client = &HTTP_CLIENT;
+    let lrclib_timeout = std::time::Duration::from_secs(6);
 
     let cleaned_title = clean_track_title(track_title);
 
     // 1. Try LRCLIB exact get
     let lrclib_res = client
         .get("https://lrclib.net/api/get")
+        .timeout(lrclib_timeout)
         .query(&[
             ("track_name", cleaned_title.as_str()),
             ("artist_name", artist_name),
@@ -1128,6 +1127,7 @@ pub async fn fetch_lyrics(
     let query_param = format!("{} {}", cleaned_title, artist_name);
     let search_res = client
         .get("https://lrclib.net/api/search")
+        .timeout(lrclib_timeout)
         .query(&[("q", query_param.as_str())])
         .header(
             USER_AGENT,
@@ -1611,8 +1611,8 @@ fn extract_album_header(
     let mut artwork_url = None;
     let mut album_type = Some("album".to_string());
     let mut description = None;
-    let release_date = None;
-    let copyright = None;
+    let mut release_date = None;
+    let mut copyright = None;
 
     if let Some(h) = header {
         if let Some(t) = h["title"]["runs"]
@@ -1700,6 +1700,29 @@ fn extract_album_header(
                         artist = a.to_string();
                     }
                 }
+            }
+        }
+        if let Some(pub_date) = mf
+            .get("publishDate")
+            .or_else(|| mf.get("uploadDate"))
+            .and_then(|x| x.as_str())
+        {
+            let trimmed_date = pub_date.split('T').next().unwrap_or(pub_date).trim();
+            if !trimmed_date.is_empty() {
+                release_date = Some(trimmed_date.to_string());
+                if year.is_none() && trimmed_date.len() >= 4 {
+                    year = Some(trimmed_date[..4].to_string());
+                }
+            }
+        }
+    }
+
+    if let Some(desc_str) = &description {
+        for line in desc_str.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with('℗') || trimmed.starts_with('©') || trimmed.to_lowercase().starts_with("provided to youtube by") {
+                copyright = Some(trimmed.to_string());
+                break;
             }
         }
     }
@@ -1894,7 +1917,7 @@ pub async fn get_album_details(session: &AuthSession, browse_id: &str) -> Result
     let (mut title, mut artist, artist_id, year, mut artwork_url, album_type, description, release_date, copyright) =
         extract_album_header(&json_val);
 
-    // Extrair Faixas
+    // Extrair Faixas (com suporte a paginação por continuation token para álbuns extensos — #90)
     let mut tracks = Vec::new();
     extract_album_tracks_from_value(
         &json_val,
@@ -1904,6 +1927,63 @@ pub async fn get_album_details(session: &AuthSession, browse_id: &str) -> Result
         artwork_url.as_deref(),
         &mut tracks,
     );
+
+    let mut current_token = extract_continuation_token(&json_val);
+    let mut pages_fetched = 1;
+    const MAX_ALBUM_PAGES: usize = 10;
+
+    while let Some(token) = current_token {
+        if pages_fetched >= MAX_ALBUM_PAGES {
+            break;
+        }
+        pages_fetched += 1;
+
+        let cont_url = format!(
+            "https://music.youtube.com/youtubei/v1/browse?continuation={token}&prettyPrint=false"
+        );
+        let cont_payload = json!({
+            "context": {
+                "client": {
+                    "clientName": "WEB_REMIX",
+                    "clientVersion": "1.20240401.01.00",
+                    "hl": "pt",
+                    "gl": "BR"
+                }
+            },
+            "continuation": token
+        });
+
+        let cont_resp = match client
+            .post(&cont_url)
+            .headers(headers.clone())
+            .json(&cont_payload)
+            .send()
+            .await
+        {
+            Ok(r) if r.status().is_success() => r,
+            _ => break,
+        };
+
+        let cont_json: Value = match cont_resp.json().await {
+            Ok(v) => v,
+            Err(_) => break,
+        };
+
+        let prev_len = tracks.len();
+        extract_album_tracks_from_value(
+            &cont_json,
+            &title,
+            &artist,
+            browse_id,
+            artwork_url.as_deref(),
+            &mut tracks,
+        );
+        if tracks.len() == prev_len {
+            break;
+        }
+
+        current_token = extract_continuation_token(&cont_json);
+    }
 
     // Deduplica faixas preservando ordem
     let mut seen_tracks = std::collections::HashSet::new();

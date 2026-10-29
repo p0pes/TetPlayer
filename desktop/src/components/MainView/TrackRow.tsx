@@ -2,7 +2,7 @@ import React from "react";
 import { Music, Play, Pause, Loader2, MoreVertical, GripVertical } from "lucide-react";
 import { Track } from "../../types";
 import { upgradeArtworkQuality, handleArtworkError } from "../../utils/artwork";
-import { usePlayer } from "../../context/PlayerContext";
+import { triggerTrackContextMenu } from "../../context/PlayerContext";
 
 interface TrackRowProps {
   track: Track;
@@ -37,15 +37,13 @@ export const TrackRow = React.memo(function TrackRow({
   onTogglePlayPause,
   onContextMenu,
 }: TrackRowProps) {
-  const { openContextMenu } = usePlayer();
-
   function handleContextMenu(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
     if (onContextMenu) {
       onContextMenu(e, track);
     } else {
-      openContextMenu(e, track, playlistId);
+      triggerTrackContextMenu(e, track, playlistId);
     }
   }
 
