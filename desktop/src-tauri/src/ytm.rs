@@ -328,6 +328,17 @@ pub async fn get_user_playlists(session: &AuthSession) -> Result<Vec<Playlist>, 
 pub fn extract_continuation_token(val: &Value) -> Option<String> {
     match val {
         Value::Object(map) => {
+            // 1. continuationItemRenderer direto (token na ação/endpoint de comando)
+            if let Some(item) = map.get("continuationItemRenderer") {
+                if let Some(token) = item["continuationEndpoint"]["continuationCommand"]["token"]
+                    .as_str()
+                    .filter(|s| !s.is_empty())
+                {
+                    return Some(token.to_string());
+                }
+            }
+
+            // 2. continuationCommand direto
             if let Some(cmd) = map.get("continuationCommand") {
                 if let Some(token) = cmd.get("token").and_then(|t| t.as_str()) {
                     if !token.is_empty() {
@@ -335,6 +346,8 @@ pub fn extract_continuation_token(val: &Value) -> Option<String> {
                     }
                 }
             }
+
+            // 3. nextContinuationData direto
             if let Some(cont) = map.get("nextContinuationData") {
                 if let Some(token) = cont.get("continuation").and_then(|t| t.as_str()) {
                     if !token.is_empty() {
@@ -342,6 +355,52 @@ pub fn extract_continuation_token(val: &Value) -> Option<String> {
                     }
                 }
             }
+
+            // 4. Prioridade máxima para prateleiras de faixas (Playlists e Álbuns)
+            for shelf_key in [
+                "musicPlaylistShelfRenderer",
+                "musicShelfRenderer",
+                "musicPlaylistShelfContinuation",
+            ] {
+                if let Some(shelf) = map.get(shelf_key) {
+                    if let Some(contents) = shelf.get("contents").and_then(|c| c.as_array()) {
+                        if let Some(last) = contents.last() {
+                            if let Some(tok) = extract_continuation_token(last) {
+                                return Some(tok);
+                            }
+                        }
+                    }
+                    if let Some(conts) = shelf.get("continuations").and_then(|c| c.as_array()) {
+                        for c in conts {
+                            if let Some(tok) = extract_continuation_token(c) {
+                                return Some(tok);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 5. appendContinuationItemsAction (respostas de paginação subsequentes)
+            if let Some(action) = map.get("appendContinuationItemsAction") {
+                if let Some(items) = action.get("continuationItems").and_then(|it| it.as_array()) {
+                    if let Some(last) = items.last() {
+                        if let Some(tok) = extract_continuation_token(last) {
+                            return Some(tok);
+                        }
+                    }
+                }
+            }
+
+            // 6. sectionListRenderer: inspeciona estritamente os contents (shelves) e nunca as continuations do carrossel de seção
+            if let Some(section_list) = map.get("sectionListRenderer") {
+                if let Some(sec_contents) = section_list.get("contents") {
+                    if let Some(tok) = extract_continuation_token(sec_contents) {
+                        return Some(tok);
+                    }
+                }
+            }
+
+            // 7. continuations genéricas de outros nós permitidos
             if let Some(Value::Array(conts)) = map.get("continuations") {
                 for c in conts {
                     if let Some(tok) = extract_continuation_token(c) {
@@ -349,10 +408,14 @@ pub fn extract_continuation_token(val: &Value) -> Option<String> {
                     }
                 }
             }
+
+            // 8. Busca recursiva excluindo elementos de itens ou seções já processados
             for (k, v) in map {
-                if k == "musicResponsiveListItemRenderer"
+                if k == "sectionListRenderer"
+                    || k == "musicResponsiveListItemRenderer"
                     || k == "playlistPanelVideoRenderer"
                     || k == "musicTwoRowItemRenderer"
+                    || k == "musicCarouselShelfRenderer"
                 {
                     continue;
                 }
@@ -362,7 +425,8 @@ pub fn extract_continuation_token(val: &Value) -> Option<String> {
             }
         }
         Value::Array(arr) => {
-            for v in arr {
+            // Em arrays, tokens de continuação estão costumeiramente no final
+            for v in arr.iter().rev() {
                 if let Some(tok) = extract_continuation_token(v) {
                     return Some(tok);
                 }
@@ -827,7 +891,10 @@ fn extract_tracks_from_value(val: &Value, tracks: &mut Vec<Track>) {
                 }
             }
 
-            for v in map.values() {
+            for (k, v) in map {
+                if k == "musicCarouselShelfRenderer" {
+                    continue;
+                }
                 extract_tracks_from_value(v, tracks);
             }
         }
@@ -946,7 +1013,8 @@ fn parse_responsive_item(item: &Value) -> Option<Track> {
                 }
             }
             None
-        });
+        })
+        .filter(|s| s != "to_be_updated_by_client" && !s.trim().is_empty());
 
     Some(Track {
         id: video_id,
@@ -1033,6 +1101,7 @@ fn parse_playlist_panel_item(item: &Value) -> Option<Track> {
 
     let set_video_id = item["playlistSetVideoId"]
         .as_str()
+        .filter(|s| *s != "to_be_updated_by_client" && !s.trim().is_empty())
         .map(|s| s.to_string());
 
     Some(Track {
@@ -1767,8 +1836,18 @@ fn extract_album_tracks_from_value(
                     tracks.push(track);
                 }
             } else {
-                for v in map.values() {
-                    extract_album_tracks_from_value(v, album_title, album_artist, album_id, default_artwork, tracks);
+                for (k, v) in map {
+                    if k == "musicCarouselShelfRenderer" {
+                        continue;
+                    }
+                    extract_album_tracks_from_value(
+                        v,
+                        album_title,
+                        album_artist,
+                        album_id,
+                        default_artwork,
+                        tracks,
+                    );
                 }
             }
         }
@@ -2763,6 +2842,72 @@ mod tests {
         });
 
         assert_eq!(extract_continuation_token(&json_data), None);
+    }
+
+    #[test]
+    fn test_extract_continuation_token_item_renderer_priority() {
+        let json_data = json!({
+            "contents": {
+                "twoColumnBrowseResultsRenderer": {
+                    "tabs": [{
+                        "tabRenderer": {
+                            "content": {
+                                "sectionListRenderer": {
+                                    "contents": [{
+                                        "musicPlaylistShelfRenderer": {
+                                            "contents": [
+                                                {"musicResponsiveListItemRenderer": {}},
+                                                {
+                                                    "continuationItemRenderer": {
+                                                        "continuationEndpoint": {
+                                                            "continuationCommand": {
+                                                                "token": "token_playlist_shelf_789"
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    }],
+                                    "continuations": [{
+                                        "nextContinuationData": {
+                                            "continuation": "token_wrong_section_carousel"
+                                        }
+                                    }]
+                                }
+                            }
+                        }
+                    }]
+                }
+            }
+        });
+
+        assert_eq!(
+            extract_continuation_token(&json_data),
+            Some("token_playlist_shelf_789".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_continuation_token_continuation_contents() {
+        let json_data = json!({
+            "continuationContents": {
+                "musicPlaylistShelfContinuation": {
+                    "continuations": [
+                        {
+                            "nextContinuationData": {
+                                "continuation": "next_page_token_999"
+                            }
+                        }
+                    ]
+                }
+            }
+        });
+
+        assert_eq!(
+            extract_continuation_token(&json_data),
+            Some("next_page_token_999".to_string())
+        );
     }
 
     #[tokio::test]
