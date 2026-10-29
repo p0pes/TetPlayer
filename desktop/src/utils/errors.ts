@@ -57,3 +57,4 @@ export function humanizeApiError(error: unknown, fallbackMessage = "Ocorreu um e
   // Se for mensagem amigável comum de negócio, mantém sem prefixos técnicos de HTTP
   return raw.replace(/YouTube Music retornou status \d+.*?:/i, "").trim() || fallbackMessage;
 }
+
