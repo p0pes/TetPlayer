@@ -50,6 +50,9 @@ export function useYouTubePlayer({
   currentTimeRef.current = currentTime;
   const isSeekingRef = useRef(false);
   const seekTimeoutRef = useRef<number | null>(null);
+  // Evita flicker Play -> Pause -> Play durante transição de faixa ou fallback de motor
+  const isTransitioningTrackRef = useRef(false);
+  const transitionTimeoutRef = useRef<number | null>(null);
 
   const volumeRef = useRef(volume);
   const isMutedRef = useRef(isMuted);
@@ -67,6 +70,25 @@ export function useYouTubePlayer({
   onTrackEndedRef.current = onTrackEnded;
   onTrackErrorRef.current = onTrackError;
 
+  const clearTransitionGuard = useCallback(() => {
+    isTransitioningTrackRef.current = false;
+    if (transitionTimeoutRef.current !== null) {
+      window.clearTimeout(transitionTimeoutRef.current);
+      transitionTimeoutRef.current = null;
+    }
+  }, []);
+
+  const startTransitionGuard = useCallback(() => {
+    isTransitioningTrackRef.current = true;
+    if (transitionTimeoutRef.current !== null) {
+      window.clearTimeout(transitionTimeoutRef.current);
+    }
+    transitionTimeoutRef.current = window.setTimeout(() => {
+      isTransitioningTrackRef.current = false;
+      transitionTimeoutRef.current = null;
+    }, 3500);
+  }, []);
+
   // Inicializa callbacks do motor de áudio nativo e sincronizador de timeline
   useEffect(() => {
     initYouTubePlayer();
@@ -74,6 +96,8 @@ export function useYouTubePlayer({
     // Callbacks do AudioEngine nativo (Item 1.1)
     nativeAudioEngine.onEnded = () => {
       if (activeEngineRef.current === "native") {
+        clearTransitionGuard();
+        isPlayingRef.current = false;
         setIsPlaying(false);
         onTrackEndedRef.current();
       }
@@ -81,12 +105,14 @@ export function useYouTubePlayer({
 
     nativeAudioEngine.onPlay = () => {
       if (activeEngineRef.current === "native") {
+        isPlayingRef.current = true;
         setIsPlaying(true);
       }
     };
 
     nativeAudioEngine.onPause = () => {
-      if (activeEngineRef.current === "native") {
+      if (activeEngineRef.current === "native" && !isTransitioningTrackRef.current) {
+        isPlayingRef.current = false;
         setIsPlaying(false);
       }
     };
@@ -96,6 +122,7 @@ export function useYouTubePlayer({
       if (activeEngineRef.current === "native" && currentVideoIdRef.current) {
         const fallbackVid = currentVideoIdRef.current;
         const seekPos = currentTimeRef.current;
+        startTransitionGuard();
         activeEngineRef.current = "iframe";
         nativeAudioEngine.stop();
         playIframeVideo(fallbackVid, seekPos);
@@ -185,8 +212,9 @@ export function useYouTubePlayer({
     return () => {
       clearInterval(interval);
       if (seekTimeoutRef.current) window.clearTimeout(seekTimeoutRef.current);
+      if (transitionTimeoutRef.current) window.clearTimeout(transitionTimeoutRef.current);
     };
-  }, [isPlayerReady]);
+  }, [isPlayerReady, clearTransitionGuard, startTransitionGuard]);
 
   function initYouTubePlayer() {
     if (!window.YT) {
@@ -239,13 +267,16 @@ export function useYouTubePlayer({
 
           if (event.data === 1) { // PLAYING
             isSeekingRef.current = false;
+            clearTransitionGuard();
+            isPlayingRef.current = true;
             setIsPlaying(true);
             setLoadingTrackId(null);
             ytPlayerRef.current.setPlaybackRate(1.0);
             const dur = ytPlayerRef.current.getDuration();
             if (dur) setDuration(dur);
           } else if (event.data === 2) { // PAUSED
-            if (isSeekingRef.current && isPlayingRef.current) {
+            // Ignora eventos transitórios de pausa disparados pelo IFrame ao trocar de faixa ou durante seek
+            if ((isSeekingRef.current || isTransitioningTrackRef.current) && isPlayingRef.current) {
               try {
                 ytPlayerRef.current.playVideo();
               } catch {
@@ -253,9 +284,12 @@ export function useYouTubePlayer({
               }
               return;
             }
+            isPlayingRef.current = false;
             setIsPlaying(false);
           } else if (event.data === 0) { // ENDED -> Autoplay next
             isSeekingRef.current = false;
+            clearTransitionGuard();
+            isPlayingRef.current = false;
             setIsPlaying(false);
             onTrackEndedRef.current();
           }
@@ -264,7 +298,9 @@ export function useYouTubePlayer({
         onError: (err: any) => {
           if (activeEngineRef.current !== "iframe") return;
           console.error("YouTube Player Error:", err);
+          clearTransitionGuard();
           setLoadingTrackId(null);
+          isPlayingRef.current = false;
           setIsPlaying(false);
           onTrackErrorRef.current("Não foi possível reproduzir esta faixa. Avançando para a próxima...");
           onTrackEndedRef.current();
@@ -275,6 +311,10 @@ export function useYouTubePlayer({
 
   function playIframeVideo(videoId: string, seekSec = 0) {
     if (currentVideoIdRef.current !== videoId) return;
+
+    startTransitionGuard();
+    isPlayingRef.current = true;
+    setIsPlaying(true);
 
     if (ytPlayerRef.current && typeof ytPlayerRef.current.loadVideoById === "function") {
       if (isMutedRef.current) {
@@ -288,13 +328,13 @@ export function useYouTubePlayer({
       ytPlayerRef.current.loadVideoById(videoId, seekSec);
       ytPlayerRef.current.setPlaybackRate(1.0);
       ytPlayerRef.current.playVideo();
-      setIsPlaying(true);
       setLoadingTrackId(null);
     } else {
       setTimeout(() => {
         if (currentVideoIdRef.current !== videoId) return;
 
         if (ytPlayerRef.current && typeof ytPlayerRef.current.loadVideoById === "function") {
+          startTransitionGuard();
           if (isMutedRef.current) {
             ytPlayerRef.current.mute();
           } else {
@@ -306,6 +346,7 @@ export function useYouTubePlayer({
           ytPlayerRef.current.loadVideoById(videoId, seekSec);
           ytPlayerRef.current.setPlaybackRate(1.0);
           ytPlayerRef.current.playVideo();
+          isPlayingRef.current = true;
           setIsPlaying(true);
           setLoadingTrackId(null);
         }
@@ -316,6 +357,11 @@ export function useYouTubePlayer({
   async function loadAndPlayVideo(videoId: string) {
     setLoadingTrackId(videoId);
     currentVideoIdRef.current = videoId;
+
+    // Feedback otimista imediato sem oscilar Play -> Pause -> Play
+    startTransitionGuard();
+    isPlayingRef.current = true;
+    setIsPlaying(true);
 
     // 1. Arquitetura Híbrida: tenta obter stream direto de áudio nativo (Item 1.1)
     try {
@@ -348,6 +394,8 @@ export function useYouTubePlayer({
           nativeAudioEngine.stop();
           return;
         }
+        clearTransitionGuard();
+        isPlayingRef.current = true;
         setIsPlaying(true);
         setLoadingTrackId(null);
         return;
@@ -366,6 +414,7 @@ export function useYouTubePlayer({
   }
 
   const togglePlayPause = useCallback(() => {
+    clearTransitionGuard();
     if (activeEngineRef.current === "native") {
       if (isPlayingRef.current) {
         nativeAudioEngine.pause();
@@ -389,7 +438,7 @@ export function useYouTubePlayer({
       isPlayingRef.current = true;
       setIsPlaying(true);
     }
-  }, []);
+  }, [clearTransitionGuard]);
 
   function seekTo(seconds: number) {
     const clamped = Math.max(0, Math.min(seconds, duration || 99999));

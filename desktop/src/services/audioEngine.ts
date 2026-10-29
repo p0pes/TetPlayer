@@ -1,7 +1,7 @@
 /**
  * AudioEngine - Motor de Áudio Nativo de Alta Fidelidade (Item 1.1)
  *
- * Utiliza HTML5 Audio element e Web Audio API (GainNode) para:
+ * Utiliza HTML5 Audio element para:
  * - Reprodução direta com pré-buffer antecipado
  * - Fim de micro-travamentos do IFrame de vídeo
  * - Controle suave de ganho e volume sem latência de postMessage
@@ -21,11 +21,8 @@ export interface StreamInfo {
 
 export class AudioEngine {
   private audio: HTMLAudioElement;
-  private audioCtx: AudioContext | null = null;
-  private gainNode: GainNode | null = null;
-  private sourceNode: MediaElementAudioSourceNode | null = null;
-  private isAudioCtxInitialized = false;
   private lastAppliedVolume = -1;
+  private isSuppressingPauseEvent = false;
 
   public onTimeUpdate: ((currentTime: number, duration: number) => void) | null = null;
   public onEnded: (() => void) | null = null;
@@ -36,34 +33,8 @@ export class AudioEngine {
   constructor() {
     this.audio = new Audio();
     this.audio.preload = "auto";
-    this.audio.crossOrigin = "anonymous";
 
     this.setupListeners();
-  }
-
-  private initAudioContext() {
-    if (this.isAudioCtxInitialized) return;
-    try {
-      const AudioCtxClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      if (AudioCtxClass) {
-        this.audioCtx = new AudioCtxClass();
-        this.gainNode = this.audioCtx.createGain();
-        this.sourceNode = this.audioCtx.createMediaElementSource(this.audio);
-        this.sourceNode.connect(this.gainNode);
-        this.gainNode.connect(this.audioCtx.destination);
-        this.isAudioCtxInitialized = true;
-      }
-    } catch (e) {
-      console.warn("[AudioEngine] Web Audio API não pôde ser conectada, utilizando controle nativo de volume do HTMLAudioElement:", e);
-    }
-  }
-
-  private ensureAudioContextRunning() {
-    if (this.audioCtx && this.audioCtx.state === "suspended") {
-      this.audioCtx.resume().catch(() => {
-        // Ignora caso ainda falte gesto do usuário
-      });
-    }
   }
 
   private setupListeners() {
@@ -86,38 +57,42 @@ export class AudioEngine {
     });
 
     this.audio.addEventListener("pause", () => {
+      if (this.isSuppressingPauseEvent) return;
       if (this.onPause) {
         this.onPause();
       }
     });
 
     this.audio.addEventListener("error", (e) => {
+      this.isSuppressingPauseEvent = true;
       console.warn("[AudioEngine] Erro no elemento de áudio nativo:", e);
       if (this.onError) {
         this.onError(this.audio.error || e);
       }
+      this.isSuppressingPauseEvent = false;
     });
   }
 
   /**
-   * Carrega uma URL de áudio direta e configura o pré-buffer
+   * Carrega uma URL de áudio direta e configura o pré-buffer sem disparar falso evento de pausa
    */
   public load(url: string) {
-    this.initAudioContext();
+    this.isSuppressingPauseEvent = true;
     this.audio.pause();
     this.audio.src = url;
     this.audio.load();
+    this.isSuppressingPauseEvent = false;
   }
 
   /**
    * Inicia ou retoma a reprodução de áudio de forma segura
    */
   public async play(): Promise<void> {
-    this.initAudioContext();
-    this.ensureAudioContextRunning();
+    this.isSuppressingPauseEvent = false;
     try {
       await this.audio.play();
     } catch (err: unknown) {
+      this.isSuppressingPauseEvent = true;
       const errName = (err as Error)?.name;
       // AbortError é comum quando uma nova faixa é selecionada antes da anterior iniciar
       if (errName !== "AbortError") {
@@ -126,24 +101,28 @@ export class AudioEngine {
           this.onError(err);
         }
       }
+      this.isSuppressingPauseEvent = false;
       throw err;
     }
   }
 
   /**
-   * Pausa a reprodução
+   * Pausa a reprodução por ação explícita do usuário
    */
   public pause() {
+    this.isSuppressingPauseEvent = false;
     this.audio.pause();
   }
 
   /**
-   * Interrompe o áudio, limpa o buffer e o src
+   * Interrompe o áudio e limpa o buffer sem disparar falso evento de pausa
    */
   public stop() {
+    this.isSuppressingPauseEvent = true;
     this.audio.pause();
     this.audio.removeAttribute("src");
     this.audio.load();
+    this.isSuppressingPauseEvent = false;
   }
 
   /**
@@ -156,8 +135,8 @@ export class AudioEngine {
   }
 
   /**
-   * Ajusta o volume linear (0.0 a 1.0) via GainNode ou HTMLAudioElement
-   * Contém sentinela de cache para evitar flooding de automação no Web Audio (Item 69)
+   * Ajusta o volume linear (0.0 a 1.0) no HTMLAudioElement
+   * Contém sentinela de cache para evitar escritas redundantes a cada 80ms (Item 69)
    */
   public setVolume(vol: number) {
     const clamped = Math.max(0, Math.min(1, vol));
@@ -165,15 +144,7 @@ export class AudioEngine {
       return;
     }
     this.lastAppliedVolume = clamped;
-    if (this.gainNode && this.audioCtx) {
-      try {
-        this.gainNode.gain.setValueAtTime(clamped, this.audioCtx.currentTime);
-      } catch {
-        this.audio.volume = clamped;
-      }
-    } else {
-      this.audio.volume = clamped;
-    }
+    this.audio.volume = clamped;
   }
 
   public getCurrentTime(): number {
@@ -195,4 +166,3 @@ export class AudioEngine {
 
 // Instância Singleton do motor de áudio para reutilização global
 export const nativeAudioEngine = new AudioEngine();
-

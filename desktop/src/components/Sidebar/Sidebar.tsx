@@ -121,9 +121,8 @@ const SidebarItemThumbnail = React.memo(function SidebarItemThumbnail({
 
   return (
     <div
-      className={`relative shrink-0 flex items-center ${
-        isAlbum ? "w-[33px] h-7" : "w-7 h-7"
-      }`}
+      className={`relative shrink-0 flex items-center ${isAlbum ? "w-[33px] h-7" : "w-7 h-7"
+        }`}
     >
       {/* Borda de disco de vinil saindo pela direita para Álbuns */}
       {isAlbum && (
@@ -137,11 +136,10 @@ const SidebarItemThumbnail = React.memo(function SidebarItemThumbnail({
 
       {/* Mini-capa 28x28px */}
       <div
-        className={`relative z-10 w-7 h-7 rounded-md overflow-hidden flex items-center justify-center shrink-0 transition-colors ${
-          isSelected
-            ? "bg-[var(--accent-subtle)] border border-[var(--accent-border)] text-[var(--accent-text)]"
-            : "bg-[#161925] border border-white/10 text-[#6e7488]"
-        }`}
+        className={`relative z-10 w-7 h-7 rounded-md overflow-hidden flex items-center justify-center shrink-0 transition-colors ${isSelected
+          ? "bg-[var(--accent-subtle)] border border-[var(--accent-border)] text-[var(--accent-text)]"
+          : "bg-[#161925] border border-white/10 text-[#6e7488]"
+          }`}
       >
         {thumbUrl && !hasImgError ? (
           <img
@@ -256,10 +254,10 @@ export const Sidebar = React.memo(function Sidebar({
         pl.id === "VLLM"
           ? "Auto-playlist"
           : pl.track_count
-          ? /^\d+$/.test(String(pl.track_count).trim())
-            ? `${pl.track_count} músicas`
-            : pl.track_count
-          : pl.subtitle || "Playlist",
+            ? /^\d+$/.test(String(pl.track_count).trim())
+              ? `${pl.track_count} músicas`
+              : pl.track_count
+            : pl.subtitle || "Playlist",
       artworkUrl: pl.artwork_url,
       playlist: pl,
     }));
@@ -521,11 +519,10 @@ export const Sidebar = React.memo(function Sidebar({
         <nav className="space-y-1">
           <button
             onClick={() => setActiveTab("library")}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
-              activeTab === "library"
-                ? "bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] shadow-sm"
-                : "text-[#8c91a4] hover:text-white hover:bg-white/5"
-            }`}
+            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${activeTab === "library"
+              ? "bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] shadow-sm"
+              : "text-[#8c91a4] hover:text-white hover:bg-white/5"
+              }`}
           >
             <Library className="w-4 h-4" />
             Biblioteca
@@ -533,11 +530,10 @@ export const Sidebar = React.memo(function Sidebar({
 
           <button
             onClick={() => setActiveTab("search")}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
-              activeTab === "search"
-                ? "bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] shadow-sm"
-                : "text-[#8c91a4] hover:text-white hover:bg-white/5"
-            }`}
+            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${activeTab === "search"
+              ? "bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] shadow-sm"
+              : "text-[#8c91a4] hover:text-white hover:bg-white/5"
+              }`}
           >
             <Search className="w-4 h-4" />
             Buscar no YT Music
@@ -545,11 +541,10 @@ export const Sidebar = React.memo(function Sidebar({
 
           <button
             onClick={() => setActiveTab("stats")}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
-              activeTab === "stats"
-                ? "bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] shadow-sm"
-                : "text-[#8c91a4] hover:text-white hover:bg-white/5"
-            }`}
+            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${activeTab === "stats"
+              ? "bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] shadow-sm"
+              : "text-[#8c91a4] hover:text-white hover:bg-white/5"
+              }`}
           >
             <BarChart3 className="w-4 h-4" />
             Estatísticas
@@ -558,15 +553,23 @@ export const Sidebar = React.memo(function Sidebar({
 
         {/* Seção Unificada: Sua Coleção (Playlists + Álbuns) */}
         <div className="pt-3 border-t border-[#1f232e] flex-1 flex flex-col min-h-0">
-          {/* Cabeçalho da Coleção */}
+          {/* Cabeçalho da Coleção (Linha 1: Título isolado sem aperto) */}
+          <div className="px-2 mb-1.5 shrink-0">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#63697e] block">
+              Sua Coleção
+            </span>
+          </div>
+
+          {/* Linha 2: Contador de Fixados + 3 Botões de Ação (Lupa, Criar, Atualizar) acima das pílulas */}
           <div className="flex items-center justify-between px-2 mb-2 shrink-0">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#63697e] truncate">
-                Sua Coleção
-              </span>
-              {pinnedPlaylistIds.length > 0 && (
-                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] shrink-0">
+            <div className="flex items-center min-w-0">
+              {pinnedPlaylistIds.length > 0 ? (
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] shrink-0">
                   {pinnedPlaylistIds.length} fixad{pinnedPlaylistIds.length > 1 ? "os" : "o"}
+                </span>
+              ) : (
+                <span className="text-[10px] text-[#52586c] font-medium">
+                  {allCollectionItems.length} {allCollectionItems.length === 1 ? "item" : "itens"}
                 </span>
               )}
             </div>
@@ -576,11 +579,10 @@ export const Sidebar = React.memo(function Sidebar({
                 onClick={handleToggleSearch}
                 title="Filtrar itens da coleção"
                 aria-label="Filtrar coleção na barra lateral"
-                className={`p-1 rounded-md transition-colors cursor-pointer ${
-                  isSearchOpen || sidebarSearch
-                    ? "text-[var(--accent-text)] bg-[var(--accent-subtle)]"
-                    : "text-[#71778c] hover:text-white hover:bg-white/5"
-                }`}
+                className={`p-1 rounded-md transition-colors cursor-pointer ${isSearchOpen || sidebarSearch
+                  ? "text-[var(--accent-text)] bg-[var(--accent-subtle)]"
+                  : "text-[#71778c] hover:text-white hover:bg-white/5"
+                  }`}
               >
                 <Search className="w-3.5 h-3.5" />
               </button>
@@ -638,11 +640,10 @@ export const Sidebar = React.memo(function Sidebar({
                     role="tab"
                     aria-selected={isActive}
                     onClick={() => setFilterMode(pill.id)}
-                    className={`relative z-10 py-1 text-[10px] font-semibold rounded-md transition-colors cursor-pointer ${
-                      isActive
-                        ? "text-[var(--accent-text)] font-bold"
-                        : "text-[#7b8196] hover:text-white"
-                    }`}
+                    className={`relative z-10 py-1 text-[10px] font-semibold rounded-md transition-colors cursor-pointer ${isActive
+                      ? "text-[var(--accent-text)] font-bold"
+                      : "text-[#7b8196] hover:text-white"
+                      }`}
                   >
                     {pill.label}
                   </button>
@@ -702,8 +703,8 @@ export const Sidebar = React.memo(function Sidebar({
                 {sidebarSearch
                   ? `Nenhum item para "${sidebarSearch}".`
                   : filterMode === "albums"
-                  ? "Nenhum álbum encontrado."
-                  : "Nenhum item na coleção."}
+                    ? "Nenhum álbum encontrado."
+                    : "Nenhum item na coleção."}
               </div>
             ) : (
               <>
@@ -740,13 +741,11 @@ export const Sidebar = React.memo(function Sidebar({
                           key={`${item.kind}-${item.id}`}
                           data-pinned-row-index={idx}
                           onClick={() => handleSelectItem(item)}
-                          className={`w-full flex items-center justify-between gap-1.5 px-2 py-1.5 rounded-lg text-xs transition-all cursor-pointer group relative ${
-                            isDraggingThis ? "opacity-35 scale-[0.98] " : ""
-                          }${
-                            isSelected
+                          className={`w-full flex items-center justify-between gap-1.5 px-2 py-1.5 rounded-lg text-xs transition-all cursor-pointer group relative ${isDraggingThis ? "opacity-35 scale-[0.98] " : ""
+                            }${isSelected
                               ? "bg-[#1a1d28] text-white font-semibold border border-[var(--accent-border)]"
                               : "text-[#c4c8d8] hover:text-white hover:bg-white/5 border border-transparent"
-                          }`}
+                            }`}
                         >
                           {showDropBefore && (
                             <div className="absolute -top-0.5 left-2 right-2 h-0.5 bg-[var(--accent)] rounded-full pointer-events-none z-20 shadow-[0_0_8px_var(--accent)]" />
@@ -796,13 +795,12 @@ export const Sidebar = React.memo(function Sidebar({
                             <div className="min-w-0 flex-1">
                               <p
                                 title={item.title}
-                                className={`truncate text-xs leading-tight ${
-                                  isActivePlaying
-                                    ? "text-[var(--accent-text)] font-bold"
-                                    : isSelected
+                                className={`truncate text-xs leading-tight ${isActivePlaying
+                                  ? "text-[var(--accent-text)] font-bold"
+                                  : isSelected
                                     ? "text-white font-semibold"
                                     : "text-[#d5d9e8] font-medium group-hover:text-white"
-                                }`}
+                                  }`}
                               >
                                 {item.title}
                               </p>
@@ -875,11 +873,10 @@ export const Sidebar = React.memo(function Sidebar({
                     <div
                       key={`${item.kind}-${item.id}`}
                       onClick={() => handleSelectItem(item)}
-                      className={`w-full flex items-center justify-between gap-1.5 px-2 py-1.5 rounded-lg text-xs transition-all cursor-pointer group ${
-                        isSelected
-                          ? "bg-[#1a1d28] text-white font-semibold border border-[var(--accent-border)]"
-                          : "text-[#8c91a4] hover:text-white hover:bg-white/5 border border-transparent"
-                      }`}
+                      className={`w-full flex items-center justify-between gap-1.5 px-2 py-1.5 rounded-lg text-xs transition-all cursor-pointer group ${isSelected
+                        ? "bg-[#1a1d28] text-white font-semibold border border-[var(--accent-border)]"
+                        : "text-[#8c91a4] hover:text-white hover:bg-white/5 border border-transparent"
+                        }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0 flex-1">
                         <SidebarItemThumbnail
@@ -893,13 +890,12 @@ export const Sidebar = React.memo(function Sidebar({
                         <div className="min-w-0 flex-1">
                           <p
                             title={item.title}
-                            className={`truncate text-xs leading-tight ${
-                              isActivePlaying
-                                ? "text-[var(--accent-text)] font-bold"
-                                : isSelected
+                            className={`truncate text-xs leading-tight ${isActivePlaying
+                              ? "text-[var(--accent-text)] font-bold"
+                              : isSelected
                                 ? "text-white font-semibold"
                                 : "text-[#c4c8d8] font-medium group-hover:text-white"
-                            }`}
+                              }`}
                           >
                             {item.title}
                           </p>
@@ -949,11 +945,10 @@ export const Sidebar = React.memo(function Sidebar({
                 />
               ) : (
                 <span
-                  className={`w-2 h-2 rounded-full shrink-0 ${
-                    auth?.is_authenticated
-                      ? "bg-emerald-400 shadow-[0_0_8px_#34d399]"
-                      : "bg-amber-400"
-                  }`}
+                  className={`w-2 h-2 rounded-full shrink-0 ${auth?.is_authenticated
+                    ? "bg-emerald-400 shadow-[0_0_8px_#34d399]"
+                    : "bg-amber-400"
+                    }`}
                 />
               )}
               <div className="min-w-0">
