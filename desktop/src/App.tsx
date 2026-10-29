@@ -962,35 +962,60 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
                     />
                   ) : (
                     <div className="space-y-6">
-                      {/* Segmented Control da Biblioteca: Playlists vs Álbuns */}
+                      {/* Segmented Control da Biblioteca: Playlists vs Álbuns (Animação de Slide 144 FPS) */}
                       <div className="flex items-center justify-between pb-2 border-b border-white/5">
-                        <div className="flex items-center gap-1.5 p-1 bg-white/[0.03] border border-white/10 rounded-xl">
+                        <div className="relative inline-flex items-center p-1 bg-[#12141f] border border-[#272c3f] rounded-xl select-none">
+                          {/* Sliding indicator pill (mantém a mesma cor de destaque do tema ativo) */}
+                          <div
+                            className="absolute top-1 bottom-1 w-36 rounded-lg bg-[var(--accent)] shadow-md shadow-[var(--accent-glow)] transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] pointer-events-none"
+                            style={{
+                              transform:
+                                librarySection === "playlists"
+                                  ? "translate3d(0px, 0, 0)"
+                                  : "translate3d(144px, 0, 0)",
+                            }}
+                          />
+
                           <button
+                            type="button"
                             onClick={() => setLibrarySection("playlists")}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+                            className={`relative z-10 w-36 flex items-center justify-center gap-2 py-2 text-xs font-semibold transition-colors duration-200 cursor-pointer ${
                               librarySection === "playlists"
-                                ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-lg shadow-emerald-500/10"
-                                : "text-neutral-400 hover:text-white hover:bg-white/5 border border-transparent"
+                                ? "text-white font-bold"
+                                : "text-[#8c91a4] hover:text-white"
                             }`}
                           >
                             <ListMusic className="w-4 h-4" />
-                            Playlists
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/10 text-neutral-300">
+                            <span>Playlists</span>
+                            <span
+                              className={`text-[10px] px-1.5 py-0.5 rounded-full transition-colors ${
+                                librarySection === "playlists"
+                                  ? "bg-white/20 text-white font-bold"
+                                  : "bg-white/5 text-[#8c91a4]"
+                              }`}
+                            >
                               {playlists.length}
                             </span>
                           </button>
 
                           <button
+                            type="button"
                             onClick={() => setLibrarySection("albums")}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+                            className={`relative z-10 w-36 flex items-center justify-center gap-2 py-2 text-xs font-semibold transition-colors duration-200 cursor-pointer ${
                               librarySection === "albums"
-                                ? "bg-purple-500/20 text-purple-400 border border-purple-500/30 shadow-lg shadow-purple-500/10"
-                                : "text-neutral-400 hover:text-white hover:bg-white/5 border border-transparent"
+                                ? "text-white font-bold"
+                                : "text-[#8c91a4] hover:text-white"
                             }`}
                           >
                             <Disc3 className="w-4 h-4" />
-                            Álbuns
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/10 text-neutral-300">
+                            <span>Álbuns</span>
+                            <span
+                              className={`text-[10px] px-1.5 py-0.5 rounded-full transition-colors ${
+                                librarySection === "albums"
+                                  ? "bg-white/20 text-white font-bold"
+                                  : "bg-white/5 text-[#8c91a4]"
+                              }`}
+                            >
                               {albums.length}
                             </span>
                           </button>

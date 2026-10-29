@@ -596,7 +596,7 @@ export function PlayerProvider({
     // Dispara quando faltar 20 segundos ou passar de 88% da faixa atual
     if (currentTime / duration >= 0.88 || duration - currentTime <= 20) {
       prefetchedTrackIdRef.current = nextTrack.id;
-      prefetchTrackLyrics(nextTrack).catch(() => {});
+      prefetchTrackLyrics(nextTrack).catch(() => { });
       prefetchArtworkColors(nextTrack);
 
       // Se rádio contínua estiver ativa e a fila estiver no fim, antecipa a busca
@@ -610,7 +610,7 @@ export function PlayerProvider({
               });
             }
           })
-          .catch(() => {});
+          .catch(() => { });
       }
     }
   }, [currentTime, duration, upcomingTracks]);

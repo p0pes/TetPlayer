@@ -10,6 +10,8 @@ import {
   SearchX,
   Edit3,
   Trash2,
+  ChevronDown,
+  Check,
 } from "lucide-react";
 import { Playlist, Track } from "../../types";
 import { VirtualizedTrackList } from "./VirtualizedTrackList";
@@ -21,6 +23,22 @@ export type PlaylistSortOption =
   | "artist"
   | "duration_desc"
   | "duration_asc";
+
+const sortOptions: { value: PlaylistSortOption; label: string }[] = [
+  { value: "original", label: "Ordem Original" },
+  { value: "title", label: "Título (A-Z)" },
+  { value: "artist", label: "Artista (A-Z)" },
+  { value: "duration_desc", label: "Duração (Mais longas)" },
+  { value: "duration_asc", label: "Duração (Mais curtas)" },
+];
+
+const sortOptionLabels: Record<PlaylistSortOption, string> = {
+  original: "Ordem Original",
+  title: "Título (A-Z)",
+  artist: "Artista (A-Z)",
+  duration_desc: "Duração (Mais longas)",
+  duration_asc: "Duração (Mais curtas)",
+};
 
 function parseDurationToSeconds(duration?: string, durationSeconds?: number): number {
   if (typeof durationSeconds === "number" && !isNaN(durationSeconds)) {
@@ -68,14 +86,39 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
   const [hasImageError, setHasImageError] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
   const [sortBy, setSortBy] = useState<PlaylistSortOption>("original");
+  const [isSortOpen, setIsSortOpen] = useState(false);
   const filterInputRef = useRef<HTMLInputElement>(null);
+  const sortRef = useRef<HTMLDivElement>(null);
 
   // Reseta busca e ordenação quando o usuário muda de playlist
   useEffect(() => {
     setHasImageError(false);
     setSearchFilter("");
     setSortBy("original");
+    setIsSortOpen(false);
   }, [playlist.id]);
+
+  // Fecha dropdown de ordenação ao clicar fora ou apertar Escape
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (sortRef.current && !sortRef.current.contains(e.target as Node)) {
+        setIsSortOpen(false);
+      }
+    }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setIsSortOpen(false);
+      }
+    }
+    if (isSortOpen) {
+      window.addEventListener("mousedown", handleClickOutside);
+      window.addEventListener("keydown", handleKeyDown);
+    }
+    return () => {
+      window.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isSortOpen]);
 
   // Atalho global Ctrl+F / Cmd+F para focar imediatamente o campo de filtro
   useEffect(() => {
@@ -253,25 +296,84 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
 
           {/* Controles de Ordenação e Contador */}
           <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
-            {/* Seletor de Ordenação */}
-            <div className="flex items-center gap-1.5 text-xs text-[#8c91a4]">
+            {/* Seletor de Ordenação Customizado */}
+            <div ref={sortRef} className="relative flex items-center gap-1.5 text-xs text-[#8c91a4]">
               <ArrowUpDown className="w-3.5 h-3.5 text-[#6c7287] shrink-0" />
               <label htmlFor="playlist-sort-select" className="hidden md:inline text-[11px] font-medium text-[#6c7287]">
                 Ordenar por:
               </label>
+
+              {/* Select acessível invisível para leitores de tela e testes automatizados */}
               <select
                 id="playlist-sort-select"
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as PlaylistSortOption)}
                 aria-label="Ordenar músicas da playlist"
-                className="bg-[#181c28] text-[#d1d5db] border border-[#272d40] hover:border-[#384056] rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-[var(--accent)] transition-colors cursor-pointer"
+                className="sr-only"
+                tabIndex={-1}
+                aria-hidden="true"
               >
-                <option value="original">Ordem Original</option>
-                <option value="title">Título (A-Z)</option>
-                <option value="artist">Artista (A-Z)</option>
-                <option value="duration_desc">Duração (Mais longas)</option>
-                <option value="duration_asc">Duração (Mais curtas)</option>
+                {sortOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
               </select>
+
+              {/* Botão de Gatilho do Dropdown Customizado */}
+              <button
+                type="button"
+                onClick={() => setIsSortOpen((prev) => !prev)}
+                className={`flex items-center gap-2 bg-[#181c28] text-[#d1d5db] hover:text-white border rounded-xl px-2.5 py-1.5 text-xs font-medium transition-all cursor-pointer select-none ${
+                  isSortOpen
+                    ? "border-[var(--accent)] shadow-md shadow-[var(--accent-glow)] bg-[#1e2334]"
+                    : "border-[#272d40] hover:border-[#384056] hover:bg-[#1c202e]"
+                }`}
+                aria-haspopup="listbox"
+                aria-expanded={isSortOpen}
+              >
+                <span>{sortOptionLabels[sortBy]}</span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 text-[#8c91a4] transition-transform duration-200 ${
+                    isSortOpen ? "rotate-180 text-[var(--accent-text)]" : ""
+                  }`}
+                />
+              </button>
+
+              {/* Menu Flutuante Customizado (Substitui gaveta nativa do Windows) */}
+              {isSortOpen && (
+                <div
+                  role="listbox"
+                  aria-label="Opções de ordenação"
+                  className="absolute right-0 top-full mt-1.5 z-50 min-w-[195px] bg-[#12141f]/95 backdrop-blur-2xl border border-[#272c3f] rounded-2xl shadow-2xl p-1.5 flex flex-col gap-0.5 select-none animate-in fade-in zoom-in-95 duration-100"
+                >
+                  {sortOptions.map((opt) => {
+                    const isSelected = sortBy === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        role="option"
+                        aria-selected={isSelected}
+                        onClick={() => {
+                          setSortBy(opt.value);
+                          setIsSortOpen(false);
+                        }}
+                        className={`flex items-center justify-between gap-3 px-3 py-1.5 rounded-xl text-xs font-medium transition-all cursor-pointer text-left ${
+                          isSelected
+                            ? "bg-[var(--accent-subtle)] text-white border border-[var(--accent-border)] font-semibold shadow-sm"
+                            : "text-[#c4c8d8] hover:text-white hover:bg-white/5 border border-transparent"
+                        }`}
+                      >
+                        <span>{opt.label}</span>
+                        {isSelected && (
+                          <Check className="w-3.5 h-3.5 text-[var(--accent-text)] shrink-0" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Contador de Músicas */}

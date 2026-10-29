@@ -52,11 +52,10 @@ export const TrackRow = React.memo(function TrackRow({
     <div
       onClick={handleClick}
       onContextMenu={handleContextMenu}
-      className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer group ${
-        isCurrent
+      className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer group ${isCurrent
           ? "bg-[#1c202d] border-[var(--accent)]"
           : "bg-[#12141c] border-[#1f232e] hover:bg-[#171a24] hover:border-[#2b3040]"
-      }`}
+        }`}
     >
       <div className="flex items-center gap-3.5 min-w-0 flex-1">
         <span className="w-6 text-center text-xs font-mono text-[#5e6479] shrink-0">
@@ -117,11 +116,10 @@ export const TrackRow = React.memo(function TrackRow({
         <button
           onClick={handleClick}
           aria-label={isCurrent && isPlaying ? `Pausar ${track.title}` : `Tocar ${track.title}`}
-          className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-            isCurrent && isPlaying
+          className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${isCurrent && isPlaying
               ? "bg-[var(--accent)] text-white shadow-md shadow-[var(--accent-glow)]"
               : "bg-[#1a1d28] text-white group-hover:bg-[var(--accent)]"
-          }`}
+            }`}
         >
           {isLoadingThis ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />

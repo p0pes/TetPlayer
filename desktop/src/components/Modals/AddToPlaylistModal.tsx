@@ -239,3 +239,4 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
     </div>
   );
 };
+
