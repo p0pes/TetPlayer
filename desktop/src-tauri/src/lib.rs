@@ -17,6 +17,7 @@ use ytm::{
     get_radio_tracks as fetch_radio_tracks, get_stream_info as fetch_stream_info,
     get_user_playlists as fetch_user_playlists, get_user_albums as fetch_user_albums,
     get_album_details as fetch_album_details, search_album_by_name as fetch_search_album_by_name,
+    search_albums as fetch_search_albums,
     get_artist_details as fetch_artist_details,
     search_music, Album, AlbumDetail, ArtistDetail, LyricsData, Playlist, StreamInfo, Track,
 };
@@ -323,6 +324,15 @@ async fn search_album_by_name(
 ) -> Result<Option<Album>, String> {
     let session = { state.session.lock().unwrap().clone() };
     fetch_search_album_by_name(&session, &query).await
+}
+
+#[tauri::command]
+async fn search_albums(
+    state: State<'_, AppState>,
+    query: String,
+) -> Result<Vec<Album>, String> {
+    let session = { state.session.lock().unwrap().clone() };
+    fetch_search_albums(&session, &query).await
 }
 
 #[tauri::command]
@@ -912,6 +922,7 @@ pub fn run() {
             get_user_albums,
             get_album_details,
             search_album_by_name,
+            search_albums,
             get_artist_details,
             get_radio_tracks,
             get_stream_info,

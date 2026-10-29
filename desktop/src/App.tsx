@@ -256,6 +256,7 @@ function AppContent({
   // Busca
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Track[]>([]);
+  const [searchAlbums, setSearchAlbums] = useState<Album[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
@@ -668,8 +669,12 @@ function AppContent({
             setActiveTab("search");
             setIsSearching(true);
             setHasSearched(true);
-            const res = await invoke<Track[]>("search_tracks", { query: albumTitle });
+            const [res, albRes] = await Promise.all([
+              invoke<Track[]>("search_tracks", { query: albumTitle }),
+              invoke<Album[]>("search_albums", { query: albumTitle }).catch(() => [] as Album[]),
+            ]);
             setSearchResults(res);
+            setSearchAlbums(albRes);
           }
         } catch (err) {
           setErrorMessage(`Álbum não encontrado: ${String(err)}`);
@@ -1015,8 +1020,15 @@ function AppContent({
     setActiveTab("search");
     setErrorMessage(null);
     try {
-      const res = await invoke<Track[]>("search_tracks", { query: searchQuery });
-      setSearchResults(res);
+      const [tracks, albums] = await Promise.all([
+        invoke<Track[]>("search_tracks", { query: searchQuery }),
+        invoke<Album[]>("search_albums", { query: searchQuery }).catch((err) => {
+          console.warn("Falha ao buscar álbuns:", err);
+          return [] as Album[];
+        }),
+      ]);
+      setSearchResults(tracks);
+      setSearchAlbums(albums);
     } catch (err) {
       setErrorMessage(`Erro na busca: ${String(err)}`);
     } finally {
@@ -1840,12 +1852,18 @@ function AppContent({
                     setSearchQuery(q);
                     if (!q.trim()) {
                       setSearchResults([]);
+                      setSearchAlbums([]);
                       setHasSearched(false);
                     }
                   }}
                   onSearch={handleSearch}
                   isSearching={isSearching}
                   searchResults={searchResults}
+                  searchAlbums={searchAlbums}
+                  onSelectAlbum={handleSelectAlbum}
+                  onPlayAlbumQuick={handlePlayAlbumQuick}
+                  pinnedAlbumIds={pinnedPlaylistIds}
+                  onTogglePinAlbum={handleTogglePinPlaylist}
                   currentTrack={currentTrack}
                   isPlaying={isPlaying}
                   loadingTrackId={loadingTrackId}

@@ -957,34 +957,62 @@ fn parse_responsive_item(item: &Value) -> Option<Track> {
     let mut artist = "Artista".to_string();
     let mut album = None;
     let mut duration = None;
-
-    if flex_columns.len() > 1 {
-        if let Some(runs) = flex_columns[1]["musicResponsiveListItemFlexColumnRenderer"]["text"]["runs"].as_array() {
-            let texts: Vec<&str> = runs.iter().filter_map(|r| r["text"].as_str()).collect();
-            if let Some(first) = texts.first() {
-                artist = first.to_string();
-            }
-            if texts.len() > 2 {
-                album = Some(texts[2].to_string());
-            }
-            if let Some(last) = texts.last() {
-                if last.contains(':') {
-                    duration = Some(last.to_string());
-                }
-            }
-        }
-    }
-
     let mut artist_id = None;
     let mut album_id = None;
+
     if flex_columns.len() > 1 {
         if let Some(runs) = flex_columns[1]["musicResponsiveListItemFlexColumnRenderer"]["text"]["runs"].as_array() {
             for r in runs {
+                let txt = r["text"].as_str().unwrap_or("").trim();
                 if let Some(b_id) = r["navigationEndpoint"]["browseEndpoint"]["browseId"].as_str() {
                     if b_id.starts_with("UC") && artist_id.is_none() {
+                        artist = txt.to_string();
                         artist_id = Some(b_id.to_string());
                     } else if (b_id.starts_with("MPREb_") || b_id.starts_with("OLAK5uy_")) && album_id.is_none() {
+                        album = Some(txt.to_string());
                         album_id = Some(b_id.to_string());
+                    }
+                }
+                if duration.is_none() && txt.contains(':') && txt.len() <= 8 && !txt.contains(' ') {
+                    duration = Some(txt.to_string());
+                }
+            }
+
+            // Fallback se não encontrou via browseEndpoint:
+            if artist == "Artista" || album.is_none() {
+                let mut sections: Vec<String> = Vec::new();
+                let mut current_sec = String::new();
+                for r in runs {
+                    let txt = r["text"].as_str().unwrap_or("");
+                    if txt.trim() == "•" {
+                        if !current_sec.trim().is_empty() {
+                            sections.push(current_sec.trim().to_string());
+                            current_sec.clear();
+                        }
+                    } else {
+                        current_sec.push_str(txt);
+                    }
+                }
+                if !current_sec.trim().is_empty() {
+                    sections.push(current_sec.trim().to_string());
+                }
+
+                let valid_secs: Vec<&String> = sections
+                    .iter()
+                    .filter(|s| {
+                        let lower = s.to_lowercase();
+                        lower != "música" && lower != "musica" && lower != "song" && lower != "canção" && lower != "cancao" && lower != "vídeo" && lower != "video" && !(s.contains(':') && s.len() <= 8)
+                    })
+                    .collect();
+
+                if artist == "Artista" {
+                    if let Some(first_artist) = valid_secs.first() {
+                        artist = (*first_artist).clone();
+                    }
+                }
+                if album.is_none() {
+                    if valid_secs.len() > 1 {
+                        album = Some((*valid_secs[1]).clone());
                     }
                 }
             }
@@ -2210,7 +2238,7 @@ pub async fn get_album_details(session: &AuthSession, browse_id: &str) -> Result
     })
 }
 
-pub async fn search_album_by_name(session: &AuthSession, query: &str) -> Result<Option<Album>, String> {
+pub async fn search_albums(session: &AuthSession, query: &str) -> Result<Vec<Album>, String> {
     let client = &HTTP_CLIENT;
     let url = "https://music.youtube.com/youtubei/v1/search?prettyPrint=false";
     let headers = build_headers(session, "WEB_REMIX");
@@ -2228,44 +2256,49 @@ pub async fn search_album_by_name(session: &AuthSession, query: &str) -> Result<
         "params": "EgWKAQIYAWoKEAkQBRAKEAMQBA%3D%3D"
     });
 
+    let mut albums = Vec::new();
+
     if let Ok(resp) = client.post(url).headers(headers.clone()).json(&payload).send().await {
         if resp.status().is_success() {
             if let Ok(json_val) = resp.json::<Value>().await {
-                let mut albums = Vec::new();
                 extract_albums_from_value(&json_val, &mut albums);
-                if let Some(first) = albums.into_iter().next() {
-                    return Ok(Some(first));
+            }
+        }
+    }
+
+    // Fallback de busca caso params restrito não retorne nada
+    if albums.is_empty() {
+        let fallback_payload = json!({
+            "context": {
+                "client": {
+                    "clientName": "WEB_REMIX",
+                    "clientVersion": "1.20240401.01.00",
+                    "hl": "pt",
+                    "gl": "BR"
+                }
+            },
+            "query": format!("{query} album")
+        });
+
+        if let Ok(resp) = client.post(url).headers(headers).json(&fallback_payload).send().await {
+            if resp.status().is_success() {
+                if let Ok(json_val) = resp.json::<Value>().await {
+                    extract_albums_from_value(&json_val, &mut albums);
                 }
             }
         }
     }
 
-    // Fallback de busca caso params restrito não retorne
-    let fallback_payload = json!({
-        "context": {
-            "client": {
-                "clientName": "WEB_REMIX",
-                "clientVersion": "1.20240401.01.00",
-                "hl": "pt",
-                "gl": "BR"
-            }
-        },
-        "query": format!("{query} album")
-    });
+    // Deduplicação estrita por id de álbum
+    let mut seen = std::collections::HashSet::new();
+    albums.retain(|a| seen.insert(a.id.clone()));
 
-    if let Ok(resp) = client.post(url).headers(headers).json(&fallback_payload).send().await {
-        if resp.status().is_success() {
-            if let Ok(json_val) = resp.json::<Value>().await {
-                let mut albums = Vec::new();
-                extract_albums_from_value(&json_val, &mut albums);
-                if let Some(first) = albums.into_iter().next() {
-                    return Ok(Some(first));
-                }
-            }
-        }
-    }
+    Ok(albums)
+}
 
-    Ok(None)
+pub async fn search_album_by_name(session: &AuthSession, query: &str) -> Result<Option<Album>, String> {
+    let albums = search_albums(session, query).await?;
+    Ok(albums.into_iter().next())
 }
 
 pub fn extract_artist_browse_id_from_search(val: &Value, target_name: &str) -> Option<String> {
