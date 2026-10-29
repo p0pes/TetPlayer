@@ -226,7 +226,17 @@ export const StatsView = React.memo(function StatsView({ onPlayTrack }: StatsVie
                   return (
                     <div
                       key={`artist-${artist.artist}-${idx}`}
-                      className="p-3 rounded-xl bg-[#12141c] border border-[#1f232e] hover:border-[#2f3548] transition-all flex items-center justify-between"
+                      onClick={() => {
+                        if (artist.artist) {
+                          window.dispatchEvent(
+                            new CustomEvent("tetplayer:search-artist", {
+                              detail: { query: artist.artist },
+                            })
+                          );
+                        }
+                      }}
+                      title={`Ir para o artista ${artist.artist}`}
+                      className="p-3 rounded-xl bg-[#12141c] border border-[#1f232e] hover:border-[var(--accent-border)] hover:bg-[#161925] transition-all flex items-center justify-between cursor-pointer group"
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <span

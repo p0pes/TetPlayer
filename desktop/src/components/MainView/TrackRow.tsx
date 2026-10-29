@@ -141,13 +141,13 @@ export const TrackRow = React.memo(function TrackRow({
                 if (track.artist) {
                   window.dispatchEvent(
                     new CustomEvent("tetplayer:search-artist", {
-                      detail: { query: track.artist },
+                      detail: { query: track.artist, artistId: track.artist_id },
                     })
                   );
                 }
               }}
               className="hover:text-white hover:underline cursor-pointer transition-colors"
-              title={`Buscar músicas de ${track.artist}`}
+              title={`Ir para o artista ${track.artist}`}
             >
               {track.artist}
             </span>

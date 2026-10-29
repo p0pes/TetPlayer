@@ -16,7 +16,7 @@ import {
   Plus,
   RefreshCw,
 } from "lucide-react";
-import { Playlist, Track, AuthSession, ActiveTab, Album, AlbumDetail } from "./types";
+import { Playlist, Track, AuthSession, ActiveTab, Album, AlbumDetail, ArtistDetail } from "./types";
 import { LocalCacheService } from "./services/cache";
 import { PlayerProvider, usePlayer } from "./context/PlayerContext";
 import { TitleBar } from "./components/TitleBar/TitleBar";
@@ -25,6 +25,7 @@ import { PlaylistGridView, LibrarySortOption } from "./components/MainView/Playl
 import { PlaylistDetailView } from "./components/MainView/PlaylistDetailView";
 import { AlbumGridView } from "./components/MainView/AlbumGridView";
 import { AlbumDetailView } from "./components/MainView/AlbumDetailView";
+import { ArtistDetailView } from "./components/MainView/ArtistDetailView";
 import { GridDensity } from "./components/MainView/AlbumCard";
 import { LibraryOverview } from "./components/MainView/LibraryOverview";
 import { SearchView } from "./components/MainView/SearchView";
@@ -240,6 +241,11 @@ function AppContent({
   const [albumDetail, setAlbumDetail] = useState<AlbumDetail | null>(null);
   const [isLoadingAlbumDetail, setIsLoadingAlbumDetail] = useState(false);
 
+  // Artista & Perfil Dedicado (com Cache Local Stale-While-Revalidate)
+  const [selectedArtist, setSelectedArtist] = useState<{ id?: string; name: string } | null>(null);
+  const [artistDetail, setArtistDetail] = useState<ArtistDetail | null>(null);
+  const [isLoadingArtistDetail, setIsLoadingArtistDetail] = useState(false);
+
   // Busca
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Track[]>([]);
@@ -357,27 +363,6 @@ function AppContent({
     };
   }, []);
 
-  // Escuta busca automática de artista via Menu de Contexto (Sugestão 2.2)
-  useEffect(() => {
-    function handleSearchArtistEvent(e: Event) {
-      const customEvent = e as CustomEvent<{ query: string }>;
-      const artist = customEvent.detail?.query;
-      if (artist) {
-        setSearchQuery(artist);
-        setActiveTab("search");
-        setIsSearching(true);
-        setHasSearched(true);
-        invoke<Track[]>("search_tracks", { query: artist })
-          .then((res) => setSearchResults(res))
-          .catch((err) => setErrorMessage(`Erro na busca: ${String(err)}`))
-          .finally(() => setIsSearching(false));
-      }
-    }
-
-    window.addEventListener("tetplayer:search-artist", handleSearchArtistEvent);
-    return () => window.removeEventListener("tetplayer:search-artist", handleSearchArtistEvent);
-  }, [setErrorMessage]);
-
   async function loadAuthStatus() {
     setIsCheckingAuth(true);
     try {
@@ -468,6 +453,8 @@ function AppContent({
     setSelectedPlaylist(playlist);
     setSelectedAlbum(null);
     setAlbumDetail(null);
+    setSelectedArtist(null);
+    setArtistDetail(null);
     setActiveTab("library");
     closeNowPlaying();
 
@@ -505,6 +492,8 @@ function AppContent({
     if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
     setSelectedAlbum(album);
     setSelectedPlaylist(null);
+    setSelectedArtist(null);
+    setArtistDetail(null);
     setActiveTab("library");
     closeNowPlaying();
 
@@ -550,6 +539,64 @@ function AppContent({
       setIsLoadingAlbumDetail(false);
     }
   }, [mainScrollRef, playlistScrollPosRef, setErrorMessage, closeNowPlaying]);
+
+  // Selecionar Artista com Stale-While-Revalidate (0ms instant display)
+  const handleSelectArtist = useCallback(
+    async (artist: { id?: string; name: string }) => {
+      if (!artist.name || artist.name === "Artista") return;
+      if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
+      setSelectedArtist(artist);
+      setActiveTab("library");
+      closeNowPlaying();
+
+      const cacheKey = artist.id || artist.name.trim().toLowerCase();
+      const cached = LocalCacheService.getCachedArtistDetail(cacheKey);
+      if (cached) {
+        setArtistDetail(cached);
+      } else {
+        setArtistDetail(null);
+      }
+
+      setIsLoadingArtistDetail(true);
+      setErrorMessage(null);
+
+      try {
+        const detail = await invoke<ArtistDetail>("get_artist_details", {
+          artistId: artist.id || null,
+          artistName: artist.name,
+        });
+        setArtistDetail(detail);
+        LocalCacheService.saveCachedArtistDetail(cacheKey, detail);
+        if (detail.id) {
+          LocalCacheService.saveCachedArtistDetail(detail.id, detail);
+        }
+      } catch (err) {
+        if (cached) {
+          console.warn("Falha ao revalidar artista pela rede, mantendo cache local offline:", err);
+        } else {
+          setErrorMessage(`Erro ao carregar informações do artista: ${String(err)}`);
+        }
+      } finally {
+        setIsLoadingArtistDetail(false);
+      }
+    },
+    [mainScrollRef, setErrorMessage, closeNowPlaying]
+  );
+
+  // Escuta evento de abertura de perfil do artista
+  useEffect(() => {
+    function handleSearchArtistEvent(e: Event) {
+      const customEvent = e as CustomEvent<{ query: string; artistId?: string }>;
+      const artist = customEvent.detail?.query;
+      const artistId = customEvent.detail?.artistId;
+      if (artist) {
+        handleSelectArtist({ id: artistId, name: artist });
+      }
+    }
+
+    window.addEventListener("tetplayer:search-artist", handleSearchArtistEvent);
+    return () => window.removeEventListener("tetplayer:search-artist", handleSearchArtistEvent);
+  }, [handleSelectArtist]);
 
   // Escuta evento de abertura de álbum (via Menu de Contexto ou Drawer)
   useEffect(() => {
@@ -957,9 +1004,18 @@ function AppContent({
     closeNowPlaying();
   }, [mainScrollRef, playlistScrollPosRef, closeNowPlaying]);
 
+  const handleBackFromArtist = useCallback(() => {
+    if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
+    setSelectedArtist(null);
+    setArtistDetail(null);
+    closeNowPlaying();
+  }, [mainScrollRef, closeNowPlaying]);
+
   const handleSidebarTabChange = useCallback((tab: ActiveTab) => {
     playlistScrollPosRef.current = 0;
     setActiveTab(tab);
+    setSelectedArtist(null);
+    setArtistDetail(null);
     if (tab === "library") {
       setSelectedPlaylist(null);
       setSelectedAlbum(null);
@@ -1310,7 +1366,32 @@ function AppContent({
             >
               {activeTab === "library" && (
                 <>
-                  {selectedPlaylist ? (
+                  {selectedArtist ? (
+                    <ArtistDetailView
+                      artistName={selectedArtist.name}
+                      artistId={selectedArtist.id}
+                      artistDetail={artistDetail}
+                      isLoading={isLoadingArtistDetail}
+                      currentTrack={currentTrack}
+                      isPlaying={isPlaying}
+                      loadingTrackId={loadingTrackId}
+                      onBack={handleBackFromArtist}
+                      onPlayArtistTracks={handlePlayAlbum}
+                      onPlayTrack={(track, idx, customQueue) =>
+                        playTrackWithQueue(
+                          track,
+                          customQueue || artistDetail?.tracks || [track],
+                          idx,
+                          artistDetail?.id || selectedArtist.id
+                        )
+                      }
+                      onTogglePlayPause={togglePlayPause}
+                      onSelectAlbum={handleSelectAlbum}
+                      onPlayAlbumQuick={handlePlayAlbumQuick}
+                      pinnedAlbumIds={pinnedPlaylistIds}
+                      onTogglePinAlbum={handleTogglePinPlaylist}
+                    />
+                  ) : selectedPlaylist ? (
                     <PlaylistDetailView
                       playlist={selectedPlaylist}
                       tracks={playlistTracks}

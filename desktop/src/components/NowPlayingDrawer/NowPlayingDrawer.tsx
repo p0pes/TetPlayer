@@ -166,7 +166,24 @@ export function NowPlayingDrawer() {
             <h2 className="text-lg sm:text-xl font-extrabold text-white tracking-tight truncate drop-shadow-md">
               {currentTrack?.title || "Nenhuma faixa selecionada"}
             </h2>
-            <p className="text-sm font-semibold text-[var(--accent-text)] mt-1 truncate">
+            <p
+              onClick={() => {
+                if (currentTrack?.artist) {
+                  window.dispatchEvent(
+                    new CustomEvent("tetplayer:search-artist", {
+                      detail: {
+                        query: currentTrack.artist,
+                        artistId: currentTrack.artist_id,
+                      },
+                    })
+                  );
+                }
+              }}
+              title={currentTrack?.artist ? `Ir para o artista ${currentTrack.artist}` : undefined}
+              className={`text-sm font-semibold text-[var(--accent-text)] mt-1 truncate ${
+                currentTrack?.artist ? "hover:underline cursor-pointer transition-colors" : ""
+              }`}
+            >
               {currentTrack?.artist || "TetPlayer"}
             </p>
             {currentTrack?.album && (

@@ -144,7 +144,7 @@ export function TrackContextMenu({
 
   function onSearchMoreArtist() {
     if (!track) return;
-    searchArtist(track.artist);
+    searchArtist(track.artist, track.artist_id);
     onClose();
   }
 
@@ -293,7 +293,7 @@ export function TrackContextMenu({
           className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-[#c4c8d8] hover:text-white hover:bg-[#1a1e2e] transition-all cursor-pointer group text-left"
         >
           <Search className="w-4 h-4 text-[#8c91a4] group-hover:text-white shrink-0" />
-          <span className="truncate">Buscar mais de {track.artist}</span>
+          <span className="truncate">Ir para o artista ({track.artist})</span>
         </button>
       </div>
 

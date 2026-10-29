@@ -95,7 +95,29 @@ export const PlayerBar = memo(function PlayerBar() {
             </p>
           </div>
           <p className="text-[11px] text-[#8c91a4] truncate">
-            {currentTrack?.artist || "Escolha uma playlist para tocar"}
+            <span
+              onClick={(e) => {
+                if (currentTrack?.artist) {
+                  e.stopPropagation();
+                  window.dispatchEvent(
+                    new CustomEvent("tetplayer:search-artist", {
+                      detail: {
+                        query: currentTrack.artist,
+                        artistId: currentTrack.artist_id,
+                      },
+                    })
+                  );
+                }
+              }}
+              title={currentTrack?.artist ? `Ir para o artista ${currentTrack.artist}` : undefined}
+              className={
+                currentTrack?.artist
+                  ? "hover:text-white hover:underline cursor-pointer transition-colors"
+                  : ""
+              }
+            >
+              {currentTrack?.artist || "Escolha uma playlist para tocar"}
+            </span>
           </p>
         </div>
       </div>

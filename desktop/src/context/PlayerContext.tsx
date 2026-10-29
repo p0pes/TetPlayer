@@ -84,7 +84,7 @@ interface PlayerContextType {
   handleAddToQueue: (track: Track) => void;
   handleAddTracksToQueue: (tracks: Track[]) => void;
   handleStartRadio: (track: Track) => void;
-  searchArtist: (artist: string) => void;
+  searchArtist: (artist: string, artistId?: string) => void;
   openContextMenu: (e: React.MouseEvent, track: Track, playlistId?: string) => void;
   closeContextMenu: () => void;
 
@@ -549,12 +549,14 @@ export function PlayerProvider({
       });
   }
 
-  function searchArtist(artist: string) {
+  function searchArtist(artist: string, artistId?: string) {
     if (onSearchArtist && artist) {
       onSearchArtist(artist);
     }
     window.dispatchEvent(
-      new CustomEvent("tetplayer:search-artist", { detail: { query: artist } })
+      new CustomEvent("tetplayer:search-artist", {
+        detail: { query: artist, artistId },
+      })
     );
   }
 

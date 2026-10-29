@@ -12,12 +12,24 @@ export interface Track {
   id: string;
   title: string;
   artist: string;
+  artist_id?: string;
   album?: string;
   album_id?: string;
   duration?: string;
   duration_seconds?: number;
   artwork_url?: string;
   set_video_id?: string;
+}
+
+export interface ArtistDetail {
+  id: string;
+  name: string;
+  description?: string;
+  subscribers?: string;
+  monthly_listeners?: string;
+  artwork_url?: string;
+  tracks: Track[];
+  albums: Album[];
 }
 
 export type AlbumType = "album" | "single" | "ep";

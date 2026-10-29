@@ -21,6 +21,8 @@ pub struct Track {
     pub id: String,
     pub title: String,
     pub artist: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub artist_id: Option<String>,
     pub album: Option<String>,
     pub album_id: Option<String>,
     pub duration: Option<String>,
@@ -28,6 +30,18 @@ pub struct Track {
     pub artwork_url: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub set_video_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArtistDetail {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub subscribers: Option<String>,
+    pub monthly_listeners: Option<String>,
+    pub artwork_url: Option<String>,
+    pub tracks: Vec<Track>,
+    pub albums: Vec<Album>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -438,6 +452,14 @@ pub fn extract_continuation_token(val: &Value) -> Option<String> {
 }
 
 pub async fn get_playlist_tracks(session: &AuthSession, playlist_id: &str) -> Result<Vec<Track>, String> {
+    get_playlist_tracks_with_limit(session, playlist_id, 25).await
+}
+
+pub async fn get_playlist_tracks_with_limit(
+    session: &AuthSession,
+    playlist_id: &str,
+    max_pages: usize,
+) -> Result<Vec<Track>, String> {
     let client = &HTTP_CLIENT;
     let url = "https://music.youtube.com/youtubei/v1/browse?prettyPrint=false";
     let headers = build_headers(session, "WEB_REMIX");
@@ -487,10 +509,9 @@ pub async fn get_playlist_tracks(session: &AuthSession, playlist_id: &str) -> Re
     // Paginação Automática via Continuation Token (Item 1.2)
     let mut continuation = extract_continuation_token(&json_val);
     let mut page_count = 1;
-    const MAX_PAGES: usize = 25; // Suporta playlists longas de até 2500 faixas
 
     while let Some(token) = continuation {
-        if page_count >= MAX_PAGES {
+        if page_count >= max_pages {
             break;
         }
         let cont_url = format!("https://music.youtube.com/youtubei/v1/browse?continuation={token}&prettyPrint=false");
@@ -954,13 +975,28 @@ fn parse_responsive_item(item: &Value) -> Option<Track> {
         }
     }
 
+    let mut artist_id = None;
     let mut album_id = None;
     if flex_columns.len() > 1 {
         if let Some(runs) = flex_columns[1]["musicResponsiveListItemFlexColumnRenderer"]["text"]["runs"].as_array() {
             for r in runs {
                 if let Some(b_id) = r["navigationEndpoint"]["browseEndpoint"]["browseId"].as_str() {
-                    if b_id.starts_with("MPREb_") || b_id.starts_with("OLAK5uy_") {
+                    if b_id.starts_with("UC") && artist_id.is_none() {
+                        artist_id = Some(b_id.to_string());
+                    } else if (b_id.starts_with("MPREb_") || b_id.starts_with("OLAK5uy_")) && album_id.is_none() {
                         album_id = Some(b_id.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    if artist_id.is_none() {
+        if let Some(items) = item["menu"]["menuRenderer"]["items"].as_array() {
+            for mi in items {
+                if let Some(b_id) = mi["menuNavigationItemRenderer"]["navigationEndpoint"]["browseEndpoint"]["browseId"].as_str() {
+                    if b_id.starts_with("UC") {
+                        artist_id = Some(b_id.to_string());
                         break;
                     }
                 }
@@ -1020,6 +1056,7 @@ fn parse_responsive_item(item: &Value) -> Option<Track> {
         id: video_id,
         title,
         artist,
+        artist_id,
         album,
         album_id,
         duration,
@@ -1047,6 +1084,17 @@ fn parse_two_row_item(item: &Value) -> Option<Track> {
         .unwrap_or("Artista")
         .to_string();
 
+    let artist_id = item["subtitle"]["runs"]
+        .as_array()
+        .and_then(|runs| {
+            runs.iter().find_map(|r| {
+                r["navigationEndpoint"]["browseEndpoint"]["browseId"]
+                    .as_str()
+                    .filter(|id| id.starts_with("UC"))
+                    .map(|s| s.to_string())
+            })
+        });
+
     let artwork_url = extract_thumbnail_from_renderer(&item["thumbnailRenderer"])
         .or_else(|| extract_thumbnail_from_renderer(&item["thumbnail"]))
         .or_else(|| Some(format!("https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg")));
@@ -1055,6 +1103,7 @@ fn parse_two_row_item(item: &Value) -> Option<Track> {
         id: video_id,
         title,
         artist,
+        artist_id,
         album: None,
         album_id: None,
         duration: None,
@@ -1090,6 +1139,18 @@ fn parse_playlist_panel_item(item: &Value) -> Option<Track> {
         .unwrap_or("Artista")
         .to_string();
 
+    let artist_id = item["longBylineText"]["runs"]
+        .as_array()
+        .or_else(|| item["shortBylineText"]["runs"].as_array())
+        .and_then(|runs| {
+            runs.iter().find_map(|r| {
+                r["navigationEndpoint"]["browseEndpoint"]["browseId"]
+                    .as_str()
+                    .filter(|id| id.starts_with("UC"))
+                    .map(|s| s.to_string())
+            })
+        });
+
     let duration = item["lengthText"]["runs"]
         .as_array()
         .and_then(|runs| runs.first())
@@ -1108,6 +1169,7 @@ fn parse_playlist_panel_item(item: &Value) -> Option<Track> {
         id: video_id,
         title,
         artist,
+        artist_id,
         album: None,
         album_id: None,
         duration,
@@ -2206,6 +2268,381 @@ pub async fn search_album_by_name(session: &AuthSession, query: &str) -> Result<
     Ok(None)
 }
 
+pub fn extract_artist_browse_id_from_search(val: &Value, target_name: &str) -> Option<String> {
+    let target_lower = target_name.trim().to_lowercase();
+    let tabs = val["contents"]["tabbedSearchResultsRenderer"]["tabs"].as_array()?;
+
+    for tab in tabs {
+        let Some(sec_contents) = tab["tabRenderer"]["content"]["sectionListRenderer"]["contents"].as_array() else {
+            continue;
+        };
+
+        // 1. Prioridade: musicCardShelfRenderer (Card de destaque do artista)
+        for sec in sec_contents {
+            if let Some(card) = sec.get("musicCardShelfRenderer") {
+                if let Some(bid) = card["title"]["runs"]
+                    .as_array()
+                    .and_then(|r| r.first())
+                    .and_then(|x| x["navigationEndpoint"]["browseEndpoint"]["browseId"].as_str())
+                    .filter(|id| id.starts_with("UC"))
+                {
+                    return Some(bid.to_string());
+                }
+                if let Some(bid) = card["onTap"]["browseEndpoint"]["browseId"]
+                    .as_str()
+                    .filter(|id| id.starts_with("UC"))
+                {
+                    return Some(bid.to_string());
+                }
+            }
+        }
+
+        // 2. Linhas diretas de resultado de artista (musicResponsiveListItemRenderer com navigationEndpoint UC...)
+        for sec in sec_contents {
+            if let Some(shelf) = sec.get("musicShelfRenderer") {
+                if let Some(items) = shelf["contents"].as_array() {
+                    for item in items {
+                        let r = &item["musicResponsiveListItemRenderer"];
+                        if let Some(bid) = r["navigationEndpoint"]["browseEndpoint"]["browseId"]
+                            .as_str()
+                            .filter(|id| id.starts_with("UC"))
+                        {
+                            return Some(bid.to_string());
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Fallback: procurar dentro das colunas de faixas pelo run do artista correspondente
+        let mut first_fallback_uc: Option<String> = None;
+        for sec in sec_contents {
+            if let Some(shelf) = sec.get("musicShelfRenderer") {
+                if let Some(items) = shelf["contents"].as_array() {
+                    for item in items {
+                        let r = &item["musicResponsiveListItemRenderer"];
+                        if let Some(flex) = r["flexColumns"].as_array() {
+                            if flex.len() > 1 {
+                                if let Some(runs) = flex[1]["musicResponsiveListItemFlexColumnRenderer"]["text"]["runs"].as_array() {
+                                    for run in runs {
+                                        if let Some(bid) = run["navigationEndpoint"]["browseEndpoint"]["browseId"]
+                                            .as_str()
+                                            .filter(|id| id.starts_with("UC"))
+                                        {
+                                            let run_text = run["text"].as_str().unwrap_or("").trim().to_lowercase();
+                                            if !target_lower.is_empty() && (run_text == target_lower || run_text.contains(&target_lower) || target_lower.contains(&run_text)) {
+                                                return Some(bid.to_string());
+                                            }
+                                            if first_fallback_uc.is_none() {
+                                                first_fallback_uc = Some(bid.to_string());
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if first_fallback_uc.is_none() {
+                            if let Some(menu_items) = r["menu"]["menuRenderer"]["items"].as_array() {
+                                for mi in menu_items {
+                                    if let Some(bid) = mi["menuNavigationItemRenderer"]["navigationEndpoint"]["browseEndpoint"]["browseId"]
+                                        .as_str()
+                                        .filter(|id| id.starts_with("UC"))
+                                    {
+                                        first_fallback_uc = Some(bid.to_string());
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if first_fallback_uc.is_some() {
+            return first_fallback_uc;
+        }
+    }
+
+    None
+}
+
+async fn resolve_artist_browse_id(session: &AuthSession, query: &str) -> Option<String> {
+    let client = &HTTP_CLIENT;
+    let url = "https://music.youtube.com/youtubei/v1/search?prettyPrint=false";
+    let headers = build_headers(session, "WEB_REMIX");
+
+    let payload = json!({
+        "context": {
+            "client": {
+                "clientName": "WEB_REMIX",
+                "clientVersion": "1.20240401.01.00",
+                "hl": "pt",
+                "gl": "BR"
+            }
+        },
+        "query": query
+    });
+
+    if let Ok(resp) = client.post(url).headers(headers).json(&payload).send().await {
+        if resp.status().is_success() {
+            if let Ok(json_val) = resp.json::<Value>().await {
+                if let Some(bid) = extract_artist_browse_id_from_search(&json_val, query) {
+                    return Some(bid);
+                }
+            }
+        }
+    }
+
+    None
+}
+
+fn clean_artist_query(raw: &str) -> String {
+    raw.replace(" - Tema", "")
+        .replace(" - Topic", "")
+        .trim()
+        .to_string()
+}
+
+pub async fn get_artist_details(
+    session: &AuthSession,
+    artist_id: Option<&str>,
+    artist_name: Option<&str>,
+) -> Result<ArtistDetail, String> {
+    let fallback_name = artist_name
+        .map(clean_artist_query)
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "Artista".to_string());
+
+    let mut resolved_uc_id = artist_id
+        .map(|s| s.trim())
+        .filter(|s| s.starts_with("UC"))
+        .map(|s| s.to_string());
+
+    if resolved_uc_id.is_none() && fallback_name != "Artista" {
+        resolved_uc_id = resolve_artist_browse_id(session, &fallback_name).await;
+
+        if resolved_uc_id.is_none() {
+            // Se for uma string composta ex: "MIMI (part. Kasane Teto)" ou "MIMI & TAK", tenta o artista principal
+            let primary = fallback_name
+                .split(['(', ',', '&', '/'])
+                .next()
+                .map(|s| s.trim())
+                .unwrap_or("");
+            if !primary.is_empty() && primary != fallback_name {
+                resolved_uc_id = resolve_artist_browse_id(session, primary).await;
+            }
+        }
+    }
+
+    if let Some(uc_id) = resolved_uc_id {
+        let client = &HTTP_CLIENT;
+        let url = "https://music.youtube.com/youtubei/v1/browse?prettyPrint=false";
+        let headers = build_headers(session, "WEB_REMIX");
+
+        let payload = json!({
+            "context": {
+                "client": {
+                    "clientName": "WEB_REMIX",
+                    "clientVersion": "1.20240401.01.00",
+                    "hl": "pt",
+                    "gl": "BR"
+                }
+            },
+            "browseId": uc_id
+        });
+
+        if let Ok(resp) = client.post(url).headers(headers).json(&payload).send().await {
+            if resp.status().is_success() {
+                if let Ok(json_val) = resp.json::<Value>().await {
+                    let hdr_obj = &json_val["header"];
+                    let hdr = hdr_obj
+                        .get("musicImmersiveHeaderRenderer")
+                        .or_else(|| hdr_obj.get("musicVisualHeaderRenderer"))
+                        .or_else(|| hdr_obj.get("musicResponsiveHeaderRenderer"))
+                        .or_else(|| hdr_obj.get("c4TabbedHeaderRenderer"));
+
+                    let mut name = fallback_name.clone();
+                    let mut subscribers = None;
+                    let mut monthly_listeners = None;
+                    let mut description = None;
+                    let mut artwork_url = None;
+
+                    if let Some(h) = hdr {
+                        if let Some(runs) = h["title"]["runs"].as_array() {
+                            let joined: String = runs.iter().filter_map(|r| r["text"].as_str()).collect();
+                            if !joined.trim().is_empty() {
+                                name = joined.trim().to_string();
+                            }
+                        } else if let Some(t) = h["title"].as_str() {
+                            if !t.trim().is_empty() {
+                                name = t.trim().to_string();
+                            }
+                        }
+
+                        if let Some(runs) = h["subscriptionButton"]["subscribeButtonRenderer"]["longSubscriberCountText"]["runs"].as_array() {
+                            let s: String = runs.iter().filter_map(|r| r["text"].as_str()).collect();
+                            if !s.trim().is_empty() {
+                                subscribers = Some(s.replace('\u{a0}', " ").trim().to_string());
+                            }
+                        }
+                        if subscribers.is_none() {
+                            if let Some(runs) = h["subscriptionButton"]["subscribeButtonRenderer"]["subscriberCountText"]["runs"].as_array() {
+                                let s: String = runs.iter().filter_map(|r| r["text"].as_str()).collect();
+                                if !s.trim().is_empty() {
+                                    subscribers = Some(s.replace('\u{a0}', " ").trim().to_string());
+                                }
+                            }
+                        }
+
+                        if let Some(runs) = h["monthlyListenerCount"]["runs"].as_array() {
+                            let m: String = runs.iter().filter_map(|r| r["text"].as_str()).collect();
+                            if !m.trim().is_empty() {
+                                monthly_listeners = Some(m.replace('\u{a0}', " ").trim().to_string());
+                            }
+                        }
+
+                        if let Some(runs) = h["description"]["runs"].as_array() {
+                            let d: String = runs.iter().filter_map(|r| r["text"].as_str()).collect();
+                            if !d.trim().is_empty() {
+                                description = Some(d.trim().to_string());
+                            }
+                        }
+
+                        artwork_url = extract_thumbnail_from_renderer(&h["thumbnail"])
+                            .or_else(|| extract_thumbnail_from_renderer(&h["foregroundThumbnail"]))
+                            .or_else(|| extract_thumbnail_from_renderer(&h["avatar"]));
+                    }
+
+                    let mut shelf_tracks = Vec::new();
+                    let mut songs_playlist_id: Option<String> = None;
+                    let mut albums = Vec::new();
+
+                    if let Some(shelves) = json_val["contents"]["singleColumnBrowseResultsRenderer"]["tabs"]
+                        .as_array()
+                        .and_then(|t| t.first())
+                        .and_then(|t| t["tabRenderer"]["content"]["sectionListRenderer"]["contents"].as_array())
+                    {
+                        for s in shelves {
+                            if let Some(ms) = s.get("musicShelfRenderer") {
+                                extract_tracks_from_value(ms, &mut shelf_tracks);
+                                if songs_playlist_id.is_none() {
+                                    if let Some(bid) = ms["bottomEndpoint"]["browseEndpoint"]["browseId"].as_str() {
+                                        if !bid.trim().is_empty() {
+                                            songs_playlist_id = Some(bid.to_string());
+                                        }
+                                    }
+                                }
+                            } else if let Some(cs) = s.get("musicCarouselShelfRenderer") {
+                                extract_albums_from_value(cs, &mut albums);
+                            } else if let Some(ds) = s.get("musicDescriptionShelfRenderer") {
+                                if description.is_none() {
+                                    if let Some(runs) = ds["description"]["runs"].as_array() {
+                                        let d: String = runs.iter().filter_map(|r| r["text"].as_str()).collect();
+                                        if !d.trim().is_empty() {
+                                            description = Some(d.trim().to_string());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    let mut tracks = if let Some(pl_id) = songs_playlist_id {
+                        match get_playlist_tracks_with_limit(session, &pl_id, 2).await {
+                            Ok(mut full_tracks) if !full_tracks.is_empty() => {
+                                for st in shelf_tracks {
+                                    if !full_tracks.iter().any(|t| t.id == st.id) {
+                                        full_tracks.push(st);
+                                    }
+                                }
+                                full_tracks
+                            }
+                            _ => shelf_tracks,
+                        }
+                    } else {
+                        shelf_tracks
+                    };
+
+                    if tracks.is_empty() {
+                        if let Ok(searched) = search_music(session, &name).await {
+                            tracks = searched;
+                        }
+                    }
+
+                    let mut seen_tracks = std::collections::HashSet::new();
+                    tracks.retain(|t| seen_tracks.insert(t.id.clone()));
+                    for t in &mut tracks {
+                        if t.artist == "Artista" || t.artist.trim().is_empty() {
+                            t.artist = name.clone();
+                        }
+                        if t.artist_id.is_none() {
+                            t.artist_id = Some(uc_id.clone());
+                        }
+                    }
+
+                    let mut seen_albums = std::collections::HashSet::new();
+                    albums.retain(|a| seen_albums.insert(a.id.clone()));
+                    for a in &mut albums {
+                        if a.artist == "Artista" || a.artist.trim().is_empty() {
+                            a.artist = name.clone();
+                        }
+                        if a.artist_id.is_none() {
+                            a.artist_id = Some(uc_id.clone());
+                        }
+                    }
+
+                    if artwork_url.is_none() {
+                        artwork_url = tracks
+                            .iter()
+                            .find_map(|t| t.artwork_url.clone())
+                            .or_else(|| albums.iter().find_map(|a| a.artwork_url.clone()));
+                    }
+
+                    return Ok(ArtistDetail {
+                        id: uc_id,
+                        name,
+                        description,
+                        subscribers,
+                        monthly_listeners,
+                        artwork_url,
+                        tracks,
+                        albums,
+                    });
+                }
+            }
+        }
+    }
+
+    // Fallback caso não exista página oficial de canal UC... (ex: uploaders independentes)
+    let mut tracks = search_music(session, &fallback_name).await.unwrap_or_default();
+    let lower_fallback = fallback_name.to_lowercase();
+    let filtered: Vec<Track> = tracks
+        .iter()
+        .filter(|t| {
+            let al = t.artist.to_lowercase();
+            al.contains(&lower_fallback) || lower_fallback.contains(&al)
+        })
+        .cloned()
+        .collect();
+    if !filtered.is_empty() {
+        tracks = filtered;
+    }
+
+    let artwork_url = tracks.iter().find_map(|t| t.artwork_url.clone());
+
+    Ok(ArtistDetail {
+        id: format!("artist_{fallback_name}"),
+        name: fallback_name,
+        description: None,
+        subscribers: None,
+        monthly_listeners: None,
+        artwork_url,
+        tracks,
+        albums: Vec::new(),
+    })
+}
+
 // =========================================================================
 // OPERAÇÕES DE MANIPULAÇÃO DE PLAYLIST (InnerTube API)
 // =========================================================================
@@ -2907,6 +3344,43 @@ mod tests {
         assert_eq!(
             extract_continuation_token(&json_data),
             Some("next_page_token_999".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_artist_browse_id_from_search() {
+        let json_data = json!({
+            "contents": {
+                "tabbedSearchResultsRenderer": {
+                    "tabs": [{
+                        "tabRenderer": {
+                            "content": {
+                                "sectionListRenderer": {
+                                    "contents": [{
+                                        "musicCardShelfRenderer": {
+                                            "title": {
+                                                "runs": [{
+                                                    "text": "HOYO-MiX",
+                                                    "navigationEndpoint": {
+                                                        "browseEndpoint": {
+                                                            "browseId": "UCJ4yjqc1XuGgiE35NsSSkYA"
+                                                        }
+                                                    }
+                                                }]
+                                            }
+                                        }
+                                    }]
+                                }
+                            }
+                        }
+                    }]
+                }
+            }
+        });
+
+        assert_eq!(
+            extract_artist_browse_id_from_search(&json_data, "HOYO-MiX"),
+            Some("UCJ4yjqc1XuGgiE35NsSSkYA".to_string())
         );
     }
 

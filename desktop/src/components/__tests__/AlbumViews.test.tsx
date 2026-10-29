@@ -2,9 +2,10 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { AlbumGridView } from "../MainView/AlbumGridView";
 import { AlbumDetailView } from "../MainView/AlbumDetailView";
+import { ArtistDetailView } from "../MainView/ArtistDetailView";
 import { PlaylistGridView } from "../MainView/PlaylistGridView";
 import { LibraryOverview } from "../MainView/LibraryOverview";
-import { Album, AlbumDetail, Playlist, Track } from "../../types";
+import { Album, AlbumDetail, ArtistDetail, Playlist, Track } from "../../types";
 
 vi.mock("../../context/PlayerContext", () => ({
   usePlayer: () => ({
@@ -277,5 +278,52 @@ describe("AlbumDetailView Component", () => {
     );
 
     expect(screen.getByTitle("Reproduzindo faixa")).toBeInTheDocument();
+  });
+
+  it("deve renderizar ArtistDetailView com metadados do artista, músicas vinculadas, filtro e discografia", () => {
+    const mockArtistDetail: ArtistDetail = {
+      id: "UCJ4yjqc1XuGgiE35NsSSkYA",
+      name: "Daft Punk",
+      subscribers: "580 mil inscritos",
+      monthly_listeners: "4,91 mi ouvintes mensais",
+      description: "Dupla francesa de música eletrônica formada em Paris.",
+      tracks: mockTracks,
+      albums: mockAlbums,
+    };
+
+    const handlePlayTrack = vi.fn();
+    const handleSelectAlbum = vi.fn();
+
+    render(
+      <ArtistDetailView
+        artistName="Daft Punk"
+        artistId="UCJ4yjqc1XuGgiE35NsSSkYA"
+        artistDetail={mockArtistDetail}
+        isLoading={false}
+        currentTrack={null}
+        isPlaying={false}
+        loadingTrackId={null}
+        onBack={vi.fn()}
+        onPlayArtistTracks={vi.fn()}
+        onPlayTrack={handlePlayTrack}
+        onSelectAlbum={handleSelectAlbum}
+      />
+    );
+
+    expect(screen.getByText("ARTISTA")).toBeInTheDocument();
+    expect(screen.getByText("4,91 mi ouvintes mensais")).toBeInTheDocument();
+    expect(screen.getByText(/580 mil inscritos/)).toBeInTheDocument();
+    expect(screen.getByText("One More Time")).toBeInTheDocument();
+    expect(screen.getByText("Aerodynamic")).toBeInTheDocument();
+
+    // Testa filtro local de músicas do artista
+    const filterInput = screen.getByLabelText("Filtrar músicas do artista");
+    fireEvent.change(filterInput, { target: { value: "Aerodynamic" } });
+    expect(screen.queryByText("One More Time")).not.toBeInTheDocument();
+    expect(screen.getByText("Aerodynamic")).toBeInTheDocument();
+
+    // Toca a faixa filtrada
+    fireEvent.click(screen.getByText("Aerodynamic"));
+    expect(handlePlayTrack).toHaveBeenCalledWith(mockTracks[1], 0, [mockTracks[1]]);
   });
 });

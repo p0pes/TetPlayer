@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { Playlist, Track, Album, AlbumDetail } from "../types";
+import { Playlist, Track, Album, AlbumDetail, ArtistDetail } from "../types";
 import { clearLyricsCache } from "../hooks/useLyrics";
 
 const PLAYLISTS_CACHE_KEY = "tetplayer_cache_playlists";
@@ -234,6 +234,27 @@ export const LocalCacheService = {
   },
 
   // Inicialização e hidratação do cache a partir do SQLite nativo (#83)
+  getCachedArtistDetail(artistKey: string): ArtistDetail | null {
+    try {
+      const data = localStorage.getItem(`tetplayer_cache_artist_${artistKey}`);
+      if (!data) return null;
+      return JSON.parse(data) as ArtistDetail;
+    } catch {
+      return null;
+    }
+  },
+
+  saveCachedArtistDetail(artistKey: string, detail: ArtistDetail): void {
+    const cacheKey = `tetplayer_cache_artist_${artistKey}`;
+    const serialized = JSON.stringify(detail);
+    try {
+      localStorage.setItem(cacheKey, serialized);
+    } catch {
+      // quota fallback
+    }
+    this.saveToDbCache(cacheKey, serialized).catch(() => {});
+  },
+
   async initDbCache(): Promise<void> {
     try {
       if (!localStorage.getItem(PLAYLISTS_CACHE_KEY)) {

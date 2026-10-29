@@ -219,13 +219,16 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
                   if (displayAlbum.artist && displayAlbum.artist !== "Artista") {
                     window.dispatchEvent(
                       new CustomEvent("tetplayer:search-artist", {
-                        detail: { query: displayAlbum.artist },
+                        detail: {
+                          query: displayAlbum.artist,
+                          artistId: displayAlbum.artist_id,
+                        },
                       })
                     );
                   }
                 }}
                 className="text-white font-bold hover:text-[var(--accent-text)] hover:underline cursor-pointer transition-colors"
-                title={`Buscar músicas de ${displayAlbum.artist}`}
+                title={`Ir para o artista ${displayAlbum.artist}`}
               >
                 {displayAlbum.artist}
               </span>
@@ -416,12 +419,15 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
                             e.stopPropagation();
                             window.dispatchEvent(
                               new CustomEvent("tetplayer:search-artist", {
-                                detail: { query: track.artist },
+                                detail: {
+                                  query: track.artist,
+                                  artistId: track.artist_id,
+                                },
                               })
                             );
                           }}
                           className="text-[11px] text-[#8c91a4] hover:text-white hover:underline cursor-pointer transition-colors truncate"
-                          title={`Buscar músicas de ${track.artist}`}
+                          title={`Ir para o artista ${track.artist}`}
                         >
                           {track.artist}
                         </p>
