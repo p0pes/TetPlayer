@@ -31,6 +31,7 @@ export type QueueAction =
   | { type: "APPEND_RADIO_TRACKS"; payload: { tracks: Track[] } }
   | { type: "INSERT_NEXT"; payload: { track: Track } }
   | { type: "ADD_TO_END"; payload: { track: Track } }
+  | { type: "ADD_TRACKS_TO_END"; payload: { tracks: Track[] } }
   | { type: "SET_TRACK_INDEX"; payload: { index: number } }
   | { type: "REORDER_QUEUE"; payload: { fromIndex: number; toIndex: number } };
 
@@ -354,6 +355,27 @@ export function playerReducer(state: QueueState, action: QueueAction): QueueStat
         ...state,
         activeQueue: newActive,
         originalQueue: newOriginal,
+      };
+    }
+
+    case "ADD_TRACKS_TO_END": {
+      const validTracks = action.payload.tracks.filter((t) => t && t.id);
+      if (validTracks.length === 0) return state;
+
+      if (state.activeQueue.length === 0) {
+        return {
+          ...state,
+          activeQueue: [...validTracks],
+          originalQueue: [...validTracks],
+          currentQueueIndex: 0,
+          currentTrack: validTracks[0],
+        };
+      }
+
+      return {
+        ...state,
+        activeQueue: [...state.activeQueue, ...validTracks],
+        originalQueue: [...state.originalQueue, ...validTracks],
       };
     }
 

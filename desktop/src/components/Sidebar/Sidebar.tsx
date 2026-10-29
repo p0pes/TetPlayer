@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Playlist, Album, AuthSession, ActiveTab } from "../../types";
 import { upgradeArtworkQuality } from "../../utils/artwork";
+import { triggerCollectionContextMenu } from "../ContextMenu/CollectionContextMenu";
 
 export type SidebarFilterMode = "all" | "playlists" | "albums";
 
@@ -505,6 +506,23 @@ export const Sidebar = React.memo(function Sidebar({
     return selectedAlbum?.id === item.id;
   };
 
+  const handleItemContextMenu = (e: React.MouseEvent, item: SidebarCollectionItem) => {
+    const isPinned = pinnedSet.has(item.id);
+    if (item.kind === "playlist" && item.playlist) {
+      triggerCollectionContextMenu(e, {
+        kind: "playlist",
+        playlist: item.playlist,
+        isPinned,
+      });
+    } else if (item.kind === "album" && item.album) {
+      triggerCollectionContextMenu(e, {
+        kind: "album",
+        album: item.album,
+        isPinned,
+      });
+    }
+  };
+
   const filterIndex =
     filterMode === "all" ? 0 : filterMode === "playlists" ? 1 : 2;
 
@@ -729,6 +747,7 @@ export const Sidebar = React.memo(function Sidebar({
                           key={`${item.kind}-${item.id}`}
                           data-pinned-row-index={idx}
                           onClick={() => handleSelectItem(item)}
+                          onContextMenu={(e) => handleItemContextMenu(e, item)}
                           className={`w-full flex items-center justify-between gap-1.5 px-1.5 py-1.5 rounded-xl text-xs transition-all cursor-pointer group relative ${
                             isDraggingThis ? "opacity-35 scale-[0.98] " : ""
                           }${
@@ -864,6 +883,7 @@ export const Sidebar = React.memo(function Sidebar({
                     <div
                       key={`${item.kind}-${item.id}`}
                       onClick={() => handleSelectItem(item)}
+                      onContextMenu={(e) => handleItemContextMenu(e, item)}
                       className={`w-full flex items-center justify-between gap-1.5 px-1.5 py-1.5 rounded-xl text-xs transition-all cursor-pointer group ${
                         isSelected
                           ? "bg-[#1a1d28] text-white font-semibold border border-[var(--accent-border)]"

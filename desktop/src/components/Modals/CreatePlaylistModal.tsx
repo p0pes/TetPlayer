@@ -3,12 +3,14 @@ import { Plus, X, Loader2, Lock, Globe, EyeOff } from "lucide-react";
 
 interface CreatePlaylistModalProps {
   isOpen: boolean;
+  initialTitle?: string;
   onClose: () => void;
   onCreate: (title: string, description?: string, privacy?: string) => Promise<void>;
 }
 
 export const CreatePlaylistModal: React.FC<CreatePlaylistModalProps> = ({
   isOpen,
+  initialTitle,
   onClose,
   onCreate,
 }) => {
@@ -21,7 +23,7 @@ export const CreatePlaylistModal: React.FC<CreatePlaylistModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      setTitle("");
+      setTitle(initialTitle || "");
       setDescription("");
       setPrivacy("PRIVATE");
       setError(null);

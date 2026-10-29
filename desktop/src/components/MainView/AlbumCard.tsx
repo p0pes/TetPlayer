@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Play, Pause, Disc3, Pin } from "lucide-react";
 import { Album } from "../../types";
 import { upgradeArtworkQuality } from "../../utils/artwork";
+import { triggerCollectionContextMenu } from "../ContextMenu/CollectionContextMenu";
 
 export type GridDensity = "comfortable" | "compact";
 
@@ -86,6 +87,13 @@ export const AlbumCard = React.memo(function AlbumCard({
   return (
     <div
       onClick={() => onSelect(album)}
+      onContextMenu={(e) =>
+        triggerCollectionContextMenu(e, {
+          kind: "album",
+          album,
+          isPinned,
+        })
+      }
       data-testid="album-card"
       className={`group flex flex-col ${
         isCompact ? "p-2.5 rounded-xl" : "p-3 rounded-2xl"

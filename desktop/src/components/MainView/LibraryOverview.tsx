@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Playlist, Album } from "../../types";
 import { upgradeArtworkQuality } from "../../utils/artwork";
+import { triggerCollectionContextMenu } from "../ContextMenu/CollectionContextMenu";
 import { GridDensity } from "./AlbumCard";
 import { PlaylistGridView, LibrarySortOption } from "./PlaylistGridView";
 import { AlbumGridView } from "./AlbumGridView";
@@ -107,6 +108,21 @@ const QuickAccessCard = React.memo(function QuickAccessCard({
   return (
     <div
       onClick={onSelect}
+      onContextMenu={(e) => {
+        if (item.kind === "playlist" && item.playlist) {
+          triggerCollectionContextMenu(e, {
+            kind: "playlist",
+            playlist: item.playlist,
+            isPinned: item.isPinned,
+          });
+        } else if (item.kind === "album" && item.album) {
+          triggerCollectionContextMenu(e, {
+            kind: "album",
+            album: item.album,
+            isPinned: item.isPinned,
+          });
+        }
+      }}
       data-testid="quick-access-card"
       className={`group relative flex items-center justify-between gap-3 p-2 pr-3 rounded-2xl bg-[#121520]/80 hover:bg-[#191d2b] border transition-all duration-200 cursor-pointer select-none shadow-sm hover:shadow-lg ${
         isActivePlaying

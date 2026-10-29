@@ -82,6 +82,7 @@ interface PlayerContextType {
 
   handlePlayNext: (track: Track) => void;
   handleAddToQueue: (track: Track) => void;
+  handleAddTracksToQueue: (tracks: Track[]) => void;
   handleStartRadio: (track: Track) => void;
   searchArtist: (artist: string) => void;
   openContextMenu: (e: React.MouseEvent, track: Track, playlistId?: string) => void;
@@ -528,6 +529,10 @@ export function PlayerProvider({
     dispatchQueue({ type: "ADD_TO_END", payload: { track } });
   }
 
+  function handleAddTracksToQueue(tracks: Track[]) {
+    dispatchQueue({ type: "ADD_TRACKS_TO_END", payload: { tracks } });
+  }
+
   function handleStartRadio(track: Track) {
     playTrackWithQueue(track, [track], 0);
     invoke<Track[]>("get_radio_tracks", { videoId: track.id })
@@ -715,6 +720,7 @@ export function PlayerProvider({
       toggleMute,
       handlePlayNext,
       handleAddToQueue,
+      handleAddTracksToQueue,
       handleStartRadio,
       searchArtist,
       openContextMenu,

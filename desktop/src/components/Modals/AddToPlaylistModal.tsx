@@ -1,20 +1,24 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { ListPlus, X, Search, Loader2, Music, Plus, Check } from "lucide-react";
+import { ListPlus, X, Search, Loader2, Music, Plus, Check, Disc3 } from "lucide-react";
 import { Playlist, Track } from "../../types";
 import { upgradeArtworkQuality } from "../../utils/artwork";
 
 interface AddToPlaylistModalProps {
   isOpen: boolean;
-  track: Track | null;
+  track?: Track | null;
+  tracks?: Track[] | null;
+  sourceAlbumTitle?: string;
   playlists: Playlist[];
   onClose: () => void;
   onAddToPlaylist: (playlist: Playlist, track: Track) => Promise<void>;
-  onCreateNewPlaylist: () => void;
+  onCreateNewPlaylist: (suggestedTitle?: string, albumTracks?: Track[]) => void;
 }
 
 export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
   isOpen,
   track,
+  tracks,
+  sourceAlbumTitle,
   playlists,
   onClose,
   onAddToPlaylist,
@@ -23,14 +27,24 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [addingToId, setAddingToId] = useState<string | null>(null);
   const [addedToId, setAddedToId] = useState<string | null>(null);
+  const [addProgress, setAddProgress] = useState<{ current: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const targetTracks = useMemo(() => {
+    if (tracks && tracks.length > 0) return tracks;
+    if (track) return [track];
+    return [];
+  }, [tracks, track]);
+
+  const isMultiple = targetTracks.length > 1;
 
   useEffect(() => {
     if (isOpen) {
       setSearchQuery("");
       setAddingToId(null);
       setAddedToId(null);
+      setAddProgress(null);
       setError(null);
       setTimeout(() => searchInputRef.current?.focus(), 50);
     }
@@ -54,23 +68,34 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
     return available.filter((p) => p.title.toLowerCase().includes(q));
   }, [playlists, searchQuery]);
 
-  if (!isOpen || !track) return null;
+  if (!isOpen || targetTracks.length === 0) return null;
 
   const handleSelectPlaylist = async (playlist: Playlist) => {
     if (addingToId) return;
     try {
       setAddingToId(playlist.id);
       setError(null);
-      await onAddToPlaylist(playlist, track);
+      if (isMultiple) {
+        for (let i = 0; i < targetTracks.length; i++) {
+          setAddProgress({ current: i + 1, total: targetTracks.length });
+          await onAddToPlaylist(playlist, targetTracks[i]);
+        }
+      } else {
+        await onAddToPlaylist(playlist, targetTracks[0]);
+      }
       setAddedToId(playlist.id);
+      setAddProgress(null);
       setTimeout(() => {
         onClose();
       }, 700);
     } catch (err) {
-      setError(String(err) || "Falha ao adicionar música à playlist.");
+      setError(String(err) || "Falha ao adicionar música(s) à playlist.");
       setAddingToId(null);
+      setAddProgress(null);
     }
   };
+
+  const previewTrack = targetTracks[0];
 
   return (
     <div
@@ -94,10 +119,12 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
             </div>
             <div>
               <h2 id="add-to-playlist-title" className="text-base font-bold text-white">
-                Adicionar à Playlist
+                {isMultiple ? "Adicionar Álbum à Playlist" : "Adicionar à Playlist"}
               </h2>
               <p className="text-xs text-[#8c91a4]">
-                Escolha o destino no YouTube Music
+                {isMultiple
+                  ? `Importar ${targetTracks.length} faixas para o YouTube Music`
+                  : "Escolha o destino no YouTube Music"}
               </p>
             </div>
           </div>
@@ -112,25 +139,31 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
           </button>
         </div>
 
-        {/* Prévia da Música Selecionada */}
+        {/* Prévia da Música ou do Álbum Selecionado */}
         <div className="flex items-center gap-3 p-2.5 rounded-xl bg-[#181c28] border border-[#272d40] shrink-0">
-          <div className="w-10 h-10 rounded-lg bg-[#212638] overflow-hidden shrink-0">
-            {track.artwork_url || track.id ? (
+          <div className="w-10 h-10 rounded-lg bg-[#212638] overflow-hidden shrink-0 flex items-center justify-center">
+            {previewTrack.artwork_url || previewTrack.id ? (
               <img
-                src={upgradeArtworkQuality(track.artwork_url, track.id, "thumb")}
-                alt={track.title}
+                src={upgradeArtworkQuality(previewTrack.artwork_url, previewTrack.id, "thumb")}
+                alt={isMultiple ? sourceAlbumTitle || previewTrack.title : previewTrack.title}
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
               />
+            ) : isMultiple ? (
+              <Disc3 className="w-4 h-4 text-[var(--accent-text)]" />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-[#6c7287]">
-                <Music className="w-4 h-4" />
-              </div>
+              <Music className="w-4 h-4 text-[#6c7287]" />
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-bold text-white truncate">{track.title}</p>
-            <p className="text-[11px] text-[#8c91a4] truncate">{track.artist}</p>
+            <p className="text-xs font-bold text-white truncate">
+              {isMultiple ? sourceAlbumTitle || "Álbum Completo" : previewTrack.title}
+            </p>
+            <p className="text-[11px] text-[#8c91a4] truncate">
+              {isMultiple
+                ? `${targetTracks.length} faixas • ${previewTrack.artist || "Vários Artistas"}`
+                : previewTrack.artist}
+            </p>
           </div>
         </div>
 
@@ -159,12 +192,12 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
             type="button"
             onClick={() => {
               onClose();
-              onCreateNewPlaylist();
+              onCreateNewPlaylist(sourceAlbumTitle, isMultiple ? targetTracks : undefined);
             }}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--accent-subtle)] border border-[var(--accent-border)] text-[var(--accent-text)] hover:opacity-90 text-xs font-semibold shrink-0 cursor-pointer transition-all"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Criar Nova</span>
+            <span>{isMultiple ? "Criar do Álbum" : "Criar Nova"}</span>
           </button>
         </div>
 
@@ -223,7 +256,14 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
 
                   <div className="shrink-0 pl-2">
                     {isAdding ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-[var(--accent)]" />
+                      <div className="flex items-center gap-1.5 text-[11px] font-mono text-[var(--accent-text)]">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--accent)]" />
+                        {addProgress && (
+                          <span>
+                            {addProgress.current}/{addProgress.total}
+                          </span>
+                        )}
+                      </div>
                     ) : isAdded ? (
                       <Check className="w-4 h-4 text-emerald-400" />
                     ) : (
@@ -239,4 +279,3 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
     </div>
   );
 };
-

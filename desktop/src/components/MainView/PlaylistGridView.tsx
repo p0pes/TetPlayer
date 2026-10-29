@@ -3,6 +3,7 @@ import { Loader2, Flame, ListMusic, Pin, Play, Pause, Plus } from "lucide-react"
 import { Playlist } from "../../types";
 import { upgradeArtworkQuality } from "../../utils/artwork";
 import { GridDensity } from "./AlbumCard";
+import { triggerCollectionContextMenu } from "../ContextMenu/CollectionContextMenu";
 
 export type LibrarySortOption = "recent" | "title" | "artist" | "count_desc";
 
@@ -229,6 +230,13 @@ export const PlaylistGridView = React.memo(function PlaylistGridView({
               <div
                 key={pl.id}
                 onClick={() => onSelectPlaylist(pl)}
+                onContextMenu={(e) =>
+                  triggerCollectionContextMenu(e, {
+                    kind: "playlist",
+                    playlist: pl,
+                    isPinned,
+                  })
+                }
                 data-testid="playlist-card"
                 className={`bg-[#11131b]/75 hover:bg-[#181b26] ${
                   isCompact ? "p-2.5 rounded-xl" : "p-3 rounded-2xl"

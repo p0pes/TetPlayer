@@ -39,6 +39,10 @@ import { CreatePlaylistModal } from "./components/Modals/CreatePlaylistModal";
 import { AddToPlaylistModal } from "./components/Modals/AddToPlaylistModal";
 import { EditPlaylistModal } from "./components/Modals/EditPlaylistModal";
 import { ConfirmDeleteModal } from "./components/Modals/ConfirmDeleteModal";
+import {
+  CollectionContextMenu,
+  CollectionContextItem,
+} from "./components/ContextMenu/CollectionContextMenu";
 import { SettingsService } from "./services/settings";
 import { PerformanceTelemetry } from "./services/telemetry";
 
@@ -128,6 +132,7 @@ function AppContent({
     errorMessage,
     setErrorMessage,
     playTrackWithQueue,
+    handleAddTracksToQueue,
     togglePlayPause,
     isPlaying,
     loadingTrackId,
@@ -267,9 +272,19 @@ function AppContent({
 
   // Modais de Manipulação de Playlist (Sugestão 2.4)
   const [isCreatePlaylistOpen, setIsCreatePlaylistOpen] = useState(false);
+  const [createPlaylistInitialTitle, setCreatePlaylistInitialTitle] = useState("");
+  const [pendingTracksForNewPlaylist, setPendingTracksForNewPlaylist] = useState<Track[] | null>(null);
   const [addToPlaylistTrack, setAddToPlaylistTrack] = useState<Track | null>(null);
+  const [addToPlaylistBatch, setAddToPlaylistBatch] = useState<{
+    tracks: Track[];
+    albumTitle?: string;
+  } | null>(null);
   const [editingPlaylist, setEditingPlaylist] = useState<Playlist | null>(null);
   const [deletingPlaylist, setDeletingPlaylist] = useState<Playlist | null>(null);
+  const [collectionMenuState, setCollectionMenuState] = useState<{
+    item: CollectionContextItem;
+    position: { x: number; y: number };
+  } | null>(null);
   const [playlistToast, setPlaylistToast] = useState<string | null>(null);
 
   const showPlaylistToast = useCallback((msg: string) => {
@@ -626,14 +641,33 @@ function AppContent({
           return updated;
         });
 
-        showPlaylistToast(`Playlist "${title}" criada com sucesso no YouTube Music!`);
+        if (pendingTracksForNewPlaylist && pendingTracksForNewPlaylist.length > 0) {
+          const tracksToAdd = [...pendingTracksForNewPlaylist];
+          setPendingTracksForNewPlaylist(null);
+          setCreatePlaylistInitialTitle("");
+          showPlaylistToast(`Adicionando ${tracksToAdd.length} faixas à nova playlist...`);
+          for (const t of tracksToAdd) {
+            try {
+              await invoke("add_track_to_playlist", {
+                playlistId: newPlaylist.id,
+                videoId: t.id,
+              });
+            } catch (addErr) {
+              console.error("Erro ao adicionar faixa na playlist recém-criada:", addErr);
+            }
+          }
+          LocalCacheService.saveCachedPlaylistTracks(newPlaylist.id, tracksToAdd);
+          showPlaylistToast(`Playlist "${title}" criada com ${tracksToAdd.length} faixas do álbum!`);
+        } else {
+          showPlaylistToast(`Playlist "${title}" criada com sucesso no YouTube Music!`);
+        }
         handleSelectPlaylist(newPlaylist);
       } catch (err) {
         setErrorMessage(`Erro ao criar playlist: ${String(err)}`);
         throw err;
       }
     },
-    [handleSelectPlaylist, showPlaylistToast, setErrorMessage]
+    [handleSelectPlaylist, showPlaylistToast, setErrorMessage, pendingTracksForNewPlaylist]
   );
 
   const handleAddTrackToPlaylist = useCallback(
@@ -853,12 +887,40 @@ function AppContent({
       }
     };
 
+    const handleOpenAddTracksToPlaylist = (e: Event) => {
+      const customEvent = e as CustomEvent<{ tracks: Track[]; albumTitle?: string }>;
+      if (customEvent.detail?.tracks && customEvent.detail.tracks.length > 0) {
+        setAddToPlaylistBatch({
+          tracks: customEvent.detail.tracks,
+          albumTitle: customEvent.detail.albumTitle,
+        });
+      }
+    };
+
+    const handleCollectionContextMenu = (e: Event) => {
+      const customEvent = e as CustomEvent<{
+        x: number;
+        y: number;
+        item: CollectionContextItem;
+      }>;
+      if (customEvent.detail?.item) {
+        setCollectionMenuState({
+          position: { x: customEvent.detail.x, y: customEvent.detail.y },
+          item: customEvent.detail.item,
+        });
+      }
+    };
+
     window.addEventListener("tetplayer:open-add-to-playlist", handleOpenAddToPlaylist);
+    window.addEventListener("tetplayer:open-add-tracks-to-playlist", handleOpenAddTracksToPlaylist);
     window.addEventListener("tetplayer:remove-from-playlist", handleRemoveFromPlaylist);
+    window.addEventListener("tetplayer:collection-context-menu", handleCollectionContextMenu);
 
     return () => {
       window.removeEventListener("tetplayer:open-add-to-playlist", handleOpenAddToPlaylist);
+      window.removeEventListener("tetplayer:open-add-tracks-to-playlist", handleOpenAddTracksToPlaylist);
       window.removeEventListener("tetplayer:remove-from-playlist", handleRemoveFromPlaylist);
+      window.removeEventListener("tetplayer:collection-context-menu", handleCollectionContextMenu);
     };
   }, [handleRemoveTrackFromPlaylist]);
 
@@ -999,6 +1061,139 @@ function AppContent({
       return updated;
     });
   }, []);
+
+  // Handlers para Ações do Menu de Contexto de Coleção (Playlists e Álbuns)
+  const handlePlayCollectionFromMenu = useCallback(
+    async (item: CollectionContextItem, shuffle = false) => {
+      if (item.kind === "playlist") {
+        try {
+          const cached = LocalCacheService.getCachedPlaylistTracks(item.playlist.id);
+          let tracks = cached;
+          if (!tracks || tracks.length === 0) {
+            tracks = await invoke<Track[]>("get_playlist_tracks", {
+              playlistId: item.playlist.id,
+            });
+            if (tracks && tracks.length > 0) {
+              LocalCacheService.saveCachedPlaylistTracks(item.playlist.id, tracks);
+            }
+          }
+          if (tracks && tracks.length > 0) {
+            let queue = [...tracks];
+            let startIdx = 0;
+            if (shuffle) {
+              for (let i = queue.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [queue[i], queue[j]] = [queue[j], queue[i]];
+              }
+            }
+            playTrackWithQueue(queue[0], queue, startIdx, item.playlist.id);
+          }
+        } catch (err) {
+          console.error("Erro ao reproduzir playlist via menu de contexto:", err);
+        }
+      } else {
+        try {
+          const cached = LocalCacheService.getCachedAlbumDetail(item.album.id);
+          let tracks = cached?.tracks;
+          if (!tracks || tracks.length === 0) {
+            const detail = await invoke<AlbumDetail>("get_album_details", {
+              browseId: item.album.id,
+            });
+            if (detail && detail.tracks && detail.tracks.length > 0) {
+              LocalCacheService.saveCachedAlbumDetail(item.album.id, detail);
+              tracks = detail.tracks;
+            }
+          }
+          if (tracks && tracks.length > 0) {
+            handlePlayAlbum(tracks, 0, shuffle);
+          }
+        } catch (err) {
+          console.error("Erro ao reproduzir álbum via menu de contexto:", err);
+        }
+      }
+    },
+    [playTrackWithQueue, handlePlayAlbum]
+  );
+
+  const handleAddToQueueFromMenu = useCallback(
+    async (item: CollectionContextItem) => {
+      if (item.kind === "playlist") {
+        try {
+          const cached = LocalCacheService.getCachedPlaylistTracks(item.playlist.id);
+          let tracks = cached;
+          if (!tracks || tracks.length === 0) {
+            tracks = await invoke<Track[]>("get_playlist_tracks", {
+              playlistId: item.playlist.id,
+            });
+            if (tracks && tracks.length > 0) {
+              LocalCacheService.saveCachedPlaylistTracks(item.playlist.id, tracks);
+            }
+          }
+          if (tracks && tracks.length > 0) {
+            handleAddTracksToQueue(tracks);
+          }
+        } catch (err) {
+          console.error("Erro ao adicionar playlist à fila:", err);
+        }
+      } else {
+        try {
+          const cached = LocalCacheService.getCachedAlbumDetail(item.album.id);
+          let tracks = cached?.tracks;
+          if (!tracks || tracks.length === 0) {
+            const detail = await invoke<AlbumDetail>("get_album_details", {
+              browseId: item.album.id,
+            });
+            if (detail && detail.tracks && detail.tracks.length > 0) {
+              LocalCacheService.saveCachedAlbumDetail(item.album.id, detail);
+              tracks = detail.tracks;
+            }
+          }
+          if (tracks && tracks.length > 0) {
+            handleAddTracksToQueue(tracks);
+          }
+        } catch (err) {
+          console.error("Erro ao adicionar álbum à fila:", err);
+        }
+      }
+    },
+    [handleAddTracksToQueue]
+  );
+
+  const handleTogglePinFromMenu = useCallback(
+    (item: CollectionContextItem) => {
+      handleTogglePinPlaylist(
+        item.kind === "playlist" ? item.playlist.id : item.album.id
+      );
+    },
+    [handleTogglePinPlaylist]
+  );
+
+  const handleAddAlbumToPlaylistFromMenu = useCallback(
+    async (album: Album) => {
+      try {
+        const cached = LocalCacheService.getCachedAlbumDetail(album.id);
+        let tracks = cached?.tracks;
+        if (!tracks || tracks.length === 0) {
+          const detail = await invoke<AlbumDetail>("get_album_details", {
+            browseId: album.id,
+          });
+          if (detail && detail.tracks) {
+            LocalCacheService.saveCachedAlbumDetail(album.id, detail);
+            tracks = detail.tracks;
+          }
+        }
+        if (tracks && tracks.length > 0) {
+          setAddToPlaylistBatch({
+            tracks,
+            albumTitle: album.title,
+          });
+        }
+      } catch (err) {
+        console.error("Erro ao carregar faixas do álbum para adicionar à playlist:", err);
+      }
+    },
+    []
+  );
 
   return (
     <div
@@ -1568,20 +1763,45 @@ function AppContent({
       {/* Modais de Manipulação de Playlists (Sugestão 2.4) */}
       <CreatePlaylistModal
         isOpen={isCreatePlaylistOpen}
-        onClose={() => setIsCreatePlaylistOpen(false)}
+        initialTitle={createPlaylistInitialTitle}
+        onClose={() => {
+          setIsCreatePlaylistOpen(false);
+          setCreatePlaylistInitialTitle("");
+          setPendingTracksForNewPlaylist(null);
+        }}
         onCreate={handleCreatePlaylist}
       />
 
       <AddToPlaylistModal
-        isOpen={!!addToPlaylistTrack}
+        isOpen={!!addToPlaylistTrack || !!addToPlaylistBatch}
         track={addToPlaylistTrack}
+        tracks={addToPlaylistBatch?.tracks}
+        sourceAlbumTitle={addToPlaylistBatch?.albumTitle}
         playlists={playlists}
-        onClose={() => setAddToPlaylistTrack(null)}
-        onAddToPlaylist={handleAddTrackToPlaylist}
-        onCreateNewPlaylist={() => {
+        onClose={() => {
           setAddToPlaylistTrack(null);
+          setAddToPlaylistBatch(null);
+        }}
+        onAddToPlaylist={handleAddTrackToPlaylist}
+        onCreateNewPlaylist={(suggestedTitle, albumTracks) => {
+          setAddToPlaylistTrack(null);
+          setAddToPlaylistBatch(null);
+          setCreatePlaylistInitialTitle(suggestedTitle || "");
+          setPendingTracksForNewPlaylist(albumTracks || null);
           setIsCreatePlaylistOpen(true);
         }}
+      />
+
+      <CollectionContextMenu
+        item={collectionMenuState?.item || null}
+        position={collectionMenuState?.position || null}
+        onClose={() => setCollectionMenuState(null)}
+        onPlay={handlePlayCollectionFromMenu}
+        onAddToQueue={handleAddToQueueFromMenu}
+        onTogglePin={handleTogglePinFromMenu}
+        onAddAlbumToPlaylist={handleAddAlbumToPlaylistFromMenu}
+        onEditPlaylist={(pl) => setEditingPlaylist(pl)}
+        onDeletePlaylist={(pl) => setDeletingPlaylist(pl)}
       />
 
       <EditPlaylistModal

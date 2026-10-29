@@ -11,6 +11,7 @@ import {
   Check,
   Share2,
   Pin,
+  ListPlus,
 } from "lucide-react";
 import { Album, AlbumDetail, Track } from "../../types";
 import { upgradeArtworkQuality } from "../../utils/artwork";
@@ -141,6 +142,18 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
     onPlayAlbum(tracks, 0, true);
   };
 
+  const handleAddToPlaylist = () => {
+    if (tracks.length === 0) return;
+    window.dispatchEvent(
+      new CustomEvent("tetplayer:open-add-tracks-to-playlist", {
+        detail: {
+          tracks,
+          albumTitle: displayAlbum.title,
+        },
+      })
+    );
+  };
+
   const handleCopyLink = () => {
     const url = `https://music.youtube.com/browse/${album.id}`;
     navigator.clipboard?.writeText(url).then(() => {
@@ -269,6 +282,18 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
                 <span className="hidden sm:inline">Aleatório</span>
               </button>
 
+              <button
+                type="button"
+                onClick={handleAddToPlaylist}
+                disabled={isLoading || tracks.length === 0}
+                title="Adicionar todas as músicas deste álbum a uma playlist"
+                aria-label="Adicionar álbum à playlist"
+                className="flex items-center gap-2 px-4 py-3 rounded-full bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 text-white font-semibold text-xs transition-all cursor-pointer disabled:opacity-50"
+              >
+                <ListPlus className="w-4 h-4 text-[var(--accent-text)]" />
+                <span className="hidden sm:inline">Adicionar à Playlist</span>
+              </button>
+
               {onTogglePinAlbum && (
                 <button
                   type="button"
@@ -386,7 +411,18 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
                         {track.title}
                       </p>
                       {track.artist !== displayAlbum.artist && (
-                        <p className="text-[11px] text-[#8c91a4] truncate">
+                        <p
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.dispatchEvent(
+                              new CustomEvent("tetplayer:search-artist", {
+                                detail: { query: track.artist },
+                              })
+                            );
+                          }}
+                          className="text-[11px] text-[#8c91a4] hover:text-white hover:underline cursor-pointer transition-colors truncate"
+                          title={`Buscar músicas de ${track.artist}`}
+                        >
                           {track.artist}
                         </p>
                       )}

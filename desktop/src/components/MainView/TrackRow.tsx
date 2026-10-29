@@ -135,7 +135,46 @@ export const TrackRow = React.memo(function TrackRow({
             {track.title}
           </p>
           <p className="text-xs text-[#8c91a4] truncate">
-            {track.artist} {track.album ? `• ${track.album}` : ""}
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                if (track.artist) {
+                  window.dispatchEvent(
+                    new CustomEvent("tetplayer:search-artist", {
+                      detail: { query: track.artist },
+                    })
+                  );
+                }
+              }}
+              className="hover:text-white hover:underline cursor-pointer transition-colors"
+              title={`Buscar músicas de ${track.artist}`}
+            >
+              {track.artist}
+            </span>
+            {track.album && (
+              <>
+                <span className="mx-1 text-[#4a5063] select-none">•</span>
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.dispatchEvent(
+                      new CustomEvent("tetplayer:open-album", {
+                        detail: {
+                          albumId: (track as any).album_id || undefined,
+                          albumTitle: track.album,
+                          artist: track.artist,
+                          artworkUrl: track.artwork_url,
+                        },
+                      })
+                    );
+                  }}
+                  className="hover:text-white hover:underline cursor-pointer transition-colors"
+                  title={`Ver álbum ${track.album}`}
+                >
+                  {track.album}
+                </span>
+              </>
+            )}
           </p>
         </div>
       </div>

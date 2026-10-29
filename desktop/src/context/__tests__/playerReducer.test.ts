@@ -185,4 +185,23 @@ describe("playerReducer (FSM da Fila e Reprodução)", () => {
     });
     expect(outOfBounds).toBe(state);
   });
+
+  it("deve adicionar múltiplas faixas ao final da fila com ADD_TRACKS_TO_END", () => {
+    const state: QueueState = {
+      ...createInitialQueueState(),
+      activeQueue: [mockTrack1],
+      originalQueue: [mockTrack1],
+      currentTrack: mockTrack1,
+      currentQueueIndex: 0,
+    };
+
+    const nextState = playerReducer(state, {
+      type: "ADD_TRACKS_TO_END",
+      payload: { tracks: [mockTrack2, mockTrack3] },
+    });
+
+    expect(nextState.activeQueue).toHaveLength(3);
+    expect(nextState.activeQueue.map((t) => t.id)).toEqual(["1", "2", "3"]);
+    expect(nextState.originalQueue.map((t) => t.id)).toEqual(["1", "2", "3"]);
+  });
 });
