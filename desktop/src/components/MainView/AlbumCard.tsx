@@ -109,7 +109,7 @@ export const AlbumCard = React.memo(function AlbumCard({
       <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-[#161822] border border-white/5 shrink-0 shadow-md">
         {album.artwork_url && !hasImageError ? (
           <img
-            src={upgradeArtworkQuality(album.artwork_url, undefined, "thumb")}
+            src={upgradeArtworkQuality(album.artwork_url, undefined, "card")}
             alt={album.title}
             loading="lazy"
             decoding="async"

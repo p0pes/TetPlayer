@@ -251,7 +251,7 @@ export const PlaylistGridView = React.memo(function PlaylistGridView({
                 <div className="relative w-full aspect-square rounded-xl overflow-hidden shadow-md flex items-center justify-center bg-gradient-to-br from-indigo-700 via-purple-800 to-pink-700 border border-white/5">
                   {pl.artwork_url ? (
                     <img
-                      src={upgradeArtworkQuality(pl.artwork_url, undefined, "thumb")}
+                      src={upgradeArtworkQuality(pl.artwork_url, undefined, "card")}
                       alt={pl.title}
                       loading="lazy"
                       decoding="async"
