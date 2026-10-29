@@ -70,7 +70,7 @@ export const TrackRow = React.memo(function TrackRow({
       onContextMenu={handleContextMenu}
       className={`relative flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer group ${
         isDraggingThis
-          ? "opacity-45 scale-[0.99] bg-[#1c202d] border-[var(--accent)] shadow-lg"
+          ? "opacity-25 scale-[0.99] bg-[#0e1017] border-dashed border-[var(--accent)]/60"
           : isCurrent
           ? "bg-[#1c202d] border-[var(--accent)]"
           : "bg-[#12141c] border-[#1f232e] hover:bg-[#171a24] hover:border-[#2b3040]"

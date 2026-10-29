@@ -1,7 +1,10 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, { useState, useRef, useCallback, useEffect, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { GripVertical, Music, MoreVertical, Play, Pause } from "lucide-react";
 import { Track } from "../../types";
 import { TrackRow } from "./TrackRow";
+import { upgradeArtworkQuality, handleArtworkError } from "../../utils/artwork";
 
 interface VirtualizedTrackListProps {
   tracks: Track[];
@@ -30,9 +33,19 @@ export function VirtualizedTrackList({
 }: VirtualizedTrackListProps) {
   const [dragSourceIndex, setDragSourceIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [dragGhostBox, setDragGhostBox] = useState<{
+    left: number;
+    width: number;
+    initialY: number;
+    track: Track;
+  } | null>(null);
+
+  const ghostRef = useRef<HTMLDivElement | null>(null);
   const suppressClickRef = useRef(false);
   const onReorderRef = useRef(onReorderTrack);
   onReorderRef.current = onReorderTrack;
+  const tracksRef = useRef(tracks);
+  tracksRef.current = tracks;
 
   const dragStateRef = useRef<{
     active: boolean;
@@ -41,14 +54,28 @@ export function VirtualizedTrackList({
     startY: number;
     clientX: number;
     clientY: number;
+    rowLeft: number;
+    rowWidth: number;
+    offsetY: number;
     rafId: number | null;
   } | null>(null);
 
   const shouldSuppressClick = useCallback(() => suppressClickRef.current, []);
 
+  // Sincroniza a posição inicial do ghost no exato frame de montagem
+  useLayoutEffect(() => {
+    if (ghostRef.current && dragStateRef.current) {
+      const y = dragStateRef.current.clientY - dragStateRef.current.offsetY;
+      ghostRef.current.style.transform = `translate3d(0, ${y}px, 0) scale(1.015)`;
+    }
+  }, [dragGhostBox]);
+
   const handleDragStart = useCallback(
     (e: React.PointerEvent, index: number) => {
       if (!canReorder) return;
+
+      const rowEl = (e.currentTarget as HTMLElement).closest("[data-track-index]") as HTMLElement | null;
+      const rowRect = rowEl ? rowEl.getBoundingClientRect() : null;
 
       dragStateRef.current = {
         active: false,
@@ -57,14 +84,17 @@ export function VirtualizedTrackList({
         startY: e.clientY,
         clientX: e.clientX,
         clientY: e.clientY,
+        rowLeft: rowRect ? rowRect.left : e.clientX - 120,
+        rowWidth: rowRect ? rowRect.width : 560,
+        offsetY: rowRect ? e.clientY - rowRect.top : 34,
         rafId: null,
       };
 
       const updateTargetFromPoint = (x: number, y: number) => {
         const el = document.elementFromPoint(x, y);
-        const rowEl = el?.closest("[data-track-index]") as HTMLElement | null;
-        if (!rowEl || !dragStateRef.current) return;
-        const idx = Number(rowEl.getAttribute("data-track-index"));
+        const targetRow = el?.closest("[data-track-index]") as HTMLElement | null;
+        if (!targetRow || !dragStateRef.current) return;
+        const idx = Number(targetRow.getAttribute("data-track-index"));
         if (!Number.isNaN(idx) && idx !== dragStateRef.current.overIndex) {
           dragStateRef.current.overIndex = idx;
           setDragOverIndex(idx);
@@ -108,9 +138,25 @@ export function VirtualizedTrackList({
           suppressClickRef.current = true;
           document.body.style.userSelect = "none";
           document.body.style.cursor = "grabbing";
+
+          const draggedTrack = tracksRef.current[state.sourceIndex];
+          if (draggedTrack) {
+            setDragGhostBox({
+              left: state.rowLeft,
+              width: state.rowWidth,
+              initialY: ev.clientY - state.offsetY,
+              track: draggedTrack,
+            });
+          }
+
           setDragSourceIndex(state.sourceIndex);
           setDragOverIndex(state.sourceIndex);
           state.rafId = requestAnimationFrame(autoScrollTick);
+        }
+
+        if (ghostRef.current) {
+          const y = ev.clientY - state.offsetY;
+          ghostRef.current.style.transform = `translate3d(0, ${y}px, 0) scale(1.015)`;
         }
 
         updateTargetFromPoint(ev.clientX, ev.clientY);
@@ -133,6 +179,7 @@ export function VirtualizedTrackList({
           const { sourceIndex, overIndex } = state;
           setDragSourceIndex(null);
           setDragOverIndex(null);
+          setDragGhostBox(null);
           if (sourceIndex !== overIndex) {
             onReorderRef.current?.(sourceIndex, overIndex);
           }
@@ -173,54 +220,143 @@ export function VirtualizedTrackList({
     return dragSourceIndex > idx ? "before" : "after";
   };
 
+  // Elemento flutuante (Ghost Preview) a 144 FPS que acompanha o ponteiro como no YouTube Music
+  const floatingGhost =
+    dragSourceIndex !== null &&
+    dragGhostBox &&
+    typeof document !== "undefined"
+      ? createPortal(
+          <div
+            ref={ghostRef}
+            style={{
+              position: "fixed",
+              top: 0,
+              left: `${dragGhostBox.left}px`,
+              width: `${dragGhostBox.width}px`,
+              transform: `translate3d(0, ${dragGhostBox.initialY}px, 0) scale(1.015)`,
+              pointerEvents: "none",
+              zIndex: 9999,
+              willChange: "transform",
+            }}
+          >
+            <div className="flex items-center justify-between p-3 rounded-xl border border-[var(--accent)] bg-[#181c2b]/95 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.85),0_0_24px_var(--accent-glow)]">
+              <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                <div className="w-6 flex items-center justify-center shrink-0">
+                  <GripVertical className="w-4 h-4 text-[var(--accent-text)]" />
+                </div>
+
+                <div className="w-11 h-11 rounded-lg bg-[#1a1d28] overflow-hidden shrink-0 flex items-center justify-center">
+                  {dragGhostBox.track.artwork_url || dragGhostBox.track.id ? (
+                    <img
+                      src={upgradeArtworkQuality(
+                        dragGhostBox.track.artwork_url,
+                        dragGhostBox.track.id,
+                        "thumb"
+                      )}
+                      alt={dragGhostBox.track.title}
+                      referrerPolicy="no-referrer"
+                      onError={(e) => handleArtworkError(e, dragGhostBox.track.id)}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Music className="w-4 h-4 text-[#5e6479]" />
+                  )}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold truncate text-white">
+                    {dragGhostBox.track.title}
+                  </p>
+                  <p className="text-xs text-[#8c91a4] truncate">
+                    {dragGhostBox.track.artist}{" "}
+                    {dragGhostBox.track.album ? `• ${dragGhostBox.track.album}` : ""}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5 shrink-0 pl-3">
+                {dragGhostBox.track.duration && (
+                  <span className="text-xs text-[#8c91a4] font-mono mr-1">
+                    {dragGhostBox.track.duration}
+                  </span>
+                )}
+                <div className="p-1.5 rounded-lg text-[#71778c]">
+                  <MoreVertical className="w-4 h-4" />
+                </div>
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    currentTrack?.id === dragGhostBox.track.id && isPlaying
+                      ? "bg-[var(--accent)] text-white"
+                      : "bg-[#1a1d28] text-white"
+                  }`}
+                >
+                  {currentTrack?.id === dragGhostBox.track.id && isPlaying ? (
+                    <Pause className="w-3.5 h-3.5 fill-current" />
+                  ) : (
+                    <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )
+      : null;
+
   // Para listas pequenas, renderiza diretamente
   if (tracks.length <= 40) {
     return (
-      <div className="space-y-2">
-        {tracks.map((track, idx) => {
-          const isCurrent = currentTrack?.id === track.id;
-          const isLoadingThis = loadingTrackId === track.id;
+      <>
+        {floatingGhost}
+        <div className="space-y-2">
+          {tracks.map((track, idx) => {
+            const isCurrent = currentTrack?.id === track.id;
+            const isLoadingThis = loadingTrackId === track.id;
 
-          return (
-            <TrackRow
-              key={track.set_video_id || `${track.id}-${idx}`}
-              track={track}
-              index={idx}
-              isCurrent={isCurrent}
-              isPlaying={isPlaying}
-              isLoadingThis={isLoadingThis}
-              playlistId={playlistId}
-              canReorder={canReorder}
-              isDraggingThis={dragSourceIndex === idx}
-              dropPosition={getDropPosition(idx)}
-              onDragStart={handleDragStart}
-              shouldSuppressClick={shouldSuppressClick}
-              onPlay={() => onPlayTrack(track, idx)}
-              onTogglePlayPause={onTogglePlayPause}
-            />
-          );
-        })}
-      </div>
+            return (
+              <TrackRow
+                key={track.set_video_id || `${track.id}-${idx}`}
+                track={track}
+                index={idx}
+                isCurrent={isCurrent}
+                isPlaying={isPlaying}
+                isLoadingThis={isLoadingThis}
+                playlistId={playlistId}
+                canReorder={canReorder}
+                isDraggingThis={dragSourceIndex === idx}
+                dropPosition={getDropPosition(idx)}
+                onDragStart={handleDragStart}
+                shouldSuppressClick={shouldSuppressClick}
+                onPlay={() => onPlayTrack(track, idx)}
+                onTogglePlayPause={onTogglePlayPause}
+              />
+            );
+          })}
+        </div>
+      </>
     );
   }
 
   // Para listas longas (300 a 2.000 faixas), usa virtualização com TanStack Virtual
   return (
-    <VirtualContainer
-      tracks={tracks}
-      currentTrack={currentTrack}
-      isPlaying={isPlaying}
-      loadingTrackId={loadingTrackId}
-      playlistId={playlistId}
-      canReorder={canReorder}
-      dragSourceIndex={dragSourceIndex}
-      getDropPosition={getDropPosition}
-      onDragStart={handleDragStart}
-      shouldSuppressClick={shouldSuppressClick}
-      onPlayTrack={onPlayTrack}
-      onTogglePlayPause={onTogglePlayPause}
-      parentRef={parentRef}
-    />
+    <>
+      {floatingGhost}
+      <VirtualContainer
+        tracks={tracks}
+        currentTrack={currentTrack}
+        isPlaying={isPlaying}
+        loadingTrackId={loadingTrackId}
+        playlistId={playlistId}
+        canReorder={canReorder}
+        dragSourceIndex={dragSourceIndex}
+        getDropPosition={getDropPosition}
+        onDragStart={handleDragStart}
+        shouldSuppressClick={shouldSuppressClick}
+        onPlayTrack={onPlayTrack}
+        onTogglePlayPause={onTogglePlayPause}
+        parentRef={parentRef}
+      />
+    </>
   );
 }
 
