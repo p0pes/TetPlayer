@@ -1,16 +1,32 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { AlertCircle, AlertTriangle, ListMusic, Disc3 } from "lucide-react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  ListMusic,
+  Disc3,
+  LayoutGrid,
+  Grid3x3,
+  Search,
+  ArrowUpDown,
+  ChevronDown,
+  Check,
+  X,
+  Plus,
+  RefreshCw,
+} from "lucide-react";
 import { Playlist, Track, AuthSession, ActiveTab, Album, AlbumDetail } from "./types";
 import { LocalCacheService } from "./services/cache";
 import { PlayerProvider, usePlayer } from "./context/PlayerContext";
 import { TitleBar } from "./components/TitleBar/TitleBar";
 import { Sidebar } from "./components/Sidebar/Sidebar";
-import { PlaylistGridView } from "./components/MainView/PlaylistGridView";
+import { PlaylistGridView, LibrarySortOption } from "./components/MainView/PlaylistGridView";
 import { PlaylistDetailView } from "./components/MainView/PlaylistDetailView";
 import { AlbumGridView } from "./components/MainView/AlbumGridView";
 import { AlbumDetailView } from "./components/MainView/AlbumDetailView";
+import { GridDensity } from "./components/MainView/AlbumCard";
+import { LibraryOverview } from "./components/MainView/LibraryOverview";
 import { SearchView } from "./components/MainView/SearchView";
 import { StatsView } from "./components/StatsView/StatsView";
 import { PlayerBar } from "./components/Player/PlayerBar";
@@ -107,7 +123,49 @@ function AppContent({
 
   // Navegação: 'library', 'search' ou 'stats'
   const [activeTab, setActiveTab] = useState<ActiveTab>("library");
-  const [librarySection, setLibrarySection] = useState<"playlists" | "albums">("playlists");
+  const [librarySection, setLibrarySection] = useState<"all" | "playlists" | "albums">("all");
+  const [librarySearchQuery, setLibrarySearchQuery] = useState("");
+  const [librarySortBy, setLibrarySortBy] = useState<LibrarySortOption>("recent");
+  const [isLibrarySortOpen, setIsLibrarySortOpen] = useState(false);
+  const librarySortDropdownRef = useRef<HTMLDivElement>(null);
+  const [libraryDensity, setLibraryDensity] = useState<GridDensity>(() => {
+    try {
+      const saved = localStorage.getItem("tetplayer_library_density");
+      return saved === "compact" ? "compact" : "comfortable";
+    } catch {
+      return "comfortable";
+    }
+  });
+
+  const handleSetLibraryDensity = useCallback((density: GridDensity) => {
+    setLibraryDensity(density);
+    try {
+      localStorage.setItem("tetplayer_library_density", density);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isLibrarySortOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        librarySortDropdownRef.current &&
+        !librarySortDropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsLibrarySortOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsLibrarySortOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isLibrarySortOpen]);
 
   // Configurações & Aurora Glow (Aba de Configurações)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -378,7 +436,6 @@ function AppContent({
     setSelectedPlaylist(playlist);
     setSelectedAlbum(null);
     setAlbumDetail(null);
-    setLibrarySection("playlists");
     setActiveTab("library");
     closeNowPlaying();
 
@@ -416,7 +473,6 @@ function AppContent({
     if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
     setSelectedAlbum(album);
     setSelectedPlaylist(null);
-    setLibrarySection("albums");
     setActiveTab("library");
     closeNowPlaying();
 
@@ -1096,30 +1152,54 @@ function AppContent({
                     />
                   ) : (
                     <div className="space-y-6">
-                      {/* Segmented Control da Biblioteca: Playlists vs Álbuns (Animação de Slide 144 FPS) */}
-                      <div className="flex items-center justify-between pb-2 border-b border-white/5">
-                        <div className="relative inline-flex items-center p-1 bg-[#12141f] border border-[#272c3f] rounded-xl select-none">
-                          {/* Sliding indicator pill (mantém a mesma cor de destaque do tema ativo) */}
+                      {/* Barra de Ferramentas Unificada da Biblioteca (Eixo 2) */}
+                      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 pb-3 border-b border-white/5">
+                        {/* Segmented Control: Tudo | Playlists | Álbuns (Animação de Slide 144 FPS) */}
+                        <div className="relative inline-flex items-center p-1 bg-[#12141f] border border-[#272c3f] rounded-xl select-none self-start">
                           <div
-                            className="absolute top-1 bottom-1 w-36 rounded-lg bg-[var(--accent)] shadow-md shadow-[var(--accent-glow)] transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] pointer-events-none"
+                            className="absolute top-1 bottom-1 w-32 rounded-lg bg-[var(--accent)] shadow-md shadow-[var(--accent-glow)] transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] pointer-events-none"
                             style={{
                               transform:
-                                librarySection === "playlists"
+                                librarySection === "all"
                                   ? "translate3d(0px, 0, 0)"
-                                  : "translate3d(144px, 0, 0)",
+                                  : librarySection === "playlists"
+                                  ? "translate3d(128px, 0, 0)"
+                                  : "translate3d(256px, 0, 0)",
                             }}
                           />
 
                           <button
                             type="button"
+                            onClick={() => setLibrarySection("all")}
+                            className={`relative z-10 w-32 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold transition-colors duration-200 cursor-pointer ${
+                              librarySection === "all"
+                                ? "text-white font-bold"
+                                : "text-[#8c91a4] hover:text-white"
+                            }`}
+                          >
+                            <LayoutGrid className="w-3.5 h-3.5" />
+                            <span>Tudo</span>
+                            <span
+                              className={`text-[10px] px-1.5 py-0.5 rounded-full transition-colors ${
+                                librarySection === "all"
+                                  ? "bg-white/20 text-white font-bold"
+                                  : "bg-white/5 text-[#8c91a4]"
+                              }`}
+                            >
+                              {playlists.length + albums.length}
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
                             onClick={() => setLibrarySection("playlists")}
-                            className={`relative z-10 w-36 flex items-center justify-center gap-2 py-2 text-xs font-semibold transition-colors duration-200 cursor-pointer ${
+                            className={`relative z-10 w-32 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold transition-colors duration-200 cursor-pointer ${
                               librarySection === "playlists"
                                 ? "text-white font-bold"
                                 : "text-[#8c91a4] hover:text-white"
                             }`}
                           >
-                            <ListMusic className="w-4 h-4" />
+                            <ListMusic className="w-3.5 h-3.5" />
                             <span>Playlists</span>
                             <span
                               className={`text-[10px] px-1.5 py-0.5 rounded-full transition-colors ${
@@ -1135,13 +1215,13 @@ function AppContent({
                           <button
                             type="button"
                             onClick={() => setLibrarySection("albums")}
-                            className={`relative z-10 w-36 flex items-center justify-center gap-2 py-2 text-xs font-semibold transition-colors duration-200 cursor-pointer ${
+                            className={`relative z-10 w-32 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold transition-colors duration-200 cursor-pointer ${
                               librarySection === "albums"
                                 ? "text-white font-bold"
                                 : "text-[#8c91a4] hover:text-white"
                             }`}
                           >
-                            <Disc3 className="w-4 h-4" />
+                            <Disc3 className="w-3.5 h-3.5" />
                             <span>Álbuns</span>
                             <span
                               className={`text-[10px] px-1.5 py-0.5 rounded-full transition-colors ${
@@ -1154,9 +1234,216 @@ function AppContent({
                             </span>
                           </button>
                         </div>
+
+                        {/* Controles Unificados: Busca Instantânea + Ordenação Customizada + Densidade + Ações */}
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          {/* Busca Instantânea Unificada */}
+                          <div className="relative flex-1 sm:flex-initial sm:w-56">
+                            <Search className="w-3.5 h-3.5 text-[#63697e] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <input
+                              type="text"
+                              value={librarySearchQuery}
+                              onChange={(e) => setLibrarySearchQuery(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Escape") setLibrarySearchQuery("");
+                              }}
+                              placeholder={
+                                librarySection === "playlists"
+                                  ? "Filtrar playlists..."
+                                  : librarySection === "albums"
+                                  ? "Filtrar álbuns ou artistas..."
+                                  : "Filtrar playlists e álbuns..."
+                              }
+                              aria-label="Filtrar na biblioteca"
+                              className="w-full bg-[#131622] border border-[#232738] focus:border-[var(--accent)] rounded-xl pl-8 pr-7 py-1.5 text-xs text-white placeholder-[#63697e] outline-none transition-colors"
+                            />
+                            {librarySearchQuery && (
+                              <button
+                                type="button"
+                                onClick={() => setLibrarySearchQuery("")}
+                                aria-label="Limpar busca da biblioteca"
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-[#63697e] hover:text-white p-0.5 cursor-pointer"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Seletor de Ordenação Customizado da Biblioteca */}
+                          <div
+                            ref={librarySortDropdownRef}
+                            className="relative flex items-center gap-1.5"
+                          >
+                            <ArrowUpDown className="w-3.5 h-3.5 text-[#71778c] shrink-0" />
+                            <button
+                              type="button"
+                              onClick={() => setIsLibrarySortOpen((prev) => !prev)}
+                              aria-label="Ordenar biblioteca por"
+                              aria-expanded={isLibrarySortOpen}
+                              aria-haspopup="listbox"
+                              className={`flex items-center justify-between gap-2 min-w-[155px] bg-[#131622] hover:bg-[#191d2c] border rounded-xl px-3 py-1.5 text-xs font-medium text-white transition-all cursor-pointer select-none ${
+                                isLibrarySortOpen
+                                  ? "border-[var(--accent)] ring-1 ring-[var(--accent-glow)]/40"
+                                  : "border-[#232738] hover:border-[#323850]"
+                              }`}
+                            >
+                              <span className="truncate">
+                                {(
+                                  [
+                                    { value: "recent", label: "Recentes / Padrão" },
+                                    { value: "title", label: "Título (A-Z)" },
+                                    { value: "artist", label: "Artista / Autor (A-Z)" },
+                                    { value: "count_desc", label: "Mais faixas / Ano" },
+                                  ] as const
+                                ).find((o) => o.value === librarySortBy)?.label ||
+                                  "Recentes / Padrão"}
+                              </span>
+                              <ChevronDown
+                                className={`w-3.5 h-3.5 text-[#8c91a4] transition-transform duration-200 shrink-0 ${
+                                  isLibrarySortOpen
+                                    ? "rotate-180 text-[var(--accent-text)]"
+                                    : ""
+                                }`}
+                              />
+                            </button>
+
+                            {isLibrarySortOpen && (
+                              <div
+                                role="listbox"
+                                aria-label="Opções de ordenação da biblioteca"
+                                className="absolute right-0 top-full mt-1.5 z-50 min-w-[205px] bg-[#12141f]/95 backdrop-blur-2xl border border-[#272c3f] rounded-2xl shadow-2xl p-1.5 flex flex-col gap-0.5 select-none animate-in fade-in zoom-in-95 duration-100"
+                              >
+                                {(
+                                  [
+                                    { value: "recent", label: "Recentes / Padrão" },
+                                    { value: "title", label: "Título (A-Z)" },
+                                    { value: "artist", label: "Artista / Autor (A-Z)" },
+                                    { value: "count_desc", label: "Mais faixas / Ano" },
+                                  ] as const
+                                ).map((opt) => {
+                                  const isSelected = librarySortBy === opt.value;
+                                  return (
+                                    <button
+                                      key={opt.value}
+                                      type="button"
+                                      role="option"
+                                      aria-selected={isSelected}
+                                      onClick={() => {
+                                        setLibrarySortBy(opt.value);
+                                        setIsLibrarySortOpen(false);
+                                      }}
+                                      className={`flex items-center justify-between gap-3 px-3 py-1.5 rounded-xl text-xs font-medium transition-all cursor-pointer text-left ${
+                                        isSelected
+                                          ? "bg-[var(--accent-subtle)] text-white border border-[var(--accent-border)] font-semibold shadow-sm"
+                                          : "text-[#c4c8d8] hover:text-white hover:bg-white/5 border border-transparent"
+                                      }`}
+                                    >
+                                      <span>{opt.label}</span>
+                                      {isSelected && (
+                                        <Check className="w-3.5 h-3.5 text-[var(--accent-text)] shrink-0" />
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Alternador de Densidade da Grade: Confortável vs Compacto */}
+                          <div
+                            role="group"
+                            aria-label="Densidade da grade"
+                            className="inline-flex items-center p-0.5 bg-[#131622] border border-[#232738] rounded-xl"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => handleSetLibraryDensity("comfortable")}
+                              title="Grade Padrão (Cards maiores)"
+                              aria-label="Grade padrão"
+                              aria-pressed={libraryDensity === "comfortable"}
+                              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                                libraryDensity === "comfortable"
+                                  ? "bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] shadow-sm"
+                                  : "text-[#71778c] hover:text-white border border-transparent"
+                              }`}
+                            >
+                              <LayoutGrid className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSetLibraryDensity("compact")}
+                              title="Grade Compacta (Mais itens por linha)"
+                              aria-label="Grade compacta"
+                              aria-pressed={libraryDensity === "compact"}
+                              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                                libraryDensity === "compact"
+                                  ? "bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] shadow-sm"
+                                  : "text-[#71778c] hover:text-white border border-transparent"
+                              }`}
+                            >
+                              <Grid3x3 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          {/* Botão Criar Nova Playlist */}
+                          <button
+                            type="button"
+                            onClick={() => setIsCreatePlaylistOpen(true)}
+                            title="Criar nova playlist no YouTube Music"
+                            aria-label="Nova playlist"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--accent-subtle)] border border-[var(--accent-border)] text-[var(--accent-text)] hover:opacity-90 text-xs font-semibold cursor-pointer transition-all shadow-sm"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Nova Playlist</span>
+                          </button>
+
+                          {/* Botão Atualizar Biblioteca */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              loadPlaylists();
+                              loadAlbums();
+                            }}
+                            disabled={isLoadingPlaylists || isLoadingAlbums}
+                            title="Sincronizar playlists e álbuns"
+                            aria-label="Sincronizar biblioteca"
+                            className="p-2 rounded-xl bg-[#131622] hover:bg-[#1a1e2c] border border-[#232738] text-[#8c91a4] hover:text-white transition-all cursor-pointer disabled:opacity-50"
+                          >
+                            <RefreshCw
+                              className={`w-3.5 h-3.5 ${
+                                isLoadingPlaylists || isLoadingAlbums
+                                  ? "animate-spin text-[var(--accent)]"
+                                  : ""
+                              }`}
+                            />
+                          </button>
+                        </div>
                       </div>
 
-                      {librarySection === "playlists" ? (
+                      {librarySection === "all" ? (
+                        <LibraryOverview
+                          playlists={playlists}
+                          isLoadingPlaylists={isLoadingPlaylists}
+                          albums={albums}
+                          isLoadingAlbums={isLoadingAlbums}
+                          onRefreshAlbums={loadAlbums}
+                          pinnedIds={pinnedPlaylistIds}
+                          playlistHistory={playlistHistory}
+                          activeCollectionId={activeCollectionId}
+                          isPlaying={isPlaying}
+                          onSelectPlaylist={handleSelectPlaylist}
+                          onSelectAlbum={handleSelectAlbum}
+                          onPlayPlaylistQuick={handlePlayPlaylistQuick}
+                          onPlayAlbumQuick={handlePlayAlbumQuick}
+                          onTogglePin={handleTogglePinPlaylist}
+                          onTogglePlayPause={togglePlayPause}
+                          onCreatePlaylist={() => setIsCreatePlaylistOpen(true)}
+                          onSwitchSection={(sec) => setLibrarySection(sec)}
+                          searchQuery={librarySearchQuery}
+                          sortBy={librarySortBy}
+                          density={libraryDensity}
+                        />
+                      ) : librarySection === "playlists" ? (
                         <PlaylistGridView
                           playlists={playlists}
                           isLoadingPlaylists={isLoadingPlaylists}
@@ -1164,6 +1451,15 @@ function AppContent({
                           onSelectPlaylist={handleSelectPlaylist}
                           onTogglePinPlaylist={handleTogglePinPlaylist}
                           onCreatePlaylist={() => setIsCreatePlaylistOpen(true)}
+                          onPlayPlaylistQuick={handlePlayPlaylistQuick}
+                          activeCollectionId={activeCollectionId}
+                          isPlaying={isPlaying}
+                          onTogglePlayPause={togglePlayPause}
+                          playlistHistory={playlistHistory}
+                          searchQuery={librarySearchQuery}
+                          sortBy={librarySortBy}
+                          density={libraryDensity}
+                          hideHeader={true}
                         />
                       ) : (
                         <AlbumGridView
@@ -1174,6 +1470,14 @@ function AppContent({
                           onPlayAlbumQuick={handlePlayAlbumQuick}
                           pinnedAlbumIds={pinnedPlaylistIds}
                           onTogglePinAlbum={handleTogglePinPlaylist}
+                          activeCollectionId={activeCollectionId}
+                          isPlaying={isPlaying}
+                          onTogglePlayPause={togglePlayPause}
+                          playlistHistory={playlistHistory}
+                          externalSearchQuery={librarySearchQuery}
+                          externalSortBy={librarySortBy}
+                          density={libraryDensity}
+                          hideToolbar={true}
                         />
                       )}
                     </div>

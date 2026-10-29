@@ -2,12 +2,15 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { AlbumGridView } from "../MainView/AlbumGridView";
 import { AlbumDetailView } from "../MainView/AlbumDetailView";
-import { Album, AlbumDetail, Track } from "../../types";
+import { PlaylistGridView } from "../MainView/PlaylistGridView";
+import { LibraryOverview } from "../MainView/LibraryOverview";
+import { Album, AlbumDetail, Playlist, Track } from "../../types";
 
 vi.mock("../../context/PlayerContext", () => ({
   usePlayer: () => ({
     openContextMenu: vi.fn(),
   }),
+  triggerTrackContextMenu: vi.fn(),
 }));
 
 const mockAlbums: Album[] = [
@@ -34,6 +37,19 @@ const mockAlbums: Album[] = [
     year: "2015",
     album_type: "album",
     track_count: 13,
+  },
+];
+
+const mockPlaylists: Playlist[] = [
+  {
+    id: "VLLM",
+    title: "Músicas Curtidas",
+    track_count: "120 músicas",
+  },
+  {
+    id: "PL_SYNTH",
+    title: "Synthwave Mix",
+    track_count: "45 músicas",
   },
 ];
 
@@ -114,6 +130,70 @@ describe("AlbumGridView Component", () => {
 
     fireEvent.click(screen.getByText("Discovery"));
     expect(handleSelect).toHaveBeenCalledWith(mockAlbums[0]);
+  });
+});
+
+describe("PlaylistGridView & LibraryOverview (Eixo 2)", () => {
+  it("deve disparar onPlayPlaylistQuick ao clicar no botão flutuante de Play do card de playlist sem abrir a página", () => {
+    const handleSelect = vi.fn();
+    const handlePlayQuick = vi.fn();
+
+    render(
+      <PlaylistGridView
+        playlists={mockPlaylists}
+        isLoadingPlaylists={false}
+        pinnedPlaylistIds={["VLLM"]}
+        onSelectPlaylist={handleSelect}
+        onTogglePinPlaylist={vi.fn()}
+        onPlayPlaylistQuick={handlePlayQuick}
+      />
+    );
+
+    const playBtn = screen.getByRole("button", {
+      name: /reproduzir playlist synthwave mix/i,
+    });
+    fireEvent.click(playBtn);
+
+    expect(handlePlayQuick).toHaveBeenCalledTimes(1);
+    expect(handleSelect).not.toHaveBeenCalled();
+  });
+
+  it("deve renderizar Acesso Rápido, Playlists e Álbuns na Visão Geral (LibraryOverview)", () => {
+    const handleSwitchSection = vi.fn();
+
+    render(
+      <LibraryOverview
+        playlists={mockPlaylists}
+        isLoadingPlaylists={false}
+        albums={mockAlbums}
+        isLoadingAlbums={false}
+        onRefreshAlbums={vi.fn()}
+        pinnedIds={["VLLM", "MPREb_album1"]}
+        playlistHistory={{ PL_SYNTH: 1000 }}
+        activeCollectionId="VLLM"
+        isPlaying={true}
+        onSelectPlaylist={vi.fn()}
+        onSelectAlbum={vi.fn()}
+        onPlayPlaylistQuick={vi.fn()}
+        onPlayAlbumQuick={vi.fn()}
+        onTogglePin={vi.fn()}
+        onTogglePlayPause={vi.fn()}
+        onCreatePlaylist={vi.fn()}
+        onSwitchSection={handleSwitchSection}
+        searchQuery=""
+        sortBy="recent"
+        density="comfortable"
+      />
+    );
+
+    expect(screen.getByText(/acesso rápido/i)).toBeInTheDocument();
+    expect(screen.getAllByTestId("quick-access-card").length).toBeGreaterThanOrEqual(2);
+
+    const verPlaylistsBtn = screen.getByRole("button", {
+      name: /ver apenas playlists/i,
+    });
+    fireEvent.click(verPlaylistsBtn);
+    expect(handleSwitchSection).toHaveBeenCalledWith("playlists");
   });
 });
 

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { Play, Disc3, Pin } from "lucide-react";
+import { Play, Pause, Disc3, Pin } from "lucide-react";
 import { Album } from "../../types";
 import { upgradeArtworkQuality } from "../../utils/artwork";
+
+export type GridDensity = "comfortable" | "compact";
 
 interface AlbumCardProps {
   album: Album;
@@ -9,7 +11,44 @@ interface AlbumCardProps {
   onPlay?: (album: Album, e: React.MouseEvent) => void;
   isPinned?: boolean;
   onTogglePin?: (albumId: string, e: React.MouseEvent) => void;
+  isActivePlaying?: boolean;
+  isPlaying?: boolean;
+  onTogglePlayPause?: () => void;
+  density?: GridDensity;
 }
+
+const SubtleWaveIndicator = React.memo(function SubtleWaveIndicator({
+  isPlaying,
+}: {
+  isPlaying: boolean;
+}) {
+  return (
+    <div
+      className="flex items-end justify-center gap-[2px] h-3.5 w-4 px-0.5 shrink-0"
+      aria-hidden="true"
+      title={isPlaying ? "Reproduzindo este álbum" : "Álbum pausado"}
+    >
+      {[
+        { dur: "1.4s", delay: "0s" },
+        { dur: "1.6s", delay: "0.35s" },
+        { dur: "1.3s", delay: "0.7s" },
+      ].map((b, i) => (
+        <span
+          key={i}
+          className="w-[2px] h-full rounded-full bg-[var(--accent)] shadow-[0_0_5px_var(--accent-glow)] will-change-transform"
+          style={{
+            transformOrigin: "bottom",
+            animation: isPlaying
+              ? `subtle-equalizer-wave ${b.dur} ease-in-out infinite alternate`
+              : "none",
+            animationDelay: isPlaying ? b.delay : undefined,
+            transform: isPlaying ? undefined : "scaleY(0.28)",
+          }}
+        />
+      ))}
+    </div>
+  );
+});
 
 export const AlbumCard = React.memo(function AlbumCard({
   album,
@@ -17,6 +56,10 @@ export const AlbumCard = React.memo(function AlbumCard({
   onPlay,
   isPinned = false,
   onTogglePin,
+  isActivePlaying = false,
+  isPlaying = false,
+  onTogglePlayPause,
+  density = "comfortable",
 }: AlbumCardProps) {
   const [hasImageError, setHasImageError] = useState(false);
 
@@ -26,6 +69,10 @@ export const AlbumCard = React.memo(function AlbumCard({
 
   const handlePlayClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isActivePlaying && onTogglePlayPause) {
+      onTogglePlayPause();
+      return;
+    }
     if (onPlay) {
       onPlay(album, e);
     } else {
@@ -34,13 +81,18 @@ export const AlbumCard = React.memo(function AlbumCard({
   };
 
   const isSpecialType = album.album_type === "ep" || album.album_type === "single";
+  const isCompact = density === "compact";
 
   return (
     <div
       onClick={() => onSelect(album)}
       data-testid="album-card"
-      className={`group flex flex-col p-3 rounded-2xl bg-[#11131b]/60 hover:bg-[#181b26] border transition-all duration-200 cursor-pointer select-none shadow-sm hover:shadow-xl hover:shadow-[var(--accent-glow)]/10 ${
-        isPinned
+      className={`group flex flex-col ${
+        isCompact ? "p-2.5 rounded-xl" : "p-3 rounded-2xl"
+      } bg-[#11131b]/60 hover:bg-[#181b26] border transition-all duration-200 cursor-pointer select-none shadow-sm hover:shadow-xl hover:shadow-[var(--accent-glow)]/10 ${
+        isActivePlaying
+          ? "border-[var(--accent)] ring-1 ring-[var(--accent-glow)]/40 bg-[#161926]"
+          : isPinned
           ? "border-[var(--accent-border)] ring-1 ring-[var(--accent-subtle)]"
           : "border-[#1d212e] hover:border-[var(--accent-border)]"
       }`}
@@ -59,7 +111,7 @@ export const AlbumCard = React.memo(function AlbumCard({
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#1c1f2e] to-[#12141d] text-[#63697e]">
-            <Disc3 className="w-12 h-12" />
+            <Disc3 className={isCompact ? "w-9 h-9" : "w-12 h-12"} />
           </div>
         )}
 
@@ -68,6 +120,18 @@ export const AlbumCard = React.memo(function AlbumCard({
           <span className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-black/75 text-zinc-300 backdrop-blur-md border border-white/10 shadow-sm">
             {album.album_type}
           </span>
+        )}
+
+        {/* Indicador de Onda Sonora quando o álbum está ativo */}
+        {isActivePlaying && (
+          <div className="absolute bottom-2.5 left-2.5 z-10 px-2 py-1 rounded-lg bg-black/75 backdrop-blur-md border border-[var(--accent-border)] flex items-center gap-1.5 shadow-md">
+            <SubtleWaveIndicator isPlaying={isPlaying} />
+            {!isCompact && (
+              <span className="text-[10px] font-bold text-[var(--accent-text)]">
+                {isPlaying ? "Tocando" : "Pausado"}
+              </span>
+            )}
+          </div>
         )}
 
         {/* Botão de Fixar no Topo (Pin) */}
@@ -93,21 +157,42 @@ export const AlbumCard = React.memo(function AlbumCard({
         {/* Overlay escuro sutil no hover */}
         <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
 
-        {/* Botão de Play Rápido Flutuante (Emerge suavemente no hover) */}
+        {/* Botão de Play/Pause Rápido Flutuante */}
         <button
+          type="button"
           onClick={handlePlayClick}
-          aria-label={`Reproduzir álbum ${album.title}`}
-          className="absolute bottom-2.5 right-2.5 w-10 h-10 rounded-full bg-[var(--accent)] text-white flex items-center justify-center shadow-lg shadow-black/50 opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 hover:scale-105 active:scale-95 transition-all duration-200 z-10 cursor-pointer"
+          aria-label={
+            isActivePlaying && isPlaying
+              ? `Pausar álbum ${album.title}`
+              : `Reproduzir álbum ${album.title}`
+          }
+          className={`absolute bottom-2.5 right-2.5 ${
+            isCompact ? "w-8 h-8" : "w-10 h-10"
+          } rounded-full bg-[var(--accent)] text-white flex items-center justify-center shadow-lg shadow-black/50 hover:scale-105 active:scale-95 transition-all duration-200 z-10 cursor-pointer ${
+            isActivePlaying
+              ? "opacity-100 translate-y-0"
+              : "opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0"
+          }`}
         >
-          <Play className="w-4 h-4 fill-current ml-0.5" />
+          {isActivePlaying && isPlaying ? (
+            <Pause className={isCompact ? "w-3.5 h-3.5 fill-current" : "w-4 h-4 fill-current"} />
+          ) : (
+            <Play className={`${isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} fill-current ml-0.5`} />
+          )}
         </button>
       </div>
 
       {/* Metadados do Álbum */}
-      <div className="mt-3 flex flex-col min-w-0">
+      <div className={`${isCompact ? "mt-2" : "mt-3"} flex flex-col min-w-0`}>
         <h3
           title={album.title}
-          className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-[var(--accent-text)] transition-colors"
+          className={`${
+            isCompact ? "text-xs" : "text-xs sm:text-sm"
+          } font-bold truncate transition-colors ${
+            isActivePlaying
+              ? "text-[var(--accent-text)]"
+              : "text-white group-hover:text-[var(--accent-text)]"
+          }`}
         >
           {album.title}
         </h3>
@@ -115,7 +200,7 @@ export const AlbumCard = React.memo(function AlbumCard({
           {isPinned && (
             <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--accent-text)] bg-[var(--accent-subtle)] px-1.5 py-0.5 rounded shrink-0">
               <Pin className="w-2.5 h-2.5 fill-current" />
-              Fixado
+              {!isCompact && "Fixado"}
             </span>
           )}
           <p
@@ -125,11 +210,13 @@ export const AlbumCard = React.memo(function AlbumCard({
             {album.artist}
           </p>
         </div>
-        <div className="flex items-center gap-1.5 mt-1 text-[10px] text-[#63697e] font-mono">
-          {album.year && <span>{album.year}</span>}
-          {album.year && album.track_count && <span>•</span>}
-          {album.track_count && <span>{album.track_count} faixas</span>}
-        </div>
+        {!isCompact && (
+          <div className="flex items-center gap-1.5 mt-1 text-[10px] text-[#63697e] font-mono">
+            {album.year && <span>{album.year}</span>}
+            {album.year && album.track_count && <span>•</span>}
+            {album.track_count && <span>{album.track_count} faixas</span>}
+          </div>
+        )}
       </div>
     </div>
   );
