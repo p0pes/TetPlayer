@@ -2433,6 +2433,59 @@ pub async fn edit_playlist_metadata(
     Ok(())
 }
 
+fn extract_library_remove_feedback_token(val: &Value) -> Option<String> {
+    match val {
+        Value::Object(map) => {
+            if let Some(toggle) = map.get("toggleButtonRenderer").or_else(|| map.get("toggleMenuServiceItemRenderer")) {
+                let icon_type = toggle
+                    .get("defaultIcon")
+                    .and_then(|i| i.get("iconType"))
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("");
+                let toggled_icon_type = toggle
+                    .get("toggledIcon")
+                    .and_then(|i| i.get("iconType"))
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("");
+                let is_toggled = toggle.get("isToggled").and_then(|b| b.as_bool()).unwrap_or(false);
+
+                if icon_type == "BOOKMARK" || icon_type == "LIBRARY_SAVED" {
+                    if let Some(tok) = toggle["defaultServiceEndpoint"]["feedbackEndpoint"]["feedbackToken"].as_str() {
+                        if !tok.is_empty() {
+                            return Some(tok.to_string());
+                        }
+                    }
+                }
+                if (icon_type == "BOOKMARK_BORDER" || icon_type == "LIBRARY_ADD" || toggled_icon_type == "BOOKMARK" || toggled_icon_type == "LIBRARY_SAVED") && is_toggled {
+                    if let Some(tok) = toggle["toggledServiceEndpoint"]["feedbackEndpoint"]["feedbackToken"].as_str() {
+                        if !tok.is_empty() {
+                            return Some(tok.to_string());
+                        }
+                    }
+                }
+            }
+            for (k, v) in map {
+                if k == "musicPlaylistShelfRenderer" {
+                    continue;
+                }
+                if let Some(found) = extract_library_remove_feedback_token(v) {
+                    return Some(found);
+                }
+            }
+            None
+        }
+        Value::Array(arr) => {
+            for v in arr {
+                if let Some(found) = extract_library_remove_feedback_token(v) {
+                    return Some(found);
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
 pub async fn delete_playlist(
     session: &AuthSession,
     playlist_id: &str,
@@ -2446,22 +2499,24 @@ pub async fn delete_playlist(
     let headers = build_headers(session, "WEB_REMIX");
 
     let clean_id = playlist_id.strip_prefix("VL").unwrap_or(playlist_id);
+    let context_obj = json!({
+        "client": {
+            "clientName": "WEB_REMIX",
+            "clientVersion": "1.20240401.01.00",
+            "hl": "pt",
+            "gl": "BR"
+        }
+    });
 
+    // 1. Tenta excluir a playlist diretamente (para playlists criadas pelo próprio usuário)
     let payload = json!({
-        "context": {
-            "client": {
-                "clientName": "WEB_REMIX",
-                "clientVersion": "1.20240401.01.00",
-                "hl": "pt",
-                "gl": "BR"
-            }
-        },
+        "context": context_obj,
         "playlistId": clean_id
     });
 
     let resp = client
         .post(url)
-        .headers(headers)
+        .headers(headers.clone())
         .json(&payload)
         .send()
         .await
@@ -2473,11 +2528,86 @@ pub async fn delete_playlist(
         .await
         .map_err(|e| format!("Falha ao ler resposta da exclusão: {e}"))?;
 
-    if !status.is_success() {
-        return Err(format!("YouTube Music retornou status {status} ao excluir playlist: {text}"));
+    if status.is_success() {
+        return Ok(());
     }
 
-    Ok(())
+    // 2. Fallback para playlists de terceiros/comunidade salvas na biblioteca do usuário:
+    // No YouTube Music, playlists criadas por outros usuários (ex: amigos/canais) retornam 403 Forbidden
+    // em `playlist/delete`, pois devem ser removidas da biblioteca via `like/removelike` (status INDIFFERENT).
+    let removelike_url = "https://music.youtube.com/youtubei/v1/like/removelike?prettyPrint=false";
+    for candidate_id in [clean_id, playlist_id] {
+        let removelike_payload = json!({
+            "context": context_obj,
+            "target": {
+                "playlistId": candidate_id
+            }
+        });
+
+        if let Ok(rem_resp) = client
+            .post(removelike_url)
+            .headers(headers.clone())
+            .json(&removelike_payload)
+            .send()
+            .await
+        {
+            if rem_resp.status().is_success() {
+                return Ok(());
+            }
+        }
+    }
+
+    // 3. Fallback adicional via feedbackToken da página da playlist (caso a biblioteca use feedbackEndpoint)
+    let browse_id = if playlist_id.starts_with("VL") || playlist_id.starts_with("FE") {
+        playlist_id.to_string()
+    } else {
+        format!("VL{playlist_id}")
+    };
+    let browse_url = "https://music.youtube.com/youtubei/v1/browse?prettyPrint=false";
+    let browse_payload = json!({
+        "context": context_obj,
+        "browseId": browse_id
+    });
+
+    if let Ok(b_resp) = client
+        .post(browse_url)
+        .headers(headers.clone())
+        .json(&browse_payload)
+        .send()
+        .await
+    {
+        if b_resp.status().is_success() {
+            if let Ok(b_json) = b_resp.json::<Value>().await {
+                if let Some(token) = extract_library_remove_feedback_token(&b_json) {
+                    let feedback_url = "https://music.youtube.com/youtubei/v1/feedback?prettyPrint=false";
+                    let feedback_payload = json!({
+                        "context": context_obj,
+                        "feedbackTokens": [token]
+                    });
+                    if let Ok(fb_resp) = client
+                        .post(feedback_url)
+                        .headers(headers)
+                        .json(&feedback_payload)
+                        .send()
+                        .await
+                    {
+                        if fb_resp.status().is_success() {
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if status.as_u16() == 403 {
+        return Err(
+            "O YouTube Music recusou a operação (403 Permissão Negada). Verifique se sua conta está autenticada corretamente."
+                .to_string(),
+        );
+    }
+
+    Err(format!("YouTube Music retornou status {status} ao excluir playlist: {text}"))
 }
 
 pub async fn reorder_playlist_track(

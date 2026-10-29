@@ -64,28 +64,41 @@ export default function App() {
 
   const [activeCollectionId, setActiveCollectionId] = useState<string | null>(null);
 
-  function markPlaylistListened(playlistId?: string) {
+  const markPlaylistListened = useCallback((playlistId?: string) => {
     if (!playlistId) {
       setActiveCollectionId(null);
       return;
     }
     setActiveCollectionId(playlistId);
-    setPlaylistHistory((prev) => {
-      const updated = { ...prev, [playlistId]: Date.now() };
-      try {
-        localStorage.setItem("tetplayer_playlist_history", JSON.stringify(updated));
-      } catch {
-        // ignore
+    // Salva o histórico de recentes silenciosamente no localStorage sem reordenar a lista ao vivo.
+    // A ordem visual só será atualizada quando a tela recarregar ou ao clicar no botão de Sincronizar.
+    try {
+      const saved = localStorage.getItem("tetplayer_playlist_history");
+      const current: Record<string, number> = saved ? JSON.parse(saved) : {};
+      const updated = { ...current, [playlistId]: Date.now() };
+      localStorage.setItem("tetplayer_playlist_history", JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const syncPlaylistHistory = useCallback(() => {
+    try {
+      const saved = localStorage.getItem("tetplayer_playlist_history");
+      if (saved) {
+        setPlaylistHistory(JSON.parse(saved));
       }
-      return updated;
-    });
-  }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   return (
     <PlayerProvider onMarkPlaylistListened={markPlaylistListened}>
       <AppContent
         playlistHistory={playlistHistory}
         markPlaylistListened={markPlaylistListened}
+        syncPlaylistHistory={syncPlaylistHistory}
         activeCollectionId={activeCollectionId}
       />
     </PlayerProvider>
@@ -95,12 +108,14 @@ export default function App() {
 interface AppContentProps {
   playlistHistory: Record<string, number>;
   markPlaylistListened: (playlistId?: string) => void;
+  syncPlaylistHistory: () => void;
   activeCollectionId: string | null;
 }
 
 function AppContent({
   playlistHistory,
   markPlaylistListened,
+  syncPlaylistHistory,
   activeCollectionId,
 }: AppContentProps) {
   const {
@@ -362,6 +377,7 @@ function AppContent({
 
   // Carregamento de Playlists com Stale-While-Revalidate (0ms de espera)
   const loadPlaylists = useCallback(async () => {
+    syncPlaylistHistory();
     setIsLoadingPlaylists(true);
     try {
       const res = await invoke<Playlist[]>("get_user_playlists");
@@ -380,10 +396,11 @@ function AppContent({
     } finally {
       setIsLoadingPlaylists(false);
     }
-  }, []);
+  }, [syncPlaylistHistory]);
 
   // Carregamento de Álbuns com Stale-While-Revalidate (0ms de espera)
   const loadAlbums = useCallback(async () => {
+    syncPlaylistHistory();
     setIsLoadingAlbums(true);
     try {
       const res = await invoke<Album[]>("get_user_albums");
@@ -396,7 +413,7 @@ function AppContent({
     } finally {
       setIsLoadingAlbums(false);
     }
-  }, []);
+  }, [syncPlaylistHistory]);
 
   const handleRefreshAuth = useCallback(async () => {
     setIsCheckingAuth(true);
@@ -813,7 +830,7 @@ function AppContent({
         setSelectedPlaylist(null);
       }
 
-      showPlaylistToast(`Playlist "${target.title}" excluída com sucesso.`);
+      showPlaylistToast(`Playlist "${target.title}" removida da sua biblioteca com sucesso.`);
     } catch (err) {
       setErrorMessage(`Erro ao excluir playlist: ${String(err)}`);
       throw err;
