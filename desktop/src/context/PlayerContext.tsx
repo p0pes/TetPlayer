@@ -371,9 +371,7 @@ export function PlayerProvider({
   ) {
     setErrorMessage(null);
 
-    if (playlistId) {
-      markPlaylistListened(playlistId);
-    }
+    markPlaylistListened(playlistId);
 
     // Registrar no SQLite para o Resumo Musical
     recordTrackPlayed(track);

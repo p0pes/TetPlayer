@@ -46,8 +46,14 @@ export default function App() {
     }
   });
 
+  const [activeCollectionId, setActiveCollectionId] = useState<string | null>(null);
+
   function markPlaylistListened(playlistId?: string) {
-    if (!playlistId) return;
+    if (!playlistId) {
+      setActiveCollectionId(null);
+      return;
+    }
+    setActiveCollectionId(playlistId);
     setPlaylistHistory((prev) => {
       const updated = { ...prev, [playlistId]: Date.now() };
       try {
@@ -64,6 +70,7 @@ export default function App() {
       <AppContent
         playlistHistory={playlistHistory}
         markPlaylistListened={markPlaylistListened}
+        activeCollectionId={activeCollectionId}
       />
     </PlayerProvider>
   );
@@ -72,9 +79,14 @@ export default function App() {
 interface AppContentProps {
   playlistHistory: Record<string, number>;
   markPlaylistListened: (playlistId?: string) => void;
+  activeCollectionId: string | null;
 }
 
-function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) {
+function AppContent({
+  playlistHistory,
+  markPlaylistListened,
+  activeCollectionId,
+}: AppContentProps) {
   const {
     currentTrack,
     isNowPlayingOpen,
@@ -156,7 +168,7 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
-  // Playlists Fixadas
+  // Coleção Fixada (Playlists + Álbuns unificados na ordem customizada do usuário)
   const [pinnedPlaylistIds, setPinnedPlaylistIds] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem("tetplayer_pinned_playlists");
@@ -165,6 +177,14 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
       return ["VLLM"];
     }
   });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("tetplayer_pinned_playlists", JSON.stringify(pinnedPlaylistIds));
+    } catch {
+      // ignore
+    }
+  }, [pinnedPlaylistIds]);
 
   // Verificação de Atualizações no GitHub (branch main)
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
@@ -863,6 +883,29 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
     [playTrackWithQueue]
   );
 
+  const handlePlayPlaylistQuick = useCallback(
+    async (playlist: Playlist, e: React.MouseEvent) => {
+      e.stopPropagation();
+      try {
+        const cached = LocalCacheService.getCachedPlaylistTracks(playlist.id);
+        if (cached && cached.length > 0) {
+          playTrackWithQueue(cached[0], cached, 0, playlist.id);
+          return;
+        }
+        const tracks = await invoke<Track[]>("get_playlist_tracks", {
+          playlistId: playlist.id,
+        });
+        if (tracks && tracks.length > 0) {
+          LocalCacheService.saveCachedPlaylistTracks(playlist.id, tracks);
+          playTrackWithQueue(tracks[0], tracks, 0, playlist.id);
+        }
+      } catch (err) {
+        console.error("Erro ao reproduzir playlist rapidamente:", err);
+      }
+    },
+    [playTrackWithQueue]
+  );
+
   const handleTogglePinPlaylist = useCallback((playlistId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     setPinnedPlaylistIds((prev) => {
@@ -933,6 +976,16 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
             onCreatePlaylist={() => setIsCreatePlaylistOpen(true)}
             selectedPlaylist={selectedPlaylist}
             onSelectPlaylist={handleSelectPlaylist}
+            albums={albums}
+            isLoadingAlbums={isLoadingAlbums}
+            onRefreshAlbums={loadAlbums}
+            selectedAlbum={selectedAlbum}
+            onSelectAlbum={handleSelectAlbum}
+            onPlayPlaylistQuick={handlePlayPlaylistQuick}
+            onPlayAlbumQuick={handlePlayAlbumQuick}
+            activeCollectionId={activeCollectionId}
+            isPlaying={isPlaying}
+            onTogglePlayPause={togglePlayPause}
             auth={auth}
             isCheckingAuth={isCheckingAuth}
             onRefreshAuth={handleRefreshAuth}
@@ -1038,6 +1091,8 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
                       onTogglePlayPause={togglePlayPause}
                       onSelectRelatedAlbum={handleSelectAlbum}
                       onPlayAlbumQuick={handlePlayAlbumQuick}
+                      pinnedAlbumIds={pinnedPlaylistIds}
+                      onTogglePinAlbum={handleTogglePinPlaylist}
                     />
                   ) : (
                     <div className="space-y-6">
@@ -1117,6 +1172,8 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
                           onRefresh={loadAlbums}
                           onSelectAlbum={handleSelectAlbum}
                           onPlayAlbumQuick={handlePlayAlbumQuick}
+                          pinnedAlbumIds={pinnedPlaylistIds}
+                          onTogglePinAlbum={handleTogglePinPlaylist}
                         />
                       )}
                     </div>

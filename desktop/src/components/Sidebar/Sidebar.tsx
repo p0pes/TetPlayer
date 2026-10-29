@@ -1,22 +1,35 @@
-import React, { useState, useRef, useMemo } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   Library,
   Search,
+  BarChart3,
+  ListMusic,
+  Disc3,
   RefreshCw,
   Loader2,
-  ListMusic,
   Flame,
-  Pin,
-  ChevronUp,
-  ChevronDown,
-  GripVertical,
-  BarChart2,
   Settings,
-  LogIn,
-  User,
+  Pin,
+  GripVertical,
   Plus,
+  Play,
+  Pause,
+  X,
 } from "lucide-react";
-import { Playlist, AuthSession, ActiveTab } from "../../types";
+import { Playlist, Album, AuthSession, ActiveTab } from "../../types";
+import { upgradeArtworkQuality } from "../../utils/artwork";
+
+export type SidebarFilterMode = "all" | "playlists" | "albums";
+
+export interface SidebarCollectionItem {
+  kind: "playlist" | "album";
+  id: string;
+  title: string;
+  subtitle: string;
+  artworkUrl?: string | null;
+  playlist?: Playlist;
+  album?: Album;
+}
 
 interface SidebarProps {
   activeTab: ActiveTab;
@@ -26,7 +39,17 @@ interface SidebarProps {
   onRefreshPlaylists: () => void;
   onCreatePlaylist?: () => void;
   selectedPlaylist: Playlist | null;
-  onSelectPlaylist: (playlist: Playlist) => void;
+  onSelectPlaylist: (pl: Playlist) => void;
+  albums?: Album[];
+  isLoadingAlbums?: boolean;
+  onRefreshAlbums?: () => void;
+  selectedAlbum?: Album | null;
+  onSelectAlbum?: (album: Album) => void;
+  onPlayPlaylistQuick?: (pl: Playlist, e: React.MouseEvent) => void;
+  onPlayAlbumQuick?: (album: Album, e: React.MouseEvent) => void;
+  activeCollectionId?: string | null;
+  isPlaying?: boolean;
+  onTogglePlayPause?: () => void;
   auth: AuthSession | null;
   isCheckingAuth: boolean;
   onRefreshAuth: () => void;
@@ -37,6 +60,139 @@ interface SidebarProps {
   setPinnedPlaylistIds: React.Dispatch<React.SetStateAction<string[]>>;
 }
 
+const SubtleWaveIndicator = React.memo(function SubtleWaveIndicator({
+  isPlaying,
+}: {
+  isPlaying: boolean;
+}) {
+  return (
+    <div
+      className="flex items-end justify-center gap-[2px] h-3 w-4 px-0.5 shrink-0"
+      aria-hidden="true"
+      title={isPlaying ? "Reproduzindo agora" : "Coleção pausada"}
+    >
+      {[
+        { dur: "1.4s", delay: "0s" },
+        { dur: "1.6s", delay: "0.35s" },
+        { dur: "1.3s", delay: "0.7s" },
+      ].map((b, i) => (
+        <span
+          key={i}
+          className="w-[2px] h-full rounded-full bg-[var(--accent)] shadow-[0_0_5px_var(--accent-glow)] will-change-transform"
+          style={{
+            transformOrigin: "bottom",
+            animation: isPlaying
+              ? `subtle-equalizer-wave ${b.dur} ease-in-out infinite alternate`
+              : "none",
+            animationDelay: isPlaying ? b.delay : undefined,
+            transform: isPlaying ? undefined : "scaleY(0.28)",
+          }}
+        />
+      ))}
+    </div>
+  );
+});
+
+const SidebarItemThumbnail = React.memo(function SidebarItemThumbnail({
+  item,
+  isSelected,
+  isActivePlaying,
+  isPlaying,
+  onQuickPlay,
+}: {
+  item: SidebarCollectionItem;
+  isSelected: boolean;
+  isActivePlaying: boolean;
+  isPlaying: boolean;
+  onQuickPlay?: (e: React.MouseEvent) => void;
+}) {
+  const [hasImgError, setHasImgError] = useState(false);
+
+  useEffect(() => {
+    setHasImgError(false);
+  }, [item.id, item.artworkUrl]);
+
+  const thumbUrl = item.artworkUrl
+    ? upgradeArtworkQuality(item.artworkUrl, undefined, "thumb")
+    : null;
+
+  const isAlbum = item.kind === "album";
+  const isLikedAuto = item.id === "VLLM";
+
+  return (
+    <div
+      className={`relative shrink-0 flex items-center ${
+        isAlbum ? "w-[33px] h-7" : "w-7 h-7"
+      }`}
+    >
+      {/* Borda de disco de vinil saindo pela direita para Álbuns */}
+      {isAlbum && (
+        <div
+          aria-hidden="true"
+          className="absolute right-0 w-6 h-6 rounded-full bg-gradient-to-tr from-[#07080c] via-[#252a3d] to-[#090a10] border border-white/25 shadow-sm flex items-center justify-center transition-transform duration-200 group-hover:translate-x-0.5 pointer-events-none"
+        >
+          <div className="w-2 h-2 rounded-full bg-[var(--accent)]/85 border border-black/70" />
+        </div>
+      )}
+
+      {/* Mini-capa 28x28px */}
+      <div
+        className={`relative z-10 w-7 h-7 rounded-md overflow-hidden flex items-center justify-center shrink-0 transition-colors ${
+          isSelected
+            ? "bg-[var(--accent-subtle)] border border-[var(--accent-border)] text-[var(--accent-text)]"
+            : "bg-[#161925] border border-white/10 text-[#6e7488]"
+        }`}
+      >
+        {thumbUrl && !hasImgError ? (
+          <img
+            src={thumbUrl}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            referrerPolicy="no-referrer"
+            onError={() => setHasImgError(true)}
+            className="w-full h-full object-cover"
+          />
+        ) : isLikedAuto ? (
+          <Flame className="w-3.5 h-3.5 text-orange-400 shrink-0" />
+        ) : isAlbum ? (
+          <Disc3 className="w-3.5 h-3.5 shrink-0" />
+        ) : (
+          <ListMusic className="w-3.5 h-3.5 shrink-0" />
+        )}
+
+        {/* Overlay de Play Rápido no Hover sobre a Mini-Capa */}
+        {onQuickPlay && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onQuickPlay(e);
+            }}
+            title={
+              isActivePlaying && isPlaying
+                ? `Pausar ${item.title}`
+                : `Tocar ${item.title} agora`
+            }
+            aria-label={
+              isActivePlaying && isPlaying
+                ? `Pausar ${item.title}`
+                : `Reproduzir ${item.title} rapidamente`
+            }
+            className="absolute inset-0 bg-black/70 backdrop-blur-[1px] flex items-center justify-center text-white opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity cursor-pointer"
+          >
+            {isActivePlaying && isPlaying ? (
+              <Pause className="w-3.5 h-3.5 fill-current text-[var(--accent-text)]" />
+            ) : (
+              <Play className="w-3.5 h-3.5 fill-current ml-0.5 text-white" />
+            )}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+});
+
 export const Sidebar = React.memo(function Sidebar({
   activeTab,
   setActiveTab,
@@ -46,6 +202,16 @@ export const Sidebar = React.memo(function Sidebar({
   onCreatePlaylist,
   selectedPlaylist,
   onSelectPlaylist,
+  albums = [],
+  isLoadingAlbums = false,
+  onRefreshAlbums,
+  selectedAlbum = null,
+  onSelectAlbum,
+  onPlayPlaylistQuick,
+  onPlayAlbumQuick,
+  activeCollectionId = null,
+  isPlaying = false,
+  onTogglePlayPause,
   auth,
   isCheckingAuth,
   onRefreshAuth,
@@ -55,169 +221,310 @@ export const Sidebar = React.memo(function Sidebar({
   pinnedPlaylistIds,
   setPinnedPlaylistIds,
 }: SidebarProps) {
-  // Drag and drop reordering para playlists fixadas
-  const [activeDragPinnedId, setActiveDragPinnedId] = useState<string | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-  const isDraggingRef = useRef(false);
-  const dragStartYRef = useRef(0);
-  const dragSourceIdRef = useRef<string | null>(null);
-  const dragOverIndexRef = useRef<number | null>(null);
-  dragOverIndexRef.current = dragOverIndex;
+  // Filtro rápido por tipo: Tudo | Playlists | Álbuns
+  const [filterMode, setFilterMode] = useState<SidebarFilterMode>("all");
 
-  function togglePinPlaylist(playlistId: string, e?: React.MouseEvent) {
-    if (e) e.stopPropagation();
-    setPinnedPlaylistIds((prev) => {
-      let updated: string[];
-      if (prev.includes(playlistId)) {
-        updated = prev.filter((id) => id !== playlistId);
-      } else {
-        updated = [...prev, playlistId];
-      }
-      try {
-        localStorage.setItem("tetplayer_pinned_playlists", JSON.stringify(updated));
-      } catch {
-        // ignore
-      }
-      return updated;
-    });
+  // Lupa compacta de busca rápida na coleção
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [sidebarSearch, setSidebarSearch] = useState("");
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Estado de Drag & Drop determinístico baseado em Pointer Events para itens fixados
+  const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
+  const [dropTarget, setDropTarget] = useState<{
+    index: number;
+    position: "before" | "after";
+  } | null>(null);
+  const [dragGhostY, setDragGhostY] = useState<number>(0);
+
+  const pinnedListRef = useRef<HTMLDivElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const pointerYRef = useRef<number>(0);
+  const dragItemOffsetYRef = useRef<number>(0);
+  const autoScrollFrameRef = useRef<number | null>(null);
+  const pinnedPlaylistsRef = useRef<SidebarCollectionItem[]>([]);
+
+  const pinnedSet = useMemo(() => new Set(pinnedPlaylistIds), [pinnedPlaylistIds]);
+
+  // Constrói itens unificados de Playlists + Álbuns
+  const allCollectionItems = useMemo<SidebarCollectionItem[]>(() => {
+    const playlistItems: SidebarCollectionItem[] = playlists.map((pl) => ({
+      kind: "playlist",
+      id: pl.id,
+      title: pl.title,
+      subtitle:
+        pl.id === "VLLM"
+          ? "Auto-playlist"
+          : pl.track_count
+          ? /^\d+$/.test(String(pl.track_count).trim())
+            ? `${pl.track_count} músicas`
+            : pl.track_count
+          : pl.subtitle || "Playlist",
+      artworkUrl: pl.artwork_url,
+      playlist: pl,
+    }));
+
+    const albumItems: SidebarCollectionItem[] = albums.map((al) => ({
+      kind: "album",
+      id: al.id,
+      title: al.title,
+      subtitle: al.artist ? `${al.artist}` : "Álbum",
+      artworkUrl: al.artwork_url,
+      album: al,
+    }));
+
+    return [...playlistItems, ...albumItems];
+  }, [playlists, albums]);
+
+  const itemMap = useMemo(() => {
+    const map = new Map<string, SidebarCollectionItem>();
+    for (const item of allCollectionItems) {
+      map.set(item.id, item);
+    }
+    return map;
+  }, [allCollectionItems]);
+
+  const matchesFilterAndSearch = useCallback(
+    (item: SidebarCollectionItem) => {
+      if (filterMode === "playlists" && item.kind !== "playlist") return false;
+      if (filterMode === "albums" && item.kind !== "album") return false;
+      const q = sidebarSearch.trim().toLowerCase();
+      if (!q) return true;
+      return (
+        item.title.toLowerCase().includes(q) ||
+        item.subtitle.toLowerCase().includes(q)
+      );
+    },
+    [filterMode, sidebarSearch]
+  );
+
+  // Itens fixados na ordem customizada do usuário
+  const pinnedItems = useMemo(() => {
+    return pinnedPlaylistIds
+      .map((id) => itemMap.get(id))
+      .filter((item): item is SidebarCollectionItem => !!item && matchesFilterAndSearch(item));
+  }, [pinnedPlaylistIds, itemMap, matchesFilterAndSearch]);
+
+  pinnedPlaylistsRef.current = pinnedItems;
+
+  // Itens não fixados ordenados pelos ouvidos mais recentemente
+  const unpinnedItems = useMemo(() => {
+    return allCollectionItems
+      .filter((item) => !pinnedSet.has(item.id) && matchesFilterAndSearch(item))
+      .sort((a, b) => {
+        const timeA = playlistHistory[a.id] || 0;
+        const timeB = playlistHistory[b.id] || 0;
+        return timeB - timeA;
+      });
+  }, [allCollectionItems, pinnedSet, matchesFilterAndSearch, playlistHistory]);
+
+  function togglePinItem(id: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    setPinnedPlaylistIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
   }
 
-  function movePinnedPlaylist(playlistId: string, direction: "up" | "down", e?: React.MouseEvent) {
-    if (e) e.stopPropagation();
-    setPinnedPlaylistIds((prev) => {
-      const idx = prev.indexOf(playlistId);
-      if (idx === -1) return prev;
-      const targetIdx = direction === "up" ? idx - 1 : idx + 1;
-      if (targetIdx < 0 || targetIdx >= prev.length) return prev;
-      const next = [...prev];
-      const [item] = next.splice(idx, 1);
-      next.splice(targetIdx, 0, item);
-      try {
-        localStorage.setItem("tetplayer_pinned_playlists", JSON.stringify(next));
-      } catch {
-        // ignore
+  const computeDropTarget = useCallback(
+    (clientY: number): { index: number; position: "before" | "after" } | null => {
+      const container = pinnedListRef.current;
+      if (!container) return null;
+      const rows = Array.from(
+        container.querySelectorAll<HTMLElement>("[data-pinned-row-index]")
+      );
+      if (rows.length === 0) return null;
+
+      for (let i = 0; i < rows.length; i++) {
+        const rect = rows[i].getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        if (clientY < midY) {
+          return { index: i, position: "before" };
+        }
+      }
+
+      return { index: rows.length - 1, position: "after" };
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (draggingIdx === null) return;
+
+    const prevUserSelect = document.body.style.userSelect;
+    const prevCursor = document.body.style.cursor;
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "grabbing";
+
+    const updateTargetFromPointer = () => {
+      const target = computeDropTarget(pointerYRef.current);
+      setDropTarget((prev) => {
+        if (!target && !prev) return null;
+        if (
+          target &&
+          prev &&
+          target.index === prev.index &&
+          target.position === prev.position
+        ) {
+          return prev;
+        }
+        return target;
+      });
+    };
+
+    const tickAutoScroll = () => {
+      const scrollEl = scrollContainerRef.current;
+      if (scrollEl) {
+        const rect = scrollEl.getBoundingClientRect();
+        const y = pointerYRef.current;
+        const edgeThreshold = 42;
+        const maxSpeed = 8;
+
+        if (y < rect.top + edgeThreshold) {
+          const intensity = Math.min(
+            1,
+            (rect.top + edgeThreshold - y) / edgeThreshold
+          );
+          scrollEl.scrollTop -= Math.ceil(intensity * maxSpeed);
+          updateTargetFromPointer();
+        } else if (y > rect.bottom - edgeThreshold) {
+          const intensity = Math.min(
+            1,
+            (y - (rect.bottom - edgeThreshold)) / edgeThreshold
+          );
+          scrollEl.scrollTop += Math.ceil(intensity * maxSpeed);
+          updateTargetFromPointer();
+        }
+      }
+      autoScrollFrameRef.current = requestAnimationFrame(tickAutoScroll);
+    };
+
+    const handlePointerMove = (e: PointerEvent) => {
+      pointerYRef.current = e.clientY;
+      setDragGhostY(e.clientY - dragItemOffsetYRef.current);
+      updateTargetFromPointer();
+    };
+
+    const finishDrag = () => {
+      const finalTarget = computeDropTarget(pointerYRef.current);
+      const visiblePinned = pinnedPlaylistsRef.current;
+      if (
+        finalTarget &&
+        visiblePinned[draggingIdx] &&
+        visiblePinned[finalTarget.index]
+      ) {
+        const draggedId = visiblePinned[draggingIdx].id;
+        const targetId = visiblePinned[finalTarget.index].id;
+
+        if (draggedId !== targetId) {
+          setPinnedPlaylistIds((prev) => {
+            const fromRealIdx = prev.indexOf(draggedId);
+            const targetRealIdx = prev.indexOf(targetId);
+            if (fromRealIdx === -1 || targetRealIdx === -1) return prev;
+
+            const next = [...prev];
+            const [moved] = next.splice(fromRealIdx, 1);
+            const newTargetIdx = next.indexOf(targetId);
+            const insertAt =
+              finalTarget.position === "after" ? newTargetIdx + 1 : newTargetIdx;
+            next.splice(insertAt, 0, moved);
+            return next;
+          });
+        }
+      }
+      setDraggingIdx(null);
+      setDropTarget(null);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", finishDrag);
+    window.addEventListener("pointercancel", finishDrag);
+    autoScrollFrameRef.current = requestAnimationFrame(tickAutoScroll);
+
+    return () => {
+      document.body.style.userSelect = prevUserSelect;
+      document.body.style.cursor = prevCursor;
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", finishDrag);
+      window.removeEventListener("pointercancel", finishDrag);
+      if (autoScrollFrameRef.current !== null) {
+        cancelAnimationFrame(autoScrollFrameRef.current);
+        autoScrollFrameRef.current = null;
+      }
+    };
+  }, [draggingIdx, computeDropTarget, setPinnedPlaylistIds]);
+
+  const handleToggleSearch = () => {
+    setIsSearchOpen((prev) => {
+      const next = !prev;
+      if (!next) {
+        setSidebarSearch("");
+      } else {
+        setTimeout(() => searchInputRef.current?.focus(), 30);
       }
       return next;
     });
-  }
+  };
 
-  function handleGripPointerDown(e: React.PointerEvent, id: string, index: number) {
-    if (e.button !== 0) return;
-    e.preventDefault();
+  const handleRefreshCollection = () => {
+    onRefreshPlaylists();
+    if (onRefreshAlbums) {
+      onRefreshAlbums();
+    }
+  };
+
+  const handleSelectItem = (item: SidebarCollectionItem) => {
+    if (item.kind === "playlist" && item.playlist) {
+      onSelectPlaylist(item.playlist);
+    } else if (item.kind === "album" && item.album && onSelectAlbum) {
+      onSelectAlbum(item.album);
+    }
+  };
+
+  const handleQuickPlayItem = (item: SidebarCollectionItem, e: React.MouseEvent) => {
     e.stopPropagation();
-
-    dragSourceIdRef.current = id;
-    dragStartYRef.current = e.clientY;
-    isDraggingRef.current = false;
-    dragOverIndexRef.current = index;
-
-    try {
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    } catch {
-      // ignore
+    if (activeCollectionId === item.id && onTogglePlayPause) {
+      onTogglePlayPause();
+      return;
     }
-
-    setActiveDragPinnedId(id);
-    setDragOverIndex(index);
-  }
-
-  function handleGripPointerMove(e: React.PointerEvent) {
-    if (!dragSourceIdRef.current) return;
-
-    if (Math.abs(e.clientY - dragStartYRef.current) > 3) {
-      isDraggingRef.current = true;
-    }
-
-    if (!isDraggingRef.current) return;
-
-    const el = document.elementFromPoint(e.clientX, e.clientY);
-    const pinnedRow = el?.closest("[data-pinned-index]");
-    if (pinnedRow) {
-      const idxAttr = pinnedRow.getAttribute("data-pinned-index");
-      if (idxAttr !== null) {
-        const targetIdx = parseInt(idxAttr, 10);
-        if (!isNaN(targetIdx) && targetIdx !== dragOverIndexRef.current) {
-          dragOverIndexRef.current = targetIdx;
-          setDragOverIndex(targetIdx);
-        }
+    if (item.kind === "playlist" && item.playlist) {
+      if (onPlayPlaylistQuick) {
+        onPlayPlaylistQuick(item.playlist, e);
+      } else {
+        onSelectPlaylist(item.playlist);
+      }
+    } else if (item.kind === "album" && item.album) {
+      if (onPlayAlbumQuick) {
+        onPlayAlbumQuick(item.album, e);
+      } else if (onSelectAlbum) {
+        onSelectAlbum(item.album);
       }
     }
-  }
+  };
 
-  function handleGripPointerUp(e: React.PointerEvent) {
-    const sourceId = dragSourceIdRef.current;
-    const targetIdx = dragOverIndexRef.current;
-    const wasDragging = isDraggingRef.current;
-
-    dragSourceIdRef.current = null;
-    isDraggingRef.current = false;
-    dragOverIndexRef.current = null;
-    setActiveDragPinnedId(null);
-    setDragOverIndex(null);
-
-    try {
-      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-    } catch {
-      // ignore
+  const isItemSelected = (item: SidebarCollectionItem) => {
+    if (activeTab !== "library") return false;
+    if (item.kind === "playlist") {
+      return selectedPlaylist?.id === item.id;
     }
+    return selectedAlbum?.id === item.id;
+  };
 
-    if (wasDragging && sourceId && targetIdx !== null && targetIdx >= 0) {
-      setPinnedPlaylistIds((prev) => {
-        const sourceIdx = prev.indexOf(sourceId);
-        if (sourceIdx === -1 || sourceIdx === targetIdx) return prev;
-        const next = [...prev];
-        const [item] = next.splice(sourceIdx, 1);
-        next.splice(targetIdx, 0, item);
-        try {
-          localStorage.setItem("tetplayer_pinned_playlists", JSON.stringify(next));
-        } catch {
-          // ignore
-        }
-        return next;
-      });
-    }
-  }
+  const filterIndex =
+    filterMode === "all" ? 0 : filterMode === "playlists" ? 1 : 2;
 
-  const pinnedPlaylists = useMemo(() => {
-    const map = new Map(playlists.map((p) => [p.id, p]));
-    const list: Playlist[] = [];
-    for (const id of pinnedPlaylistIds) {
-      const pl = map.get(id);
-      if (pl) list.push(pl);
-    }
-    return list;
-  }, [playlists, pinnedPlaylistIds]);
-
-  const unpinnedPlaylists = useMemo(() => {
-    const pinnedSet = new Set(pinnedPlaylistIds);
-    const list = playlists.filter((p) => !pinnedSet.has(p.id));
-    return list.sort((a, b) => {
-      const timeA = playlistHistory[a.id] || 0;
-      const timeB = playlistHistory[b.id] || 0;
-      if (timeB !== timeA) {
-        return timeB - timeA;
-      }
-      return 0;
-    });
-  }, [playlists, pinnedPlaylistIds, playlistHistory]);
-
-  const sortedPlaylists = useMemo(() => {
-    return [...pinnedPlaylists, ...unpinnedPlaylists];
-  }, [pinnedPlaylists, unpinnedPlaylists]);
+  const isCollectionLoading = isLoadingPlaylists || isLoadingAlbums;
 
   return (
-    <aside className="w-64 bg-[#0f1118]/90 backdrop-blur-md border-r border-[#1f232e] p-4 flex flex-col justify-between shrink-0 h-full z-10">
+    <aside className="w-64 bg-[#0e1017]/90 border-r border-[#1f232e] flex flex-col justify-between p-4 select-none shrink-0">
       <div className="space-y-4 flex-1 flex flex-col min-h-0">
-        {/* Navegação Principal */}
+        {/* Menu de Navegação Principal */}
         <nav className="space-y-1">
           <button
-            onClick={() => {
-              setActiveTab("library");
-            }}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold text-sm transition-all cursor-pointer ${
+            onClick={() => setActiveTab("library")}
+            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
               activeTab === "library"
-                ? "bg-[var(--accent)] text-white shadow-lg shadow-[var(--accent-glow)]"
-                : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
+                ? "bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] shadow-sm"
+                : "text-[#8c91a4] hover:text-white hover:bg-white/5"
             }`}
           >
             <Library className="w-4 h-4" />
@@ -225,197 +532,396 @@ export const Sidebar = React.memo(function Sidebar({
           </button>
 
           <button
-            onClick={() => {
-              setActiveTab("search");
-            }}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-medium text-sm transition-all cursor-pointer ${
+            onClick={() => setActiveTab("search")}
+            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
               activeTab === "search"
-                ? "bg-[var(--accent)] text-white shadow-lg shadow-[var(--accent-glow)]"
-                : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
+                ? "bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] shadow-sm"
+                : "text-[#8c91a4] hover:text-white hover:bg-white/5"
             }`}
           >
             <Search className="w-4 h-4" />
-            Buscar
+            Buscar no YT Music
           </button>
 
           <button
-            onClick={() => {
-              setActiveTab("stats");
-            }}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-medium text-sm transition-all cursor-pointer ${
+            onClick={() => setActiveTab("stats")}
+            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
               activeTab === "stats"
-                ? "bg-[var(--accent)] text-white shadow-lg shadow-[var(--accent-glow)]"
-                : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
+                ? "bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] shadow-sm"
+                : "text-[#8c91a4] hover:text-white hover:bg-white/5"
             }`}
           >
-            <BarChart2 className="w-4 h-4" />
+            <BarChart3 className="w-4 h-4" />
             Estatísticas
           </button>
         </nav>
 
-        {/* Seção de Playlists com Reordenação */}
-        <div className="flex-1 flex flex-col min-h-0 pt-2 border-t border-[#1f232e]">
-          <div className="flex items-center justify-between px-2 mb-2">
-            <div className="flex items-center gap-1.5">
-              <p className="text-[11px] font-bold text-[#555a6d] uppercase tracking-wider">
-                Suas Playlists
-              </p>
-              {pinnedPlaylists.length > 0 && (
-                <span className="text-[10px] bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] px-1.5 py-0.2 rounded-full font-mono">
-                  {pinnedPlaylists.length} fixada{pinnedPlaylists.length > 1 ? "s" : ""}
+        {/* Seção Unificada: Sua Coleção (Playlists + Álbuns) */}
+        <div className="pt-3 border-t border-[#1f232e] flex-1 flex flex-col min-h-0">
+          {/* Cabeçalho da Coleção */}
+          <div className="flex items-center justify-between px-2 mb-2 shrink-0">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#63697e] truncate">
+                Sua Coleção
+              </span>
+              {pinnedPlaylistIds.length > 0 && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] shrink-0">
+                  {pinnedPlaylistIds.length} fixad{pinnedPlaylistIds.length > 1 ? "os" : "o"}
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={handleToggleSearch}
+                title="Filtrar itens da coleção"
+                aria-label="Filtrar coleção na barra lateral"
+                className={`p-1 rounded-md transition-colors cursor-pointer ${
+                  isSearchOpen || sidebarSearch
+                    ? "text-[var(--accent-text)] bg-[var(--accent-subtle)]"
+                    : "text-[#71778c] hover:text-white hover:bg-white/5"
+                }`}
+              >
+                <Search className="w-3.5 h-3.5" />
+              </button>
               {onCreatePlaylist && (
                 <button
                   type="button"
                   onClick={onCreatePlaylist}
-                  title="Criar nova playlist no YouTube Music"
+                  title="Criar nova playlist"
                   aria-label="Criar nova playlist"
-                  className="text-[#555a6d] hover:text-[var(--accent-text)] transition-colors cursor-pointer p-0.5 rounded hover:bg-white/5"
+                  className="text-[#71778c] hover:text-[var(--accent-text)] transition-colors p-1 rounded-md hover:bg-white/5 cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                 </button>
               )}
               <button
-                onClick={onRefreshPlaylists}
-                title="Recarregar playlists"
-                className="text-[#555a6d] hover:text-white transition-colors cursor-pointer p-0.5 rounded hover:bg-white/5"
+                type="button"
+                onClick={handleRefreshCollection}
+                disabled={isCollectionLoading}
+                title="Atualizar coleção"
+                aria-label="Atualizar coleção"
+                className="text-[#71778c] hover:text-white transition-colors p-1 rounded-md hover:bg-white/5 cursor-pointer"
               >
-                <RefreshCw className={`w-3 h-3 ${isLoadingPlaylists ? "animate-spin text-[var(--accent)]" : ""}`} />
+                <RefreshCw
+                  className={`w-3.5 h-3.5 ${isCollectionLoading ? "animate-spin" : ""}`}
+                />
               </button>
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
-            {isLoadingPlaylists && playlists.length === 0 ? (
-              <div className="flex items-center gap-2 px-3 py-2 text-xs text-[#555a6d]">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--accent)]" />
-                Carregando playlists...
+          {/* Pílulas de Filtro Rápido: [Tudo] [Playlists] [Álbuns] */}
+          <div className="px-1 mb-2 shrink-0">
+            <div
+              role="tablist"
+              aria-label="Filtrar coleção por tipo"
+              className="relative grid grid-cols-3 p-0.5 bg-[#0a0c12] border border-[#1d2130] rounded-lg select-none"
+            >
+              <div
+                className="absolute top-0.5 bottom-0.5 left-0.5 w-[calc((100%-4px)/3)] rounded-md bg-[var(--accent-subtle)] border border-[var(--accent-border)] transition-transform duration-200 ease-out pointer-events-none"
+                style={{
+                  transform: `translate3d(${filterIndex * 100}%, 0, 0)`,
+                }}
+              />
+              {(
+                [
+                  { id: "all", label: "Tudo" },
+                  { id: "playlists", label: "Playlists" },
+                  { id: "albums", label: "Álbuns" },
+                ] as const
+              ).map((pill) => {
+                const isActive = filterMode === pill.id;
+                return (
+                  <button
+                    key={pill.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    onClick={() => setFilterMode(pill.id)}
+                    className={`relative z-10 py-1 text-[10px] font-semibold rounded-md transition-colors cursor-pointer ${
+                      isActive
+                        ? "text-[var(--accent-text)] font-bold"
+                        : "text-[#7b8196] hover:text-white"
+                    }`}
+                  >
+                    {pill.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Input de Busca Rápida Inline (Lupa Compacta) */}
+          {(isSearchOpen || sidebarSearch) && (
+            <div className="px-1 mb-2 shrink-0 animate-in fade-in slide-in-from-top-1 duration-150">
+              <div className="relative">
+                <Search className="w-3 h-3 text-[#63697e] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={sidebarSearch}
+                  onChange={(e) => setSidebarSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      setSidebarSearch("");
+                      setIsSearchOpen(false);
+                    }
+                  }}
+                  placeholder="Filtrar coleção..."
+                  aria-label="Filtrar coleção"
+                  className="w-full bg-[#131622] border border-[#252a3d] focus:border-[var(--accent)] rounded-lg pl-7 pr-6 py-1 text-[11px] text-white placeholder-[#63697e] outline-none transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSidebarSearch("");
+                    setIsSearchOpen(false);
+                  }}
+                  title="Limpar busca"
+                  aria-label="Limpar filtro da coleção"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[#63697e] hover:text-white p-0.5 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
               </div>
-            ) : sortedPlaylists.length === 0 ? (
-              <div className="px-3 py-2 text-xs text-[#555a6d]">
-                Nenhuma playlist encontrada.
+            </div>
+          )}
+
+          {/* Lista Rolável de Fixados + Ouvidos Recentes */}
+          <div
+            ref={scrollContainerRef}
+            className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar"
+          >
+            {isCollectionLoading && allCollectionItems.length === 0 ? (
+              <div className="flex items-center justify-center py-8 text-[#71778c] text-xs gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Carregando...
+              </div>
+            ) : pinnedItems.length === 0 && unpinnedItems.length === 0 ? (
+              <div className="px-2 py-6 text-center text-[11px] text-[#63697e]">
+                {sidebarSearch
+                  ? `Nenhum item para "${sidebarSearch}".`
+                  : filterMode === "albums"
+                  ? "Nenhum álbum encontrado."
+                  : "Nenhum item na coleção."}
               </div>
             ) : (
               <>
-                {/* 1. PLAYLISTS FIXADAS */}
-                {pinnedPlaylists.map((pl, idx) => {
-                  const isSelected = selectedPlaylist?.id === pl.id;
-                  const isLiked = pl.id === "VLLM";
-                  const isBeingDragged = activeDragPinnedId === pl.id;
-                  const isTargetOfDrop = dragOverIndex === idx && activeDragPinnedId !== null && !isBeingDragged;
-
-                  return (
-                    <div
-                      key={`pinned-${pl.id}`}
-                      data-pinned-index={idx}
-                      className={`group relative px-2.5 py-2 rounded-lg text-xs transition-all flex items-center justify-between gap-1.5 select-none ${
-                        isSelected
-                          ? "bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] font-semibold"
-                          : "text-[#9da3b7] hover:bg-[#1a1d28] hover:text-white"
-                      } ${isBeingDragged ? "opacity-40 scale-[0.98] ring-1 ring-[var(--accent)] bg-[#221722]" : ""} ${
-                        isTargetOfDrop ? "border-t-2 border-[var(--accent)] bg-[var(--accent-subtle)] shadow-[0_-2px_8px_var(--accent-glow)]" : ""
-                      }`}
-                    >
-                      {/* Grip Handle para Arrastar */}
-                      <div
-                        onPointerDown={(e) => handleGripPointerDown(e, pl.id, idx)}
-                        onPointerMove={handleGripPointerMove}
-                        onPointerUp={handleGripPointerUp}
-                        title="Clique e arraste para reordenar"
-                        className="p-1 -ml-1 rounded hover:bg-[#252b3b] text-[#555a6d] hover:text-white cursor-grab active:cursor-grabbing transition-colors shrink-0 touch-none flex items-center justify-center"
-                      >
-                        <GripVertical className="w-3.5 h-3.5 pointer-events-none" />
-                      </div>
-
-                      {/* Conteúdo da Playlist */}
-                      <div
-                        onClick={() => onSelectPlaylist(pl)}
-                        className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer"
-                      >
-                        {isLiked ? (
-                          <Flame className="w-3.5 h-3.5 text-[var(--accent)] shrink-0 pointer-events-none" />
-                        ) : (
-                          <ListMusic className="w-3.5 h-3.5 text-[#5e6479] shrink-0 pointer-events-none" />
-                        )}
-                        <span className="truncate flex-1 pointer-events-none">{pl.title}</span>
-                      </div>
-
-                      {/* Ações da Playlist Fixada */}
-                      <div className="flex items-center gap-0.5 shrink-0">
-                        <div className="flex items-center gap-0.5">
-                          {idx > 0 && (
-                            <button
-                              onClick={(e) => movePinnedPlaylist(pl.id, "up", e)}
-                              title="Mover para cima"
-                              className="p-0.5 rounded text-[#71778c] hover:text-white hover:bg-[#282d3d] transition-colors cursor-pointer"
-                            >
-                              <ChevronUp className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                          {idx < pinnedPlaylists.length - 1 && (
-                            <button
-                              onClick={(e) => movePinnedPlaylist(pl.id, "down", e)}
-                              title="Mover para baixo"
-                              className="p-0.5 rounded text-[#71778c] hover:text-white hover:bg-[#282d3d] transition-colors cursor-pointer"
-                            >
-                              <ChevronDown className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
-
-                        <button
-                          onClick={(e) => togglePinPlaylist(pl.id, e)}
-                          title="Desafixar playlist"
-                          className="p-1 rounded text-[var(--accent-text)] hover:text-white hover:bg-[var(--accent-subtle)] transition-colors cursor-pointer"
-                        >
-                          <Pin className="w-3 h-3 fill-current rotate-45" />
-                        </button>
-                      </div>
+                {/* Seção de Itens Fixados (Playlists + Álbuns com Drag & Drop Livre) */}
+                {pinnedItems.length > 0 && (
+                  <div ref={pinnedListRef} className="space-y-1 mb-2 relative">
+                    <div className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--accent-text)] flex items-center justify-between">
+                      <span className="flex items-center gap-1">
+                        <Pin className="w-2.5 h-2.5 fill-current" />
+                        Fixados
+                      </span>
+                      <span className="text-[9px] text-[#63697e] font-normal">
+                        Arraste p/ ordenar
+                      </span>
                     </div>
-                  );
-                })}
 
-                {/* Divisor Visual */}
-                {pinnedPlaylists.length > 0 && unpinnedPlaylists.length > 0 && (
-                  <div className="pt-2 pb-1 px-2 flex items-center justify-between border-t border-[#1a1d27] my-1">
-                    <span className="text-[10px] font-semibold text-[#484e62] uppercase tracking-wider">
-                      Ouvidas Recentes
-                    </span>
+                    {pinnedItems.map((item, idx) => {
+                      const isSelected = isItemSelected(item);
+                      const isActivePlaying = activeCollectionId === item.id;
+                      const isDraggingThis = draggingIdx === idx;
+                      const showDropBefore =
+                        dropTarget?.index === idx &&
+                        dropTarget.position === "before" &&
+                        draggingIdx !== idx &&
+                        !(draggingIdx !== null && draggingIdx === idx - 1);
+                      const showDropAfter =
+                        dropTarget?.index === idx &&
+                        dropTarget.position === "after" &&
+                        draggingIdx !== idx &&
+                        !(draggingIdx !== null && draggingIdx === idx + 1);
+
+                      return (
+                        <div
+                          key={`${item.kind}-${item.id}`}
+                          data-pinned-row-index={idx}
+                          onClick={() => handleSelectItem(item)}
+                          className={`w-full flex items-center justify-between gap-1.5 px-2 py-1.5 rounded-lg text-xs transition-all cursor-pointer group relative ${
+                            isDraggingThis ? "opacity-35 scale-[0.98] " : ""
+                          }${
+                            isSelected
+                              ? "bg-[#1a1d28] text-white font-semibold border border-[var(--accent-border)]"
+                              : "text-[#c4c8d8] hover:text-white hover:bg-white/5 border border-transparent"
+                          }`}
+                        >
+                          {showDropBefore && (
+                            <div className="absolute -top-0.5 left-2 right-2 h-0.5 bg-[var(--accent)] rounded-full pointer-events-none z-20 shadow-[0_0_8px_var(--accent)]" />
+                          )}
+                          {showDropAfter && (
+                            <div className="absolute -bottom-0.5 left-2 right-2 h-0.5 bg-[var(--accent)] rounded-full pointer-events-none z-20 shadow-[0_0_8px_var(--accent)]" />
+                          )}
+
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            {/* Grip Handle para Reordenação Drag & Drop */}
+                            <div
+                              onPointerDown={(e) => {
+                                if (e.button !== 0) return;
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const rowEl = e.currentTarget.closest(
+                                  "[data-pinned-row-index]"
+                                ) as HTMLElement | null;
+                                const rect = rowEl?.getBoundingClientRect();
+                                dragItemOffsetYRef.current = rect
+                                  ? e.clientY - rect.top
+                                  : 16;
+                                pointerYRef.current = e.clientY;
+                                setDragGhostY(
+                                  e.clientY - dragItemOffsetYRef.current
+                                );
+                                setDraggingIdx(idx);
+                                setDropTarget({ index: idx, position: "before" });
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              title="Segure e arraste para reordenar"
+                              className="p-0.5 -ml-0.5 rounded text-[#52586c] hover:text-white cursor-grab active:cursor-grabbing shrink-0 touch-none"
+                            >
+                              <GripVertical className="w-3.5 h-3.5" />
+                            </div>
+
+                            {/* Mini-Capa 28x28px com Borda de Vinil p/ Álbuns e Play Rápido */}
+                            <SidebarItemThumbnail
+                              item={item}
+                              isSelected={isSelected}
+                              isActivePlaying={isActivePlaying}
+                              isPlaying={isPlaying}
+                              onQuickPlay={(e) => handleQuickPlayItem(item, e)}
+                            />
+
+                            {/* Título + Subtítulo com mais espaço horizontal */}
+                            <div className="min-w-0 flex-1">
+                              <p
+                                title={item.title}
+                                className={`truncate text-xs leading-tight ${
+                                  isActivePlaying
+                                    ? "text-[var(--accent-text)] font-bold"
+                                    : isSelected
+                                    ? "text-white font-semibold"
+                                    : "text-[#d5d9e8] font-medium group-hover:text-white"
+                                }`}
+                              >
+                                {item.title}
+                              </p>
+                              <p className="text-[10px] text-[#6c7288] truncate leading-tight flex items-center gap-1 mt-0.5">
+                                {item.kind === "album" && (
+                                  <Disc3 className="w-2.5 h-2.5 text-[var(--accent-text)] shrink-0 inline" />
+                                )}
+                                <span className="truncate">{item.subtitle}</span>
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Indicador de Onda Sutil + Botão de Desafixar no Hover */}
+                          <div className="flex items-center gap-1 shrink-0">
+                            {isActivePlaying && (
+                              <SubtleWaveIndicator isPlaying={isPlaying} />
+                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => togglePinItem(item.id, e)}
+                              title="Desafixar do topo"
+                              aria-label={`Desafixar ${item.title}`}
+                              className="p-1 rounded text-[var(--accent-text)] opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-white/10 transition-all cursor-pointer"
+                            >
+                              <Pin className="w-3 h-3 fill-current" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Card Flutuante (Ghost) acompanhando o cursor durante o Drag */}
+                    {draggingIdx !== null && pinnedItems[draggingIdx] && (
+                      <div
+                        className="fixed left-4 w-56 z-50 pointer-events-none flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-[#181b26]/95 backdrop-blur-xl text-white border border-[var(--accent)] shadow-[0_12px_30px_rgba(0,0,0,0.75)] ring-1 ring-[var(--accent-glow)] scale-[1.02]"
+                        style={{
+                          top: `${dragGhostY}px`,
+                        }}
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <GripVertical className="w-3.5 h-3.5 text-[var(--accent-text)] shrink-0" />
+                          <SidebarItemThumbnail
+                            item={pinnedItems[draggingIdx]}
+                            isSelected={true}
+                            isActivePlaying={false}
+                            isPlaying={false}
+                          />
+                          <span className="truncate">
+                            {pinnedItems[draggingIdx].title}
+                          </span>
+                        </div>
+                        <Pin className="w-3 h-3 text-[var(--accent-text)] fill-current shrink-0" />
+                      </div>
+                    )}
+
+                    {unpinnedItems.length > 0 && (
+                      <div className="pt-1.5 pb-0.5 px-2 text-[10px] font-bold uppercase tracking-wider text-[#52586c] border-t border-[#1f232e]/60">
+                        Ouvidos Recentes
+                      </div>
+                    )}
                   </div>
                 )}
 
-                {/* 2. PLAYLISTS NÃO FIXADAS */}
-                {unpinnedPlaylists.map((pl) => {
-                  const isSelected = selectedPlaylist?.id === pl.id;
-                  const isLiked = pl.id === "VLLM";
+                {/* Lista de Itens Não Fixados (Ordenados pelos Ouvidos Mais Recentes) */}
+                {unpinnedItems.map((item) => {
+                  const isSelected = isItemSelected(item);
+                  const isActivePlaying = activeCollectionId === item.id;
 
                   return (
                     <div
-                      key={`unpinned-${pl.id}`}
-                      onClick={() => onSelectPlaylist(pl)}
-                      className={`group px-2.5 py-2 rounded-lg text-xs transition-colors cursor-pointer flex items-center justify-between gap-1.5 ${
+                      key={`${item.kind}-${item.id}`}
+                      onClick={() => handleSelectItem(item)}
+                      className={`w-full flex items-center justify-between gap-1.5 px-2 py-1.5 rounded-lg text-xs transition-all cursor-pointer group ${
                         isSelected
-                          ? "bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] font-semibold"
-                          : "text-[#9da3b7] hover:bg-[#1a1d28] hover:text-white"
+                          ? "bg-[#1a1d28] text-white font-semibold border border-[var(--accent-border)]"
+                          : "text-[#8c91a4] hover:text-white hover:bg-white/5 border border-transparent"
                       }`}
                     >
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        {isLiked ? (
-                          <Flame className="w-3.5 h-3.5 text-[var(--accent)] shrink-0" />
-                        ) : (
-                          <ListMusic className="w-3.5 h-3.5 text-[#5e6479] shrink-0" />
-                        )}
-                        <span className="truncate flex-1">{pl.title}</span>
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <SidebarItemThumbnail
+                          item={item}
+                          isSelected={isSelected}
+                          isActivePlaying={isActivePlaying}
+                          isPlaying={isPlaying}
+                          onQuickPlay={(e) => handleQuickPlayItem(item, e)}
+                        />
+
+                        <div className="min-w-0 flex-1">
+                          <p
+                            title={item.title}
+                            className={`truncate text-xs leading-tight ${
+                              isActivePlaying
+                                ? "text-[var(--accent-text)] font-bold"
+                                : isSelected
+                                ? "text-white font-semibold"
+                                : "text-[#c4c8d8] font-medium group-hover:text-white"
+                            }`}
+                          >
+                            {item.title}
+                          </p>
+                          <p className="text-[10px] text-[#63697e] truncate leading-tight flex items-center gap-1 mt-0.5">
+                            {item.kind === "album" && (
+                              <Disc3 className="w-2.5 h-2.5 text-[var(--accent-text)] shrink-0 inline" />
+                            )}
+                            <span className="truncate">{item.subtitle}</span>
+                          </p>
+                        </div>
                       </div>
 
-                      <div className="flex items-center shrink-0">
+                      <div className="flex items-center gap-1 shrink-0">
+                        {isActivePlaying && (
+                          <SubtleWaveIndicator isPlaying={isPlaying} />
+                        )}
                         <button
-                          onClick={(e) => togglePinPlaylist(pl.id, e)}
-                          title="Fixar playlist no topo"
-                          className="opacity-0 group-hover:opacity-100 p-1 rounded text-[#555a6d] hover:text-[var(--accent-text)] hover:bg-[#232838] transition-all cursor-pointer"
+                          type="button"
+                          onClick={(e) => togglePinItem(item.id, e)}
+                          title="Fixar no topo"
+                          aria-label={`Fixar ${item.title}`}
+                          className="p-1 rounded text-[#71778c] hover:text-white opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-white/10 transition-all cursor-pointer shrink-0"
                         >
                           <Pin className="w-3 h-3" />
                         </button>
@@ -429,76 +935,74 @@ export const Sidebar = React.memo(function Sidebar({
         </div>
       </div>
 
-      {/* Card da Conta / Perfil no Rodapé */}
-      <div className="pt-3 border-t border-[#1f232e]">
-        <div className="bg-[#171a24] p-2.5 rounded-xl border border-[#232836] flex items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2 min-w-0">
-            {auth?.is_authenticated ? (
-              auth.avatar_url ? (
+      {/* Status de Autenticação / Sessão */}
+      <div className="pt-4 border-t border-[#1f232e] space-y-2 shrink-0">
+        <div className="bg-[#141722] rounded-xl p-3 border border-[#222738] space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              {auth?.is_authenticated && auth.avatar_url ? (
                 <img
-                  src={auth.avatar_url}
+                  src={upgradeArtworkQuality(auth.avatar_url, undefined, "thumb")}
                   alt="Avatar"
-                  className="w-7 h-7 rounded-full object-cover shrink-0 border border-emerald-500/50"
+                  referrerPolicy="no-referrer"
+                  className="w-6 h-6 rounded-full object-cover border border-emerald-500/40 shrink-0"
                 />
               ) : (
-                <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-[var(--accent)] to-[var(--accent-hover)] flex items-center justify-center font-bold text-xs text-white shrink-0">
-                  {auth.user_name?.[0] || "G"}
-                </div>
-              )
-            ) : (
-              <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-[#8c91a4] shrink-0">
-                <User className="w-3.5 h-3.5" />
+                <span
+                  className={`w-2 h-2 rounded-full shrink-0 ${
+                    auth?.is_authenticated
+                      ? "bg-emerald-400 shadow-[0_0_8px_#34d399]"
+                      : "bg-amber-400"
+                  }`}
+                />
+              )}
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold text-zinc-200 truncate">
+                  {auth?.is_authenticated
+                    ? auth.user_name || "Conectado via Google"
+                    : "Modo Anônimo"}
+                </p>
+                {auth?.is_authenticated && auth.email && (
+                  <p className="text-[10px] text-[#71778c] truncate">
+                    {auth.email}
+                  </p>
+                )}
               </div>
-            )}
-            <div className="overflow-hidden min-w-0">
-              <p className="text-xs font-semibold text-white truncate">
-                {auth?.is_authenticated ? (auth.user_name || "Conta Google") : "Modo Visitante"}
-              </p>
-              <p className={`text-[10px] font-mono truncate ${auth?.is_authenticated ? "text-emerald-400" : "text-[#8c91a4]"}`}>
-                {auth?.is_authenticated ? (auth.email || "Conectado via Google") : "Sem conta conectada"}
-              </p>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              {onOpenSettings && (
+                <button
+                  onClick={onOpenSettings}
+                  title="Configurações do TetPlayer"
+                  aria-label="Abrir configurações"
+                  className="text-[#71778c] hover:text-white transition-colors p-1 rounded-md hover:bg-white/5 cursor-pointer"
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                </button>
+              )}
+              <button
+                onClick={onRefreshAuth}
+                disabled={isCheckingAuth}
+                title="Revalidar sessão"
+                aria-label="Revalidar sessão"
+                className="text-[#71778c] hover:text-white transition-colors p-1 rounded-md hover:bg-white/5 cursor-pointer"
+              >
+                <RefreshCw
+                  className={`w-3 h-3 ${isCheckingAuth ? "animate-spin" : ""}`}
+                />
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-1 shrink-0">
-            {!auth?.is_authenticated && onGoogleLogin && (
-              <button
-                type="button"
-                onClick={onGoogleLogin}
-                title="Fazer Login com o Google"
-                aria-label="Fazer Login com o Google"
-                className="px-2 py-1 rounded-lg bg-indigo-600/80 hover:bg-indigo-600 text-white text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1 shrink-0 shadow-sm"
-              >
-                <LogIn className="w-3 h-3" />
-                <span>Entrar</span>
-              </button>
-            )}
-
-            {onOpenSettings && (
-              <button
-                type="button"
-                onClick={onOpenSettings}
-                title="Configurações do TetPlayer [Ctrl+,]"
-                aria-label="Abrir configurações"
-                className="p-1 rounded-lg hover:bg-[#232836] text-[#8c91a4] hover:text-white transition-colors cursor-pointer shrink-0"
-              >
-                <Settings className="w-3.5 h-3.5" />
-              </button>
-            )}
-
-            {auth?.is_authenticated && (
-              <button
-                type="button"
-                onClick={onRefreshAuth}
-                disabled={isCheckingAuth}
-                title="Atualizar sessão e dados de perfil"
-                aria-label="Atualizar sessão"
-                className="p-1 rounded-lg hover:bg-[#232836] text-[#8c91a4] hover:text-white transition-colors cursor-pointer shrink-0"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isCheckingAuth ? "animate-spin text-[var(--accent)]" : ""}`} />
-              </button>
-            )}
-          </div>
+          {!auth?.is_authenticated && onGoogleLogin && (
+            <button
+              onClick={onGoogleLogin}
+              disabled={isCheckingAuth}
+              className="w-full py-1.5 px-2.5 rounded-lg bg-[var(--accent)] hover:opacity-90 active:scale-[0.99] text-white text-[11px] font-semibold transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              Conectar Conta Google
+            </button>
+          )}
         </div>
       </div>
     </aside>

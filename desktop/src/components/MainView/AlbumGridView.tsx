@@ -1,25 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
-import { Disc3, Search, RefreshCw, Loader2, ArrowUpDown, ChevronDown, Check } from "lucide-react";
+import { Search, Disc3, RefreshCw, Loader2, ArrowUpDown, X, ChevronDown, Check } from "lucide-react";
 import { Album } from "../../types";
 import { AlbumCard } from "./AlbumCard";
-
-export type AlbumSortOption = "recent" | "title" | "artist" | "year_desc" | "year_asc";
-
-const sortOptions: { value: AlbumSortOption; label: string }[] = [
-  { value: "recent", label: "Recentes" },
-  { value: "title", label: "Título (A-Z)" },
-  { value: "artist", label: "Artista (A-Z)" },
-  { value: "year_desc", label: "Ano (Mais novos)" },
-  { value: "year_asc", label: "Ano (Mais antigos)" },
-];
-
-const sortOptionLabels: Record<AlbumSortOption, string> = {
-  recent: "Recentes",
-  title: "Título (A-Z)",
-  artist: "Artista (A-Z)",
-  year_desc: "Ano (Mais novos)",
-  year_asc: "Ano (Mais antigos)",
-};
 
 interface AlbumGridViewProps {
   albums: Album[];
@@ -27,7 +9,11 @@ interface AlbumGridViewProps {
   onRefresh: () => void;
   onSelectAlbum: (album: Album) => void;
   onPlayAlbumQuick?: (album: Album, e: React.MouseEvent) => void;
+  pinnedAlbumIds?: string[];
+  onTogglePinAlbum?: (albumId: string, e: React.MouseEvent) => void;
 }
+
+type SortOption = "title" | "artist" | "year_desc" | "year_asc";
 
 export const AlbumGridView = React.memo(function AlbumGridView({
   albums,
@@ -35,117 +21,142 @@ export const AlbumGridView = React.memo(function AlbumGridView({
   onRefresh,
   onSelectAlbum,
   onPlayAlbumQuick,
+  pinnedAlbumIds = [],
+  onTogglePinAlbum,
 }: AlbumGridViewProps) {
   const [filterText, setFilterText] = useState("");
-  const [sortBy, setSortBy] = useState<AlbumSortOption>("recent");
+  const [sortBy, setSortBy] = useState<SortOption>("title");
   const [isSortOpen, setIsSortOpen] = useState(false);
-  const sortRef = useRef<HTMLDivElement>(null);
+  const sortDropdownRef = useRef<HTMLDivElement>(null);
 
+  const pinnedSet = useMemo(() => new Set(pinnedAlbumIds), [pinnedAlbumIds]);
+
+  const sortOptions: { value: SortOption; label: string }[] = [
+    { value: "title", label: "Título (A-Z)" },
+    { value: "artist", label: "Artista (A-Z)" },
+    { value: "year_desc", label: "Mais recentes" },
+    { value: "year_asc", label: "Mais antigos" },
+  ];
+
+  // Fecha o menu customizado ao clicar fora ou pressionar Escape
   useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (sortRef.current && !sortRef.current.contains(e.target as Node)) {
+    if (!isSortOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(e.target as Node)) {
         setIsSortOpen(false);
       }
-    }
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        setIsSortOpen(false);
-      }
-    }
-    if (isSortOpen) {
-      window.addEventListener("mousedown", handleClickOutside);
-      window.addEventListener("keydown", handleKeyDown);
-    }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsSortOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
     return () => {
-      window.removeEventListener("mousedown", handleClickOutside);
-      window.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
     };
   }, [isSortOpen]);
 
   const filteredAlbums = useMemo(() => {
-    let result = albums;
+    const query = filterText.trim().toLowerCase();
+    const matches = query
+      ? albums.filter(
+          (a) =>
+            a.title.toLowerCase().includes(query) ||
+            a.artist.toLowerCase().includes(query) ||
+            (a.year && a.year.toLowerCase().includes(query))
+        )
+      : [...albums];
 
-    if (filterText.trim()) {
-      const q = filterText.trim().toLowerCase();
-      result = result.filter(
-        (a) =>
-          a.title.toLowerCase().includes(q) ||
-          a.artist.toLowerCase().includes(q) ||
-          (a.year && a.year.includes(q))
-      );
-    }
+    const sortList = (list: Album[]) =>
+      [...list].sort((a, b) => {
+        if (sortBy === "title") {
+          return a.title.localeCompare(b.title, "pt-BR", { sensitivity: "base" });
+        }
+        if (sortBy === "artist") {
+          const cmp = a.artist.localeCompare(b.artist, "pt-BR", { sensitivity: "base" });
+          return cmp !== 0
+            ? cmp
+            : a.title.localeCompare(b.title, "pt-BR", { sensitivity: "base" });
+        }
+        if (sortBy === "year_desc") {
+          const yA = parseInt(a.year || "0", 10) || 0;
+          const yB = parseInt(b.year || "0", 10) || 0;
+          return yB - yA || a.title.localeCompare(b.title, "pt-BR", { sensitivity: "base" });
+        }
+        if (sortBy === "year_asc") {
+          const yA = parseInt(a.year || "9999", 10) || 9999;
+          const yB = parseInt(b.year || "9999", 10) || 9999;
+          return yA - yB || a.title.localeCompare(b.title, "pt-BR", { sensitivity: "base" });
+        }
+        return 0;
+      });
 
-    if (sortBy === "recent") return result;
+    const pinned = pinnedAlbumIds
+      .map((id) => matches.find((a) => a.id === id))
+      .filter((a): a is Album => !!a);
+    const unpinned = sortList(matches.filter((a) => !pinnedSet.has(a.id)));
 
-    const sorted = [...result];
-    if (sortBy === "title") {
-      sorted.sort((a, b) =>
-        a.title.localeCompare(b.title, "pt-BR", { sensitivity: "base" })
-      );
-    } else if (sortBy === "artist") {
-      sorted.sort((a, b) =>
-        a.artist.localeCompare(b.artist, "pt-BR", { sensitivity: "base" })
-      );
-    } else if (sortBy === "year_desc") {
-      sorted.sort((a, b) => (b.year || "0").localeCompare(a.year || "0"));
-    } else if (sortBy === "year_asc") {
-      sorted.sort((a, b) => (a.year || "9999").localeCompare(b.year || "9999"));
-    }
-
-    return sorted;
-  }, [albums, filterText, sortBy]);
+    return [...pinned, ...unpinned];
+  }, [albums, filterText, sortBy, pinnedAlbumIds, pinnedSet]);
 
   return (
     <div className="space-y-6">
-      {/* Barra de Filtro e Ordenação */}
-      <div className="relative z-30 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        {/* Campo de Busca de Álbuns */}
-        <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 text-[#71778c] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            value={filterText}
-            onChange={(e) => setFilterText(e.target.value)}
-            placeholder="Buscar por álbum, artista ou ano..."
-            className="w-full bg-[#131622] border border-[#232738] focus:border-[var(--accent-border)] rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-[#5a6074] focus:outline-none transition-colors"
-          />
+      {/* Cabeçalho e Controles de Filtro/Ordenação */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
+            <Disc3 className="w-6 h-6 text-[var(--accent)]" />
+            <span>Seus Álbuns</span>
+          </h1>
+          <p className="text-xs text-[#71778c] mt-1">
+            Explore álbuns da sua biblioteca e lançamentos salvos dos seus artistas favoritos
+          </p>
         </div>
 
-        {/* Ordenação e Botão Atualizar */}
-        <div className="flex items-center gap-2.5 self-end sm:self-auto">
-          <div ref={sortRef} className="relative flex items-center">
-            {/* Select acessível invisível para testes e acessibilidade */}
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as AlbumSortOption)}
-              aria-label="Ordenar álbuns"
-              className="sr-only"
-              tabIndex={-1}
-              aria-hidden="true"
-            >
-              {sortOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {/* Busca Rápida de Álbum */}
+          <div className="relative flex-1 sm:flex-initial sm:w-56">
+            <Search className="w-3.5 h-3.5 text-[#63697e] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={filterText}
+              onChange={(e) => setFilterText(e.target.value)}
+              placeholder="Buscar por álbum ou artista..."
+              aria-label="Filtrar álbuns"
+              className="w-full bg-[#131622] border border-[#232738] focus:border-[var(--accent)] rounded-xl pl-8 pr-7 py-1.5 text-xs text-white placeholder-[#63697e] outline-none transition-colors"
+            />
+            {filterText && (
+              <button
+                onClick={() => setFilterText("")}
+                aria-label="Limpar filtro"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[#63697e] hover:text-white p-0.5 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
 
-            {/* Gatilho Customizado com Estilo do TetPlayer */}
+          {/* Seletor de Ordenação Customizado (Integrado à Identidade Visual do App) */}
+          <div ref={sortDropdownRef} className="relative flex items-center gap-1.5">
+            <ArrowUpDown className="w-3.5 h-3.5 text-[#71778c] shrink-0" />
             <button
               type="button"
               onClick={() => setIsSortOpen((prev) => !prev)}
-              className={`flex items-center gap-2 bg-[#131622] text-[#d1d5db] hover:text-white border rounded-xl px-3 py-2 text-xs font-medium transition-all cursor-pointer select-none ${
-                isSortOpen
-                  ? "border-[var(--accent)] shadow-md shadow-[var(--accent-glow)] bg-[#1e2334]"
-                  : "border-[#232738] hover:border-[#384056] hover:bg-[#1a1e2c]"
-              }`}
-              aria-haspopup="listbox"
+              aria-label="Ordenar álbuns por"
               aria-expanded={isSortOpen}
+              aria-haspopup="listbox"
+              className={`flex items-center justify-between gap-2.5 min-w-[150px] bg-[#131622] hover:bg-[#191d2c] border rounded-xl px-3 py-1.5 text-xs font-medium text-white transition-all cursor-pointer select-none ${
+                isSortOpen
+                  ? "border-[var(--accent)] ring-1 ring-[var(--accent-glow)]/40"
+                  : "border-[#232738] hover:border-[#323850]"
+              }`}
             >
-              <ArrowUpDown className="w-3.5 h-3.5 text-[#71778c] shrink-0" />
-              <span>{sortOptionLabels[sortBy]}</span>
+              <span className="truncate">
+                {sortOptions.find((o) => o.value === sortBy)?.label || "Título (A-Z)"}
+              </span>
               <ChevronDown
-                className={`w-3.5 h-3.5 text-[#8c91a4] transition-transform duration-200 ${
+                className={`w-3.5 h-3.5 text-[#8c91a4] transition-transform duration-200 shrink-0 ${
                   isSortOpen ? "rotate-180 text-[var(--accent-text)]" : ""
                 }`}
               />
@@ -223,6 +234,8 @@ export const AlbumGridView = React.memo(function AlbumGridView({
               album={album}
               onSelect={onSelectAlbum}
               onPlay={onPlayAlbumQuick}
+              isPinned={pinnedSet.has(album.id)}
+              onTogglePin={onTogglePinAlbum}
             />
           ))}
         </div>
@@ -230,4 +243,3 @@ export const AlbumGridView = React.memo(function AlbumGridView({
     </div>
   );
 });
-

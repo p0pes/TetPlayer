@@ -10,6 +10,7 @@ import {
   MoreVertical,
   Check,
   Share2,
+  Pin,
 } from "lucide-react";
 import { Album, AlbumDetail, Track } from "../../types";
 import { upgradeArtworkQuality } from "../../utils/artwork";
@@ -29,6 +30,8 @@ interface AlbumDetailViewProps {
   onTogglePlayPause?: () => void;
   onSelectRelatedAlbum?: (album: Album) => void;
   onPlayAlbumQuick?: (album: Album, e: React.MouseEvent) => void;
+  pinnedAlbumIds?: string[];
+  onTogglePinAlbum?: (albumId: string, e: React.MouseEvent) => void;
 }
 
 const SubtleWaveIndicator = React.memo(function SubtleWaveIndicator({
@@ -78,9 +81,14 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
   onTogglePlayPause,
   onSelectRelatedAlbum,
   onPlayAlbumQuick,
+  pinnedAlbumIds = [],
+  onTogglePinAlbum,
 }: AlbumDetailViewProps) {
   const [hasImageError, setHasImageError] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+
+  const pinnedSet = useMemo(() => new Set(pinnedAlbumIds), [pinnedAlbumIds]);
+  const isPinned = pinnedSet.has(album.id);
 
   const displayAlbum = albumDetail || album;
   const tracks = useMemo(() => albumDetail?.tracks || [], [albumDetail]);
@@ -261,6 +269,23 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
                 <span className="hidden sm:inline">Aleatório</span>
               </button>
 
+              {onTogglePinAlbum && (
+                <button
+                  type="button"
+                  onClick={(e) => onTogglePinAlbum(album.id, e)}
+                  title={isPinned ? "Desafixar álbum da barra lateral" : "Fixar álbum na barra lateral"}
+                  aria-label={isPinned ? "Desafixar álbum" : "Fixar álbum"}
+                  className={`flex items-center gap-2 px-4 py-3 rounded-full active:scale-95 border font-semibold text-xs transition-all cursor-pointer ${
+                    isPinned
+                      ? "bg-[var(--accent-subtle)] border-[var(--accent-border)] text-[var(--accent-text)] shadow-sm"
+                      : "bg-white/5 hover:bg-white/10 border-white/10 text-white"
+                  }`}
+                >
+                  <Pin className={`w-4 h-4 ${isPinned ? "fill-current text-[var(--accent-text)]" : ""}`} />
+                  <span className="hidden sm:inline">{isPinned ? "Fixado" : "Fixar"}</span>
+                </button>
+              )}
+
               <button
                 onClick={handleCopyLink}
                 title="Copiar link do YouTube Music"
@@ -413,6 +438,8 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
                   album={relAlbum}
                   onSelect={(a) => onSelectRelatedAlbum && onSelectRelatedAlbum(a)}
                   onPlay={onPlayAlbumQuick}
+                  isPinned={pinnedSet.has(relAlbum.id)}
+                  onTogglePin={onTogglePinAlbum}
                 />
               ))}
             </div>

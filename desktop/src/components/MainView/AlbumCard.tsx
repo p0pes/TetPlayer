@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Play, Disc3 } from "lucide-react";
+import { Play, Disc3, Pin } from "lucide-react";
 import { Album } from "../../types";
 import { upgradeArtworkQuality } from "../../utils/artwork";
 
@@ -7,12 +7,16 @@ interface AlbumCardProps {
   album: Album;
   onSelect: (album: Album) => void;
   onPlay?: (album: Album, e: React.MouseEvent) => void;
+  isPinned?: boolean;
+  onTogglePin?: (albumId: string, e: React.MouseEvent) => void;
 }
 
 export const AlbumCard = React.memo(function AlbumCard({
   album,
   onSelect,
   onPlay,
+  isPinned = false,
+  onTogglePin,
 }: AlbumCardProps) {
   const [hasImageError, setHasImageError] = useState(false);
 
@@ -35,7 +39,11 @@ export const AlbumCard = React.memo(function AlbumCard({
     <div
       onClick={() => onSelect(album)}
       data-testid="album-card"
-      className="group flex flex-col p-3 rounded-2xl bg-[#11131b]/60 hover:bg-[#181b26] border border-[#1d212e] hover:border-[var(--accent-border)] transition-all duration-200 cursor-pointer select-none shadow-sm hover:shadow-xl hover:shadow-[var(--accent-glow)]/10"
+      className={`group flex flex-col p-3 rounded-2xl bg-[#11131b]/60 hover:bg-[#181b26] border transition-all duration-200 cursor-pointer select-none shadow-sm hover:shadow-xl hover:shadow-[var(--accent-glow)]/10 ${
+        isPinned
+          ? "border-[var(--accent-border)] ring-1 ring-[var(--accent-subtle)]"
+          : "border-[#1d212e] hover:border-[var(--accent-border)]"
+      }`}
     >
       {/* Capa com Proporção 1:1 e Botão de Play Flutuante */}
       <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-[#161822] border border-white/5 shrink-0 shadow-md">
@@ -62,6 +70,26 @@ export const AlbumCard = React.memo(function AlbumCard({
           </span>
         )}
 
+        {/* Botão de Fixar no Topo (Pin) */}
+        {onTogglePin && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onTogglePin(album.id, e);
+            }}
+            title={isPinned ? "Desafixar álbum do topo" : "Fixar álbum no topo"}
+            aria-label={isPinned ? `Desafixar ${album.title}` : `Fixar ${album.title}`}
+            className={`absolute top-2 right-2 z-10 p-2 rounded-full backdrop-blur-md transition-all cursor-pointer ${
+              isPinned
+                ? "bg-[var(--accent)] text-white shadow-lg shadow-[var(--accent-glow)] opacity-100"
+                : "bg-black/60 text-zinc-300 hover:text-white hover:bg-black/80 opacity-0 group-hover:opacity-100"
+            }`}
+          >
+            <Pin className={`w-3.5 h-3.5 ${isPinned ? "fill-current" : ""}`} />
+          </button>
+        )}
+
         {/* Overlay escuro sutil no hover */}
         <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
 
@@ -83,12 +111,20 @@ export const AlbumCard = React.memo(function AlbumCard({
         >
           {album.title}
         </h3>
-        <p
-          title={album.artist}
-          className="text-[11px] text-[#8c91a4] truncate mt-0.5 font-medium"
-        >
-          {album.artist}
-        </p>
+        <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
+          {isPinned && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--accent-text)] bg-[var(--accent-subtle)] px-1.5 py-0.5 rounded shrink-0">
+              <Pin className="w-2.5 h-2.5 fill-current" />
+              Fixado
+            </span>
+          )}
+          <p
+            title={album.artist}
+            className="text-[11px] text-[#8c91a4] truncate font-medium"
+          >
+            {album.artist}
+          </p>
+        </div>
         <div className="flex items-center gap-1.5 mt-1 text-[10px] text-[#63697e] font-mono">
           {album.year && <span>{album.year}</span>}
           {album.year && album.track_count && <span>•</span>}
@@ -98,4 +134,3 @@ export const AlbumCard = React.memo(function AlbumCard({
     </div>
   );
 });
-
