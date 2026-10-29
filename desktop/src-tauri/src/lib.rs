@@ -9,6 +9,9 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager, State};
 use ytm::{
+    create_playlist as api_create_playlist, add_track_to_playlist as api_add_track_to_playlist,
+    remove_track_from_playlist as api_remove_track_from_playlist,
+    edit_playlist_metadata as api_edit_playlist_metadata, delete_playlist as api_delete_playlist,
     fetch_lyrics, get_home_recommendations, get_playlist_tracks as fetch_playlist_tracks,
     get_radio_tracks as fetch_radio_tracks, get_stream_info as fetch_stream_info,
     get_user_playlists as fetch_user_playlists, get_user_albums as fetch_user_albums,
@@ -221,6 +224,58 @@ async fn get_playlist_tracks(
 ) -> Result<Vec<Track>, String> {
     let session = { state.session.lock().unwrap().clone() };
     fetch_playlist_tracks(&session, &playlist_id).await
+}
+
+#[tauri::command]
+async fn create_playlist(
+    state: State<'_, AppState>,
+    title: String,
+    description: Option<String>,
+    privacy_status: Option<String>,
+) -> Result<Playlist, String> {
+    let session = { state.session.lock().unwrap().clone() };
+    api_create_playlist(&session, &title, description.as_deref(), privacy_status.as_deref()).await
+}
+
+#[tauri::command]
+async fn add_track_to_playlist(
+    state: State<'_, AppState>,
+    playlist_id: String,
+    video_id: String,
+) -> Result<(), String> {
+    let session = { state.session.lock().unwrap().clone() };
+    api_add_track_to_playlist(&session, &playlist_id, &video_id).await
+}
+
+#[tauri::command]
+async fn remove_track_from_playlist(
+    state: State<'_, AppState>,
+    playlist_id: String,
+    video_id: String,
+    set_video_id: Option<String>,
+) -> Result<(), String> {
+    let session = { state.session.lock().unwrap().clone() };
+    api_remove_track_from_playlist(&session, &playlist_id, &video_id, set_video_id.as_deref()).await
+}
+
+#[tauri::command]
+async fn edit_playlist_metadata(
+    state: State<'_, AppState>,
+    playlist_id: String,
+    title: String,
+    description: Option<String>,
+) -> Result<(), String> {
+    let session = { state.session.lock().unwrap().clone() };
+    api_edit_playlist_metadata(&session, &playlist_id, &title, description.as_deref()).await
+}
+
+#[tauri::command]
+async fn delete_playlist(
+    state: State<'_, AppState>,
+    playlist_id: String,
+) -> Result<(), String> {
+    let session = { state.session.lock().unwrap().clone() };
+    api_delete_playlist(&session, &playlist_id).await
 }
 
 #[tauri::command]
@@ -815,6 +870,11 @@ pub fn run() {
             get_quick_tracks,
             get_user_playlists,
             get_playlist_tracks,
+            create_playlist,
+            add_track_to_playlist,
+            remove_track_from_playlist,
+            edit_playlist_metadata,
+            delete_playlist,
             get_user_albums,
             get_album_details,
             search_album_by_name,

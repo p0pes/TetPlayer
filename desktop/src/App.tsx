@@ -19,6 +19,10 @@ import { MiniPlayer } from "./components/MiniPlayer/MiniPlayer";
 import { UpdateInfo, checkForAppUpdates } from "./services/updater";
 import { UpdateModal } from "./components/UpdateModal/UpdateModal";
 import { SettingsModal } from "./components/SettingsModal/SettingsModal";
+import { CreatePlaylistModal } from "./components/Modals/CreatePlaylistModal";
+import { AddToPlaylistModal } from "./components/Modals/AddToPlaylistModal";
+import { EditPlaylistModal } from "./components/Modals/EditPlaylistModal";
+import { ConfirmDeleteModal } from "./components/Modals/ConfirmDeleteModal";
 import { SettingsService } from "./services/settings";
 import { PerformanceTelemetry } from "./services/telemetry";
 
@@ -167,6 +171,20 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
 
   // Alerta de aplicativo já em execução (Single Instance)
   const [singleInstanceNotice, setSingleInstanceNotice] = useState<string | null>(null);
+
+  // Modais de Manipulação de Playlist (Sugestão 2.4)
+  const [isCreatePlaylistOpen, setIsCreatePlaylistOpen] = useState(false);
+  const [addToPlaylistTrack, setAddToPlaylistTrack] = useState<Track | null>(null);
+  const [editingPlaylist, setEditingPlaylist] = useState<Playlist | null>(null);
+  const [deletingPlaylist, setDeletingPlaylist] = useState<Playlist | null>(null);
+  const [playlistToast, setPlaylistToast] = useState<string | null>(null);
+
+  const showPlaylistToast = useCallback((msg: string) => {
+    setPlaylistToast(msg);
+    setTimeout(() => {
+      setPlaylistToast((current) => (current === msg ? null : current));
+    }, 3500);
+  }, []);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -499,6 +517,180 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
     };
   }, [loadPlaylists, loadAlbums, handleSelectPlaylist, handleSelectAlbum]);
 
+  // Manipulação de Playlists: Criar, Adicionar, Remover, Editar, Excluir (Sugestão 2.4)
+  const handleCreatePlaylist = useCallback(
+    async (title: string, description?: string, privacy?: string) => {
+      try {
+        const newPlaylist = await invoke<Playlist>("create_playlist", {
+          title,
+          description: description || null,
+          privacyStatus: privacy || "PRIVATE",
+        });
+
+        setPlaylists((prev) => {
+          const updated = [newPlaylist, ...prev.filter((p) => p.id !== newPlaylist.id)];
+          LocalCacheService.saveCachedPlaylists(updated);
+          return updated;
+        });
+
+        showPlaylistToast(`Playlist "${title}" criada com sucesso no YouTube Music!`);
+        handleSelectPlaylist(newPlaylist);
+      } catch (err) {
+        setErrorMessage(`Erro ao criar playlist: ${String(err)}`);
+        throw err;
+      }
+    },
+    [handleSelectPlaylist, showPlaylistToast, setErrorMessage]
+  );
+
+  const handleAddTrackToPlaylist = useCallback(
+    async (playlist: Playlist, track: Track) => {
+      try {
+        await invoke("add_track_to_playlist", {
+          playlistId: playlist.id,
+          videoId: track.id,
+        });
+
+        if (selectedPlaylistRef.current?.id === playlist.id) {
+          setPlaylistTracks((prev) => {
+            const updated = [...prev, track];
+            LocalCacheService.saveCachedPlaylistTracks(playlist.id, updated);
+            return updated;
+          });
+        }
+
+        showPlaylistToast(`"${track.title}" adicionada a "${playlist.title}"!`);
+      } catch (err) {
+        setErrorMessage(`Erro ao adicionar à playlist: ${String(err)}`);
+        throw err;
+      }
+    },
+    [showPlaylistToast, setErrorMessage]
+  );
+
+  const handleRemoveTrackFromPlaylist = useCallback(
+    async (track: Track, playlistId: string) => {
+      const previousTracks = [...playlistTracks];
+      // 0ms Optimistic UI removal
+      setPlaylistTracks((prev) =>
+        prev.filter((t) =>
+          t.set_video_id && track.set_video_id
+            ? t.set_video_id !== track.set_video_id
+            : t.id !== track.id
+        )
+      );
+
+      try {
+        await invoke("remove_track_from_playlist", {
+          playlistId,
+          videoId: track.id,
+          setVideoId: track.set_video_id || null,
+        });
+
+        setPlaylistTracks((current) => {
+          LocalCacheService.saveCachedPlaylistTracks(playlistId, current);
+          return current;
+        });
+
+        showPlaylistToast(`"${track.title}" removida da playlist.`);
+      } catch (err) {
+        // Rollback on network failure
+        setPlaylistTracks(previousTracks);
+        setErrorMessage(`Erro ao remover música da playlist: ${String(err)}`);
+      }
+    },
+    [playlistTracks, showPlaylistToast, setErrorMessage]
+  );
+
+  const handleEditPlaylistMetadata = useCallback(
+    async (playlistId: string, title: string, description?: string) => {
+      try {
+        await invoke("edit_playlist_metadata", {
+          playlistId,
+          title,
+          description: description || null,
+        });
+
+        setPlaylists((prev) => {
+          const updated = prev.map((p) =>
+            p.id === playlistId ? { ...p, title, description } : p
+          );
+          LocalCacheService.saveCachedPlaylists(updated);
+          return updated;
+        });
+
+        if (selectedPlaylistRef.current?.id === playlistId) {
+          setSelectedPlaylist((prev) => (prev ? { ...prev, title, description } : null));
+        }
+
+        showPlaylistToast(`Playlist atualizada para "${title}"!`);
+      } catch (err) {
+        setErrorMessage(`Erro ao editar playlist: ${String(err)}`);
+        throw err;
+      }
+    },
+    [showPlaylistToast, setErrorMessage]
+  );
+
+  const handleConfirmDeletePlaylist = useCallback(async () => {
+    if (!deletingPlaylist) return;
+    const target = deletingPlaylist;
+
+    try {
+      await invoke("delete_playlist", { playlistId: target.id });
+
+      setPlaylists((prev) => {
+        const updated = prev.filter((p) => p.id !== target.id);
+        LocalCacheService.saveCachedPlaylists(updated);
+        return updated;
+      });
+
+      setPinnedPlaylistIds((prev) => {
+        const updated = prev.filter((id) => id !== target.id);
+        try {
+          localStorage.setItem("tetplayer_pinned_playlists", JSON.stringify(updated));
+        } catch {
+          // ignore
+        }
+        return updated;
+      });
+
+      if (selectedPlaylistRef.current?.id === target.id) {
+        setSelectedPlaylist(null);
+      }
+
+      showPlaylistToast(`Playlist "${target.title}" excluída com sucesso.`);
+    } catch (err) {
+      setErrorMessage(`Erro ao excluir playlist: ${String(err)}`);
+      throw err;
+    }
+  }, [deletingPlaylist, showPlaylistToast, setErrorMessage]);
+
+  // Escuta eventos globais de adicionar/remover de playlists
+  useEffect(() => {
+    const handleOpenAddToPlaylist = (e: Event) => {
+      const customEvent = e as CustomEvent<{ track: Track }>;
+      if (customEvent.detail?.track) {
+        setAddToPlaylistTrack(customEvent.detail.track);
+      }
+    };
+
+    const handleRemoveFromPlaylist = (e: Event) => {
+      const customEvent = e as CustomEvent<{ track: Track; playlistId: string }>;
+      if (customEvent.detail?.track && customEvent.detail?.playlistId) {
+        handleRemoveTrackFromPlaylist(customEvent.detail.track, customEvent.detail.playlistId);
+      }
+    };
+
+    window.addEventListener("tetplayer:open-add-to-playlist", handleOpenAddToPlaylist);
+    window.addEventListener("tetplayer:remove-from-playlist", handleRemoveFromPlaylist);
+
+    return () => {
+      window.removeEventListener("tetplayer:open-add-to-playlist", handleOpenAddToPlaylist);
+      window.removeEventListener("tetplayer:remove-from-playlist", handleRemoveFromPlaylist);
+    };
+  }, [handleRemoveTrackFromPlaylist]);
+
   const handleSearch = useCallback(async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!searchQuery.trim()) return;
@@ -660,6 +852,7 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
             playlists={playlists}
             isLoadingPlaylists={isLoadingPlaylists}
             onRefreshPlaylists={loadPlaylists}
+            onCreatePlaylist={() => setIsCreatePlaylistOpen(true)}
             selectedPlaylist={selectedPlaylist}
             onSelectPlaylist={handleSelectPlaylist}
             auth={auth}
@@ -727,6 +920,8 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
                       isPlaying={isPlaying}
                       loadingTrackId={loadingTrackId}
                       onBack={handleBackToPlaylists}
+                      onEditPlaylist={(pl) => setEditingPlaylist(pl)}
+                      onDeletePlaylist={(pl) => setDeletingPlaylist(pl)}
                       onPlayPlaylist={(customTracks) => {
                         const queue = customTracks && customTracks.length > 0 ? customTracks : playlistTracks;
                         if (queue.length > 0) {
@@ -809,6 +1004,7 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
                           pinnedPlaylistIds={pinnedPlaylistIds}
                           onSelectPlaylist={handleSelectPlaylist}
                           onTogglePinPlaylist={handleTogglePinPlaylist}
+                          onCreatePlaylist={() => setIsCreatePlaylistOpen(true)}
                         />
                       ) : (
                         <AlbumGridView
@@ -886,6 +1082,48 @@ function AppContent({ playlistHistory, markPlaylistListened }: AppContentProps) 
         onGoogleLogout={handleGoogleLogout}
         onForceAnonymous={handleGoogleLogout}
       />
+
+      {/* Modais de Manipulação de Playlists (Sugestão 2.4) */}
+      <CreatePlaylistModal
+        isOpen={isCreatePlaylistOpen}
+        onClose={() => setIsCreatePlaylistOpen(false)}
+        onCreate={handleCreatePlaylist}
+      />
+
+      <AddToPlaylistModal
+        isOpen={!!addToPlaylistTrack}
+        track={addToPlaylistTrack}
+        playlists={playlists}
+        onClose={() => setAddToPlaylistTrack(null)}
+        onAddToPlaylist={handleAddTrackToPlaylist}
+        onCreateNewPlaylist={() => {
+          setAddToPlaylistTrack(null);
+          setIsCreatePlaylistOpen(true);
+        }}
+      />
+
+      <EditPlaylistModal
+        isOpen={!!editingPlaylist}
+        playlist={editingPlaylist}
+        onClose={() => setEditingPlaylist(null)}
+        onSave={handleEditPlaylistMetadata}
+      />
+
+      <ConfirmDeleteModal
+        isOpen={!!deletingPlaylist}
+        title="Excluir Playlist"
+        itemName={deletingPlaylist?.title || ""}
+        onClose={() => setDeletingPlaylist(null)}
+        onConfirm={handleConfirmDeletePlaylist}
+      />
+
+      {/* Toast Feedback de Manipulação de Playlist */}
+      {playlistToast && (
+        <div className="fixed bottom-24 right-6 z-50 flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-[#12141f] border border-[var(--accent)] text-white text-xs font-semibold shadow-2xl shadow-[var(--accent-glow)] animate-in fade-in slide-in-from-bottom-3 duration-200">
+          <div className="w-2 h-2 rounded-full bg-[var(--accent)] animate-pulse" />
+          <span>{playlistToast}</span>
+        </div>
+      )}
     </div>
   );
 }

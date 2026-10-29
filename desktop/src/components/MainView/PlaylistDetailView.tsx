@@ -8,6 +8,8 @@ import {
   X,
   ArrowUpDown,
   SearchX,
+  Edit3,
+  Trash2,
 } from "lucide-react";
 import { Playlist, Track } from "../../types";
 import { VirtualizedTrackList } from "./VirtualizedTrackList";
@@ -43,6 +45,8 @@ interface PlaylistDetailViewProps {
   onPlayPlaylist: (customTracks?: Track[]) => void;
   onPlayTrack: (track: Track, index: number, customQueue?: Track[]) => void;
   onTogglePlayPause?: () => void;
+  onEditPlaylist?: (playlist: Playlist) => void;
+  onDeletePlaylist?: (playlist: Playlist) => void;
   scrollRef: React.RefObject<HTMLElement | null>;
 }
 
@@ -57,6 +61,8 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
   onPlayPlaylist,
   onPlayTrack,
   onTogglePlayPause,
+  onEditPlaylist,
+  onDeletePlaylist,
   scrollRef,
 }: PlaylistDetailViewProps) {
   const [hasImageError, setHasImageError] = useState(false);
@@ -153,15 +159,51 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
         </div>
 
         <div className="flex-1 space-y-2 text-center sm:text-left">
-          <span className="text-[11px] font-bold text-[var(--accent-text)] uppercase tracking-wider bg-[var(--accent-subtle)] px-2.5 py-1 rounded-md border border-[var(--accent-border)]">
-            Playlist
-          </span>
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-[var(--accent-text)] uppercase tracking-wider bg-[var(--accent-subtle)] px-2.5 py-1 rounded-md border border-[var(--accent-border)]">
+              Playlist
+            </span>
+
+            {/* Ações da Playlist (Editar e Excluir) se não for VLLM */}
+            {playlist.id !== "VLLM" && (
+              <div className="flex items-center gap-1.5">
+                {onEditPlaylist && (
+                  <button
+                    type="button"
+                    onClick={() => onEditPlaylist(playlist)}
+                    title="Editar título e descrição da playlist"
+                    aria-label="Editar playlist"
+                    className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[#8c91a4] hover:text-white transition-colors cursor-pointer"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                {onDeletePlaylist && (
+                  <button
+                    type="button"
+                    onClick={() => onDeletePlaylist(playlist)}
+                    title="Excluir playlist do YouTube Music"
+                    aria-label="Excluir playlist"
+                    className="p-1.5 rounded-lg bg-white/5 hover:bg-rose-500/20 text-[#8c91a4] hover:text-rose-400 transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
           <h2 className="text-2xl font-extrabold text-white">
             {playlist.title}
           </h2>
           {playlist.subtitle && (
             <p className="text-xs text-[#8c91a4]">
               {playlist.subtitle}
+            </p>
+          )}
+          {playlist.description && (
+            <p className="text-xs text-[#8c91a4] line-clamp-2 italic">
+              {playlist.description}
             </p>
           )}
           <p className="text-xs text-[#71778c]">
@@ -276,6 +318,7 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
             currentTrack={currentTrack}
             isPlaying={isPlaying}
             loadingTrackId={loadingTrackId}
+            playlistId={playlist.id}
             onPlayTrack={(track, idx) => onPlayTrack(track, idx, displayedTracks)}
             onTogglePlayPause={onTogglePlayPause}
             parentRef={scrollRef}

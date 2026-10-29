@@ -26,6 +26,8 @@ pub struct Track {
     pub duration: Option<String>,
     pub duration_seconds: Option<u64>,
     pub artwork_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub set_video_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -912,6 +914,24 @@ fn parse_responsive_item(item: &Value) -> Option<Track> {
     let artwork_url = extract_thumbnail_from_renderer(&item["thumbnail"])
         .or_else(|| Some(format!("https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg")));
 
+    let set_video_id = item["playlistItemData"]["playlistSetVideoId"]
+        .as_str()
+        .map(|s| s.to_string())
+        .or_else(|| {
+            if let Some(items) = item["menu"]["menuRenderer"]["items"].as_array() {
+                for mi in items {
+                    if let Some(actions) = mi["menuServiceItemRenderer"]["serviceEndpoint"]["playlistEditEndpoint"]["actions"].as_array() {
+                        for a in actions {
+                            if let Some(svid) = a["setVideoId"].as_str() {
+                                return Some(svid.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+            None
+        });
+
     Some(Track {
         id: video_id,
         title,
@@ -921,6 +941,7 @@ fn parse_responsive_item(item: &Value) -> Option<Track> {
         duration,
         duration_seconds: None,
         artwork_url,
+        set_video_id,
     })
 }
 
@@ -955,6 +976,7 @@ fn parse_two_row_item(item: &Value) -> Option<Track> {
         duration: None,
         duration_seconds: None,
         artwork_url,
+        set_video_id: None,
     })
 }
 
@@ -993,6 +1015,10 @@ fn parse_playlist_panel_item(item: &Value) -> Option<Track> {
     let artwork_url = extract_thumbnail_from_renderer(&item["thumbnail"])
         .or_else(|| Some(format!("https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg")));
 
+    let set_video_id = item["playlistSetVideoId"]
+        .as_str()
+        .map(|s| s.to_string());
+
     Some(Track {
         id: video_id,
         title,
@@ -1002,6 +1028,7 @@ fn parse_playlist_panel_item(item: &Value) -> Option<Track> {
         duration,
         duration_seconds: None,
         artwork_url,
+        set_video_id,
     })
 }
 
@@ -2002,6 +2029,359 @@ pub async fn search_album_by_name(session: &AuthSession, query: &str) -> Result<
     }
 
     Ok(None)
+}
+
+// =========================================================================
+// OPERAÇÕES DE MANIPULAÇÃO DE PLAYLIST (InnerTube API)
+// =========================================================================
+
+pub async fn create_playlist(
+    session: &AuthSession,
+    title: &str,
+    description: Option<&str>,
+    privacy_status: Option<&str>,
+) -> Result<Playlist, String> {
+    if !session.is_authenticated {
+        return Err("Usuário não autenticado no YouTube Music".to_string());
+    }
+
+    let client = &HTTP_CLIENT;
+    let url = "https://music.youtube.com/youtubei/v1/playlist/create?prettyPrint=false";
+    let headers = build_headers(session, "WEB_REMIX");
+
+    let privacy = match privacy_status.unwrap_or("PRIVATE").to_uppercase().as_str() {
+        "PUBLIC" => "PUBLIC",
+        "UNLISTED" => "UNLISTED",
+        _ => "PRIVATE",
+    };
+
+    let mut payload = json!({
+        "context": {
+            "client": {
+                "clientName": "WEB_REMIX",
+                "clientVersion": "1.20240401.01.00",
+                "hl": "pt",
+                "gl": "BR"
+            }
+        },
+        "title": title.trim(),
+        "privacyStatus": privacy
+    });
+
+    if let Some(desc) = description {
+        if !desc.trim().is_empty() {
+            payload["description"] = json!(desc.trim());
+        }
+    }
+
+    let resp = client
+        .post(url)
+        .headers(headers)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("Falha de conexão ao criar playlist: {e}"))?;
+
+    let status = resp.status();
+    let text = resp
+        .text()
+        .await
+        .map_err(|e| format!("Falha ao ler resposta da criação de playlist: {e}"))?;
+
+    if !status.is_success() {
+        return Err(format!("YouTube Music retornou status {status} ao criar playlist: {text}"));
+    }
+
+    let json_val: Value = serde_json::from_str(&text)
+        .map_err(|e| format!("Resposta inválida ao criar playlist: {e}"))?;
+
+    let playlist_id = json_val["playlistId"]
+        .as_str()
+        .ok_or_else(|| format!("YouTube Music não retornou ID da playlist criada. Resposta: {text}"))?;
+
+    let canonical_id = if playlist_id.starts_with("VL") {
+        playlist_id.to_string()
+    } else {
+        format!("VL{playlist_id}")
+    };
+
+    let sub = match privacy {
+        "PUBLIC" => "Pública",
+        "UNLISTED" => "Não listada",
+        _ => "Privada",
+    };
+
+    Ok(Playlist {
+        id: canonical_id,
+        title: title.trim().to_string(),
+        subtitle: Some(sub.to_string()),
+        artwork_url: None,
+        track_count: Some("0 músicas".to_string()),
+    })
+}
+
+pub async fn add_track_to_playlist(
+    session: &AuthSession,
+    playlist_id: &str,
+    video_id: &str,
+) -> Result<(), String> {
+    if !session.is_authenticated {
+        return Err("Usuário não autenticado no YouTube Music".to_string());
+    }
+
+    let client = &HTTP_CLIENT;
+    let url = "https://music.youtube.com/youtubei/v1/browse/edit_playlist?prettyPrint=false";
+    let headers = build_headers(session, "WEB_REMIX");
+
+    // InnerTube edit_playlist requer o ID limpo sem prefixo "VL"
+    let clean_id = playlist_id.strip_prefix("VL").unwrap_or(playlist_id);
+
+    let payload = json!({
+        "context": {
+            "client": {
+                "clientName": "WEB_REMIX",
+                "clientVersion": "1.20240401.01.00",
+                "hl": "pt",
+                "gl": "BR"
+            }
+        },
+        "playlistId": clean_id,
+        "actions": [
+            {
+                "action": "ACTION_ADD_VIDEO",
+                "addedVideoId": video_id
+            }
+        ]
+    });
+
+    let resp = client
+        .post(url)
+        .headers(headers)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("Falha de conexão ao adicionar música: {e}"))?;
+
+    let status = resp.status();
+    let text = resp
+        .text()
+        .await
+        .map_err(|e| format!("Falha ao ler resposta da adição de música: {e}"))?;
+
+    if !status.is_success() {
+        return Err(format!("YouTube Music retornou status {status} ao adicionar música: {text}"));
+    }
+
+    let json_val: Value = serde_json::from_str(&text)
+        .map_err(|e| format!("Resposta inválida ao adicionar música: {e}"))?;
+
+    let res_status = json_val["status"].as_str().unwrap_or("");
+    if !res_status.is_empty() && res_status != "STATUS_SUCCEEDED" && res_status != "STATUS_SUCCESS" {
+        return Err(format!("Operação rejeitada pelo YouTube Music: {res_status}"));
+    }
+
+    Ok(())
+}
+
+pub async fn remove_track_from_playlist(
+    session: &AuthSession,
+    playlist_id: &str,
+    video_id: &str,
+    set_video_id: Option<&str>,
+) -> Result<(), String> {
+    if !session.is_authenticated {
+        return Err("Usuário não autenticado no YouTube Music".to_string());
+    }
+
+    let client = &HTTP_CLIENT;
+    let url = "https://music.youtube.com/youtubei/v1/browse/edit_playlist?prettyPrint=false";
+    let headers = build_headers(session, "WEB_REMIX");
+
+    let clean_id = playlist_id.strip_prefix("VL").unwrap_or(playlist_id);
+
+    // Se temos set_video_id, usamos ACTION_REMOVE_VIDEO (específico desta entrada na playlist)
+    // Se falhar ou não tivermos set_video_id, tentamos ACTION_REMOVE_VIDEO_BY_VIDEO_ID
+    let action = if let Some(svid) = set_video_id.filter(|s| !s.is_empty()) {
+        json!({
+            "action": "ACTION_REMOVE_VIDEO",
+            "setVideoId": svid
+        })
+    } else {
+        json!({
+            "action": "ACTION_REMOVE_VIDEO_BY_VIDEO_ID",
+            "removedVideoId": video_id
+        })
+    };
+
+    let payload = json!({
+        "context": {
+            "client": {
+                "clientName": "WEB_REMIX",
+                "clientVersion": "1.20240401.01.00",
+                "hl": "pt",
+                "gl": "BR"
+            }
+        },
+        "playlistId": clean_id,
+        "actions": [action]
+    });
+
+    let resp = client
+        .post(url)
+        .headers(headers.clone())
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("Falha de conexão ao remover música: {e}"))?;
+
+    let status = resp.status();
+    let text = resp
+        .text()
+        .await
+        .map_err(|e| format!("Falha ao ler resposta da remoção de música: {e}"))?;
+
+    if !status.is_success() {
+        // Se tentou com set_video_id e falhou, tenta o fallback por removedVideoId
+        if set_video_id.is_some() {
+            let fallback_payload = json!({
+                "context": {
+                    "client": {
+                        "clientName": "WEB_REMIX",
+                        "clientVersion": "1.20240401.01.00",
+                        "hl": "pt",
+                        "gl": "BR"
+                    }
+                },
+                "playlistId": clean_id,
+                "actions": [
+                    {
+                        "action": "ACTION_REMOVE_VIDEO_BY_VIDEO_ID",
+                        "removedVideoId": video_id
+                    }
+                ]
+            });
+
+            if let Ok(fallback_resp) = client.post(url).headers(headers).json(&fallback_payload).send().await {
+                if fallback_resp.status().is_success() {
+                    return Ok(());
+                }
+            }
+        }
+        return Err(format!("YouTube Music retornou status {status} ao remover música: {text}"));
+    }
+
+    Ok(())
+}
+
+pub async fn edit_playlist_metadata(
+    session: &AuthSession,
+    playlist_id: &str,
+    title: &str,
+    description: Option<&str>,
+) -> Result<(), String> {
+    if !session.is_authenticated {
+        return Err("Usuário não autenticado no YouTube Music".to_string());
+    }
+
+    let client = &HTTP_CLIENT;
+    let url = "https://music.youtube.com/youtubei/v1/browse/edit_playlist?prettyPrint=false";
+    let headers = build_headers(session, "WEB_REMIX");
+
+    let clean_id = playlist_id.strip_prefix("VL").unwrap_or(playlist_id);
+
+    let mut actions = vec![
+        json!({
+            "action": "ACTION_SET_PLAYLIST_NAME",
+            "playlistName": title.trim()
+        })
+    ];
+
+    if let Some(desc) = description {
+        actions.push(json!({
+            "action": "ACTION_SET_PLAYLIST_DESCRIPTION",
+            "playlistDescription": desc.trim()
+        }));
+    }
+
+    let payload = json!({
+        "context": {
+            "client": {
+                "clientName": "WEB_REMIX",
+                "clientVersion": "1.20240401.01.00",
+                "hl": "pt",
+                "gl": "BR"
+            }
+        },
+        "playlistId": clean_id,
+        "actions": actions
+    });
+
+    let resp = client
+        .post(url)
+        .headers(headers)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("Falha de conexão ao editar metadados: {e}"))?;
+
+    let status = resp.status();
+    let text = resp
+        .text()
+        .await
+        .map_err(|e| format!("Falha ao ler resposta da edição de metadados: {e}"))?;
+
+    if !status.is_success() {
+        return Err(format!("YouTube Music retornou status {status} ao editar playlist: {text}"));
+    }
+
+    Ok(())
+}
+
+pub async fn delete_playlist(
+    session: &AuthSession,
+    playlist_id: &str,
+) -> Result<(), String> {
+    if !session.is_authenticated {
+        return Err("Usuário não autenticado no YouTube Music".to_string());
+    }
+
+    let client = &HTTP_CLIENT;
+    let url = "https://music.youtube.com/youtubei/v1/playlist/delete?prettyPrint=false";
+    let headers = build_headers(session, "WEB_REMIX");
+
+    let clean_id = playlist_id.strip_prefix("VL").unwrap_or(playlist_id);
+
+    let payload = json!({
+        "context": {
+            "client": {
+                "clientName": "WEB_REMIX",
+                "clientVersion": "1.20240401.01.00",
+                "hl": "pt",
+                "gl": "BR"
+            }
+        },
+        "playlistId": clean_id
+    });
+
+    let resp = client
+        .post(url)
+        .headers(headers)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("Falha de conexão ao excluir playlist: {e}"))?;
+
+    let status = resp.status();
+    let text = resp
+        .text()
+        .await
+        .map_err(|e| format!("Falha ao ler resposta da exclusão: {e}"))?;
+
+    if !status.is_success() {
+        return Err(format!("YouTube Music retornou status {status} ao excluir playlist: {text}"));
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

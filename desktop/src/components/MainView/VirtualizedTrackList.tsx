@@ -8,6 +8,7 @@ interface VirtualizedTrackListProps {
   currentTrack: Track | null;
   isPlaying: boolean;
   loadingTrackId: string | null;
+  playlistId?: string;
   onPlayTrack: (track: Track, index: number) => void;
   onTogglePlayPause?: () => void;
   parentRef: React.RefObject<HTMLElement | null>;
@@ -18,6 +19,7 @@ export function VirtualizedTrackList({
   currentTrack,
   isPlaying,
   loadingTrackId,
+  playlistId,
   onPlayTrack,
   onTogglePlayPause,
   parentRef,
@@ -38,6 +40,7 @@ export function VirtualizedTrackList({
               isCurrent={isCurrent}
               isPlaying={isPlaying}
               isLoadingThis={isLoadingThis}
+              playlistId={playlistId}
               onPlay={() => onPlayTrack(track, idx)}
               onTogglePlayPause={onTogglePlayPause}
             />
@@ -54,6 +57,7 @@ export function VirtualizedTrackList({
       currentTrack={currentTrack}
       isPlaying={isPlaying}
       loadingTrackId={loadingTrackId}
+      playlistId={playlistId}
       onPlayTrack={onPlayTrack}
       onTogglePlayPause={onTogglePlayPause}
       parentRef={parentRef}
@@ -66,6 +70,7 @@ function VirtualContainer({
   currentTrack,
   isPlaying,
   loadingTrackId,
+  playlistId,
   onPlayTrack,
   onTogglePlayPause,
   parentRef,
@@ -122,6 +127,7 @@ function VirtualContainer({
               isCurrent={isCurrent}
               isPlaying={isPlaying}
               isLoadingThis={isLoadingThis}
+              playlistId={playlistId}
               onPlay={() => onPlayTrack(track, virtualRow.index)}
               onTogglePlayPause={onTogglePlayPause}
             />

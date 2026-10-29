@@ -10,6 +10,7 @@ interface TrackRowProps {
   isCurrent: boolean;
   isPlaying: boolean;
   isLoadingThis: boolean;
+  playlistId?: string;
   onPlay: () => void;
   onTogglePlayPause?: () => void;
   onContextMenu?: (e: React.MouseEvent, track: Track) => void;
@@ -21,6 +22,7 @@ export const TrackRow = React.memo(function TrackRow({
   isCurrent,
   isPlaying,
   isLoadingThis,
+  playlistId,
   onPlay,
   onTogglePlayPause,
   onContextMenu,
@@ -33,7 +35,7 @@ export const TrackRow = React.memo(function TrackRow({
     if (onContextMenu) {
       onContextMenu(e, track);
     } else {
-      openContextMenu(e, track);
+      openContextMenu(e, track, playlistId);
     }
   }
 

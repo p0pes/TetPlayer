@@ -14,6 +14,7 @@ import {
   Settings,
   LogIn,
   User,
+  Plus,
 } from "lucide-react";
 import { Playlist, AuthSession, ActiveTab } from "../../types";
 
@@ -23,6 +24,7 @@ interface SidebarProps {
   playlists: Playlist[];
   isLoadingPlaylists: boolean;
   onRefreshPlaylists: () => void;
+  onCreatePlaylist?: () => void;
   selectedPlaylist: Playlist | null;
   onSelectPlaylist: (playlist: Playlist) => void;
   auth: AuthSession | null;
@@ -41,6 +43,7 @@ export const Sidebar = React.memo(function Sidebar({
   playlists,
   isLoadingPlaylists,
   onRefreshPlaylists,
+  onCreatePlaylist,
   selectedPlaylist,
   onSelectPlaylist,
   auth,
@@ -263,13 +266,26 @@ export const Sidebar = React.memo(function Sidebar({
                 </span>
               )}
             </div>
-            <button
-              onClick={onRefreshPlaylists}
-              title="Recarregar playlists"
-              className="text-[#555a6d] hover:text-white transition-colors cursor-pointer"
-            >
-              <RefreshCw className={`w-3 h-3 ${isLoadingPlaylists ? "animate-spin text-[var(--accent)]" : ""}`} />
-            </button>
+            <div className="flex items-center gap-1">
+              {onCreatePlaylist && (
+                <button
+                  type="button"
+                  onClick={onCreatePlaylist}
+                  title="Criar nova playlist no YouTube Music"
+                  aria-label="Criar nova playlist"
+                  className="text-[#555a6d] hover:text-[var(--accent-text)] transition-colors cursor-pointer p-0.5 rounded hover:bg-white/5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+              )}
+              <button
+                onClick={onRefreshPlaylists}
+                title="Recarregar playlists"
+                className="text-[#555a6d] hover:text-white transition-colors cursor-pointer p-0.5 rounded hover:bg-white/5"
+              >
+                <RefreshCw className={`w-3 h-3 ${isLoadingPlaylists ? "animate-spin text-[var(--accent)]" : ""}`} />
+              </button>
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">

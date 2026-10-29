@@ -8,6 +8,8 @@ import {
   Search,
   Check,
   Disc3,
+  FolderPlus,
+  FolderMinus,
 } from "lucide-react";
 import { Track } from "../../types";
 import { usePlayer } from "../../context/PlayerContext";
@@ -21,12 +23,14 @@ export interface ContextMenuPosition {
 export interface TrackContextMenuProps {
   track: Track | null;
   position: ContextMenuPosition | null;
+  contextPlaylistId?: string | null;
   onClose: () => void;
 }
 
 export function TrackContextMenu({
   track,
   position,
+  contextPlaylistId,
   onClose,
 }: TrackContextMenuProps) {
   const { handlePlayNext, handleAddToQueue, handleStartRadio, searchArtist } =
@@ -64,8 +68,9 @@ export function TrackContextMenu({
   if (!track || !position) return null;
 
   // Ajuste inteligente para evitar que o menu transborde a tela
+  const isCustomPlaylist = !!contextPlaylistId && contextPlaylistId !== "VLLM";
   const menuWidth = 240;
-  const menuHeight = 270;
+  const menuHeight = isCustomPlaylist ? 350 : 310;
   const safeX = Math.min(position.x, window.innerWidth - menuWidth - 16);
   const safeY = Math.min(position.y, window.innerHeight - menuHeight - 16);
 
@@ -87,6 +92,26 @@ export function TrackContextMenu({
     if (!track) return;
     handleAddToQueue(track);
     showToast("Adicionada ao fim da fila!");
+  }
+
+  function onAddToPlaylist() {
+    if (!track) return;
+    window.dispatchEvent(
+      new CustomEvent("tetplayer:open-add-to-playlist", {
+        detail: { track },
+      })
+    );
+    onClose();
+  }
+
+  function onRemoveFromPlaylist() {
+    if (!track || !contextPlaylistId) return;
+    window.dispatchEvent(
+      new CustomEvent("tetplayer:remove-from-playlist", {
+        detail: { track, playlistId: contextPlaylistId },
+      })
+    );
+    onClose();
   }
 
   function onStartRadio() {
@@ -209,6 +234,30 @@ export function TrackContextMenu({
           >
             <Disc3 className="w-4 h-4 text-[var(--accent-text)] shrink-0 group-hover:scale-110 transition-transform" />
             <span className="truncate">Ver Álbum {track.album ? `(${track.album})` : ""}</span>
+          </button>
+        )}
+
+        {/* Opção 3.6: Adicionar à Playlist */}
+        <button
+          type="button"
+          role="menuitem"
+          onClick={onAddToPlaylist}
+          className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-[#c4c8d8] hover:text-white hover:bg-[var(--accent-subtle)] hover:border-[var(--accent-border)] border border-transparent transition-all cursor-pointer group text-left"
+        >
+          <FolderPlus className="w-4 h-4 text-[var(--accent-text)] shrink-0 group-hover:scale-110 transition-transform" />
+          <span>Adicionar à Playlist...</span>
+        </button>
+
+        {/* Opção 3.7: Remover desta Playlist (se estiver dentro de uma playlist pessoal) */}
+        {isCustomPlaylist && (
+          <button
+            type="button"
+            role="menuitem"
+            onClick={onRemoveFromPlaylist}
+            className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border border-transparent transition-all cursor-pointer group text-left"
+          >
+            <FolderMinus className="w-4 h-4 text-rose-400 shrink-0 group-hover:scale-110 transition-transform" />
+            <span>Remover desta playlist</span>
           </button>
         )}
 

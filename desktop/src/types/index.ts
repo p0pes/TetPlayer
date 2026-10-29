@@ -17,6 +17,7 @@ export interface Track {
   duration?: string;
   duration_seconds?: number;
   artwork_url?: string;
+  set_video_id?: string;
 }
 
 export type AlbumType = "album" | "single" | "ep";
@@ -45,6 +46,7 @@ export interface Playlist {
   id: string;
   title: string;
   subtitle?: string;
+  description?: string;
   artwork_url?: string;
   track_count?: string;
 }

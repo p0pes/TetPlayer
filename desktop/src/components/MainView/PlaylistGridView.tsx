@@ -1,5 +1,5 @@
 import React from "react";
-import { Loader2, Flame, ListMusic, Pin, Play } from "lucide-react";
+import { Loader2, Flame, ListMusic, Pin, Play, Plus } from "lucide-react";
 import { Playlist } from "../../types";
 import { upgradeArtworkQuality } from "../../utils/artwork";
 
@@ -9,6 +9,7 @@ interface PlaylistGridViewProps {
   pinnedPlaylistIds: string[];
   onSelectPlaylist: (playlist: Playlist) => void;
   onTogglePinPlaylist: (playlistId: string, e?: React.MouseEvent) => void;
+  onCreatePlaylist?: () => void;
 }
 
 export const PlaylistGridView = React.memo(function PlaylistGridView({
@@ -17,14 +18,28 @@ export const PlaylistGridView = React.memo(function PlaylistGridView({
   pinnedPlaylistIds,
   onSelectPlaylist,
   onTogglePinPlaylist,
+  onCreatePlaylist,
 }: PlaylistGridViewProps) {
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-extrabold text-white">Sua Biblioteca</h2>
-        <p className="text-xs text-[#8c91a4] mt-1">
-          Playlists sincronizadas com a sua conta do YouTube Music
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-extrabold text-white">Sua Biblioteca</h2>
+          <p className="text-xs text-[#8c91a4] mt-1">
+            Playlists sincronizadas com a sua conta do YouTube Music
+          </p>
+        </div>
+
+        {onCreatePlaylist && (
+          <button
+            type="button"
+            onClick={onCreatePlaylist}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[var(--accent-subtle)] border border-[var(--accent-border)] text-[var(--accent-text)] hover:opacity-90 text-xs font-semibold cursor-pointer transition-all shadow-lg shadow-[var(--accent-glow)]"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Nova Playlist</span>
+          </button>
+        )}
       </div>
 
       {isLoadingPlaylists && playlists.length === 0 ? (
@@ -34,6 +49,28 @@ export const PlaylistGridView = React.memo(function PlaylistGridView({
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          {/* Card Criar Nova Playlist */}
+          {onCreatePlaylist && (
+            <div
+              onClick={onCreatePlaylist}
+              className="bg-[#12141c]/50 hover:bg-[#171a24] p-4 rounded-2xl border border-dashed border-[#272d40] hover:border-[var(--accent)] transition-all group cursor-pointer flex flex-col justify-between"
+            >
+              <div className="relative w-full aspect-square rounded-xl mb-3.5 flex flex-col items-center justify-center bg-white/[0.02] group-hover:bg-[var(--accent-subtle)] border border-white/5 transition-colors">
+                <div className="w-12 h-12 rounded-full bg-white/5 group-hover:bg-[var(--accent)] text-[#8c91a4] group-hover:text-white flex items-center justify-center transition-all group-hover:scale-110 shadow-lg">
+                  <Plus className="w-6 h-6" />
+                </div>
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-white group-hover:text-[var(--accent-text)] transition-colors">
+                  Nova Playlist
+                </h4>
+                <p className="text-xs text-[#787f98] mt-0.5">
+                  Criar no YouTube Music
+                </p>
+              </div>
+            </div>
+          )}
+
           {playlists.map((pl) => {
             const isLiked = pl.id === "VLLM";
             const isPinned = pinnedPlaylistIds.includes(pl.id);

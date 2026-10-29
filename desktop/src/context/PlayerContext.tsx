@@ -84,7 +84,7 @@ interface PlayerContextType {
   handleAddToQueue: (track: Track) => void;
   handleStartRadio: (track: Track) => void;
   searchArtist: (artist: string) => void;
-  openContextMenu: (e: React.MouseEvent, track: Track) => void;
+  openContextMenu: (e: React.MouseEvent, track: Track, playlistId?: string) => void;
   closeContextMenu: () => void;
 
   pastTracks: Track[];
@@ -518,17 +518,20 @@ export function PlayerProvider({
   // Estado e gatilhos do Menu de Contexto Flutuante (Sugestão 2.2)
   const [contextMenuTrack, setContextMenuTrack] = useState<Track | null>(null);
   const [contextMenuPosition, setContextMenuPosition] = useState<ContextMenuPosition | null>(null);
+  const [contextMenuPlaylistId, setContextMenuPlaylistId] = useState<string | null>(null);
 
-  const openContextMenu = React.useCallback((e: React.MouseEvent, track: Track) => {
+  const openContextMenu = React.useCallback((e: React.MouseEvent, track: Track, playlistId?: string) => {
     e.preventDefault();
     e.stopPropagation();
     setContextMenuTrack(track);
     setContextMenuPosition({ x: e.clientX, y: e.clientY });
+    setContextMenuPlaylistId(playlistId || null);
   }, []);
 
   const closeContextMenu = React.useCallback(() => {
     setContextMenuTrack(null);
     setContextMenuPosition(null);
+    setContextMenuPlaylistId(null);
   }, []);
 
   function handleVolumeChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -721,6 +724,7 @@ export function PlayerProvider({
         <TrackContextMenu
           track={contextMenuTrack}
           position={contextMenuPosition}
+          contextPlaylistId={contextMenuPlaylistId}
           onClose={closeContextMenu}
         />
       </PlaybackProgressProvider>
