@@ -37,6 +37,18 @@
   initial-value: rgba(20, 184, 166, 0.65);
 }
 
+@property --accent {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #ef4444;
+}
+
+@property --accent-glow {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgba(239, 68, 68, 0.85);
+}
+
 @layer base {
   :root {
     --aurora-1: rgba(220, 38, 38, 0.42); /* Vibrant ambient red */
@@ -53,7 +65,9 @@
       --aurora-3 0.75s cubic-bezier(0.2, 0.8, 0.2, 1),
       --aurora-1-glow 0.75s cubic-bezier(0.2, 0.8, 0.2, 1),
       --aurora-2-glow 0.75s cubic-bezier(0.2, 0.8, 0.2, 1),
-      --aurora-3-glow 0.75s cubic-bezier(0.2, 0.8, 0.2, 1);
+      --aurora-3-glow 0.75s cubic-bezier(0.2, 0.8, 0.2, 1),
+      --accent 0.75s cubic-bezier(0.2, 0.8, 0.2, 1),
+      --accent-glow 0.75s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 
   html,

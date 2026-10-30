@@ -14,11 +14,13 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsRight,
+  Heart,
 } from "lucide-react";
 import { usePlayer, usePlaybackProgress } from "../../context/PlayerContext";
 import { formatTime } from "../../hooks/useLyrics";
 import { SpectrumVisualizer } from "../Visualizer/SpectrumVisualizer";
 import { upgradeArtworkQuality, handleArtworkError } from "../../utils/artwork";
+import { useLikedTrack } from "../../services/likes";
 
 export function MiniPlayer() {
   const {
@@ -36,6 +38,7 @@ export function MiniPlayer() {
   } = usePlayer();
 
   const { currentTime, duration } = usePlaybackProgress();
+  const { isLiked, toggleLike } = useLikedTrack(currentTrack);
 
   // Estado de ancoragem / docking na borda ('left' | 'right' | null)
   const [isDocked, setIsDocked] = useState<"left" | "right" | null>(null);
@@ -326,6 +329,20 @@ export function MiniPlayer() {
 
         {/* Controles de Reprodução */}
         <div className="flex items-center gap-1 shrink-0">
+          {currentTrack && (
+            <button
+              onClick={toggleLike}
+              title={isLiked ? "Remover dos favoritos (Descurtir)" : "Adicionar às Músicas Curtidas"}
+              aria-label={isLiked ? "Descurtir" : "Curtir"}
+              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                isLiked
+                  ? "text-[var(--accent)] drop-shadow-[0_0_6px_var(--accent-glow)]"
+                  : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
+              }`}
+            >
+              <Heart className={`w-3.5 h-3.5 ${isLiked ? "fill-current" : ""}`} />
+            </button>
+          )}
           <button
             onClick={handlePrevTrack}
             title="Faixa Anterior"

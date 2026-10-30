@@ -3271,6 +3271,82 @@ pub async fn reorder_playlist_track(
     Ok(())
 }
 
+/// Curte uma música no YouTube Music (adiciona à playlist VLLM - Músicas Curtidas)
+pub async fn like_track(session: &AuthSession, video_id: &str) -> Result<(), String> {
+    if !session.is_authenticated || session.cookie_header.is_empty() {
+        return Err("Usuário não autenticado no YouTube Music".to_string());
+    }
+
+    let client = &HTTP_CLIENT;
+    let url = "https://music.youtube.com/youtubei/v1/like/like?prettyPrint=false";
+    let headers = build_headers(session, "WEB_REMIX");
+    let payload = serde_json::json!({
+        "context": {
+            "client": {
+                "clientName": "WEB_REMIX",
+                "clientVersion": "1.20240401.01.00",
+                "hl": "pt",
+                "gl": "BR"
+            }
+        },
+        "target": {
+            "videoId": video_id
+        }
+    });
+
+    let resp = client
+        .post(url)
+        .headers(headers)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("Falha de conexão ao curtir música: {e}"))?;
+
+    if resp.status().is_success() {
+        Ok(())
+    } else {
+        Err(format!("YouTube Music retornou status {} ao curtir música", resp.status()))
+    }
+}
+
+/// Remove a curtida de uma música no YouTube Music (status INDIFFERENT)
+pub async fn unlike_track(session: &AuthSession, video_id: &str) -> Result<(), String> {
+    if !session.is_authenticated || session.cookie_header.is_empty() {
+        return Err("Usuário não autenticado no YouTube Music".to_string());
+    }
+
+    let client = &HTTP_CLIENT;
+    let url = "https://music.youtube.com/youtubei/v1/like/removelike?prettyPrint=false";
+    let headers = build_headers(session, "WEB_REMIX");
+    let payload = serde_json::json!({
+        "context": {
+            "client": {
+                "clientName": "WEB_REMIX",
+                "clientVersion": "1.20240401.01.00",
+                "hl": "pt",
+                "gl": "BR"
+            }
+        },
+        "target": {
+            "videoId": video_id
+        }
+    });
+
+    let resp = client
+        .post(url)
+        .headers(headers)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("Falha de conexão ao remover curtida da música: {e}"))?;
+
+    if resp.status().is_success() {
+        Ok(())
+    } else {
+        Err(format!("YouTube Music retornou status {} ao remover curtida", resp.status()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

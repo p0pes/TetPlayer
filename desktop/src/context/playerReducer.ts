@@ -47,6 +47,20 @@ export function shuffleArray<T>(items: T[]): T[] {
   return result;
 }
 
+export const SESSION_STORAGE_KEY = "tetplayer_player_session";
+
+export interface StoredSessionData {
+  currentTrack: Track | null;
+  activeQueue: Track[];
+  originalQueue: Track[];
+  currentQueueIndex: number;
+  currentTime: number;
+  duration?: number;
+  isShuffle: boolean;
+  repeatMode: RepeatMode;
+  isAutoplayRadio: boolean;
+  timestamp: number;
+}
 export function createInitialQueueState(): QueueState {
   let isShuffle = false;
   try {
@@ -70,6 +84,36 @@ export function createInitialQueueState(): QueueState {
     const saved = localStorage.getItem("tetplayer_autoplay_radio");
     if (saved !== null) {
       isAutoplayRadio = saved === "true";
+    }
+  } catch {
+    // ignore
+  }
+
+  // Restauração Completa de Sessão (Item 4.3)
+  try {
+    const rawSession = localStorage.getItem(SESSION_STORAGE_KEY);
+    if (rawSession) {
+      const session = JSON.parse(rawSession) as StoredSessionData;
+      if (
+        session &&
+        session.currentTrack &&
+        Array.isArray(session.activeQueue) &&
+        session.activeQueue.length > 0
+      ) {
+        return {
+          currentTrack: session.currentTrack,
+          activeQueue: session.activeQueue,
+          originalQueue: session.originalQueue || session.activeQueue,
+          currentQueueIndex:
+            session.currentQueueIndex >= 0 &&
+            session.currentQueueIndex < session.activeQueue.length
+              ? session.currentQueueIndex
+              : 0,
+          isShuffle: session.isShuffle ?? isShuffle,
+          repeatMode: session.repeatMode ?? repeatMode,
+          isAutoplayRadio: session.isAutoplayRadio ?? isAutoplayRadio,
+        };
+      }
     }
   } catch {
     // ignore

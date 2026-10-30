@@ -1,8 +1,9 @@
 import React from "react";
-import { Music, Play, Pause, Loader2, MoreVertical, GripVertical } from "lucide-react";
+import { Music, Play, Pause, Loader2, MoreVertical, GripVertical, Heart } from "lucide-react";
 import { Track } from "../../types";
 import { upgradeArtworkQuality, handleArtworkError } from "../../utils/artwork";
 import { triggerTrackContextMenu } from "../../context/PlayerContext";
+import { useLikedTrack } from "../../services/likes";
 
 interface TrackRowProps {
   track: Track;
@@ -37,6 +38,8 @@ export const TrackRow = React.memo(function TrackRow({
   onTogglePlayPause,
   onContextMenu,
 }: TrackRowProps) {
+  const { isLiked, toggleLike } = useLikedTrack(track);
+
   function handleContextMenu(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
@@ -184,6 +187,21 @@ export const TrackRow = React.memo(function TrackRow({
         {track.duration && (
           <span className="text-xs text-[#71778c] font-mono mr-1">{track.duration}</span>
         )}
+
+        {/* Botão de Curtir Música (Item 5.1) */}
+        <button
+          type="button"
+          onClick={toggleLike}
+          title={isLiked ? "Remover dos favoritos (Descurtir)" : "Adicionar às Músicas Curtidas"}
+          aria-label={isLiked ? "Descurtir música" : "Curtir música"}
+          className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+            isLiked
+              ? "text-[var(--accent)] drop-shadow-[0_0_8px_var(--accent-glow)] opacity-100"
+              : "text-[#71778c] hover:text-white hover:bg-[#202535] opacity-0 group-hover:opacity-100"
+          }`}
+        >
+          <Heart className={`w-4 h-4 transition-transform ${isLiked ? "fill-current scale-105" : ""}`} />
+        </button>
 
         {/* Botão de Contexto / Mais Opções */}
         <button

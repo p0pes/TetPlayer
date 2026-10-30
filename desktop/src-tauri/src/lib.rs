@@ -12,7 +12,7 @@ use ytm::{
     create_playlist as api_create_playlist, add_track_to_playlist as api_add_track_to_playlist,
     remove_track_from_playlist as api_remove_track_from_playlist,
     edit_playlist_metadata as api_edit_playlist_metadata, delete_playlist as api_delete_playlist,
-    reorder_playlist_track as api_reorder_playlist_track,
+    reorder_playlist_track as api_reorder_playlist_track, like_track as api_like_track, unlike_track as api_unlike_track,
     fetch_lyrics, get_home_recommendations, get_playlist_tracks as fetch_playlist_tracks,
     get_radio_tracks as fetch_radio_tracks, get_stream_info as fetch_stream_info,
     get_user_playlists as fetch_user_playlists, get_user_albums as fetch_user_albums,
@@ -300,6 +300,24 @@ async fn reorder_playlist_track(
         was_adjacent_to_end,
     )
     .await
+}
+
+#[tauri::command]
+async fn like_track(
+    state: State<'_, AppState>,
+    video_id: String,
+) -> Result<(), String> {
+    let session = { state.session.lock().unwrap().clone() };
+    api_like_track(&session, &video_id).await
+}
+
+#[tauri::command]
+async fn unlike_track(
+    state: State<'_, AppState>,
+    video_id: String,
+) -> Result<(), String> {
+    let session = { state.session.lock().unwrap().clone() };
+    api_unlike_track(&session, &video_id).await
 }
 
 #[tauri::command]
@@ -919,6 +937,8 @@ pub fn run() {
             edit_playlist_metadata,
             delete_playlist,
             reorder_playlist_track,
+            like_track,
+            unlike_track,
             get_user_albums,
             get_album_details,
             search_album_by_name,

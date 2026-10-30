@@ -19,7 +19,7 @@ import { useMediaSession } from "../hooks/useMediaSession";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 import { prefetchTrackLyrics } from "../hooks/useLyrics";
 import { PlaybackProgressProvider } from "./PlaybackProgressContext";
-import { playerReducer, createInitialQueueState } from "./playerReducer";
+import { playerReducer, createInitialQueueState, SESSION_STORAGE_KEY, StoredSessionData } from "./playerReducer";
 import { TrackContextMenu, ContextMenuPosition } from "../components/ContextMenu/TrackContextMenu";
 import { SettingsService } from "../services/settings";
 
@@ -215,7 +215,7 @@ export function PlayerProvider({
     isMuted,
     loadingTrackId,
     loadAndPlayVideo,
-    togglePlayPause,
+    togglePlayPause: rawTogglePlayPause,
     seekTo,
     changeVolume,
     toggleMute,
@@ -230,6 +230,62 @@ export function PlayerProvider({
   currentTimeRef.current = currentTime;
   const durationRef = useRef(duration);
   durationRef.current = duration;
+
+  // Controle de reprodução iniciada para restauração de sessão (Item 4.3)
+  const hasStartedPlaybackRef = useRef(false);
+
+  const handleTogglePlayPause = useCallback(() => {
+    if (!currentTrackRef.current) return;
+    if (!hasStartedPlaybackRef.current) {
+      hasStartedPlaybackRef.current = true;
+      loadAndPlayVideo(currentTrackRef.current.id, currentTimeRef.current);
+      return;
+    }
+    rawTogglePlayPause();
+  }, [rawTogglePlayPause, loadAndPlayVideo]);
+
+  // Persistência e Restauração de Sessão (Item 4.3)
+  const saveSession = useCallback(() => {
+    if (!currentTrackRef.current) return;
+    try {
+      const sessionData: StoredSessionData = {
+        currentTrack: currentTrackRef.current,
+        activeQueue: activeQueueRef.current,
+        originalQueue: originalQueueRef.current,
+        currentQueueIndex: currentQueueIndexRef.current,
+        currentTime: Math.floor(currentTimeRef.current),
+        duration: Math.floor(durationRef.current),
+        isShuffle: isShuffleRef.current,
+        repeatMode: repeatModeRef.current,
+        isAutoplayRadio: isAutoplayRadioRef.current,
+        timestamp: Date.now(),
+      };
+      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessionData));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    saveSession();
+  }, [currentTrack, activeQueue, currentQueueIndex, isShuffle, repeatMode, isAutoplayRadio, saveSession]);
+
+  useEffect(() => {
+    if (!isPlaying) {
+      saveSession();
+      return;
+    }
+    const timer = window.setInterval(saveSession, 4000);
+    return () => window.clearInterval(timer);
+  }, [isPlaying, saveSession]);
+
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      saveSession();
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [saveSession]);
 
   // Amostragem inteligente de cores da capa via Web Worker
   useAuroraColor(currentTrack);
@@ -250,13 +306,13 @@ export function PlayerProvider({
   }
 
   const trayHandlersRef = useRef({
-    togglePlayPause,
+    togglePlayPause: handleTogglePlayPause,
     handleNextTrack,
     handlePrevTrack,
     toggleMiniPlayer,
   });
   trayHandlersRef.current = {
-    togglePlayPause,
+    togglePlayPause: handleTogglePlayPause,
     handleNextTrack,
     handlePrevTrack,
     toggleMiniPlayer,
@@ -394,6 +450,7 @@ export function PlayerProvider({
       });
     }
 
+    hasStartedPlaybackRef.current = true;
     loadAndPlayVideo(track.id);
   }
 
@@ -424,7 +481,8 @@ export function PlayerProvider({
       const track = queue[idx];
       recordTrackPlayed(track);
       dispatchQueue({ type: "PLAY_FROM_QUEUE", payload: { index: idx } });
-      loadAndPlayVideo(track.id);
+      hasStartedPlaybackRef.current = true;
+    loadAndPlayVideo(track.id);
     }
   }
 
@@ -609,8 +667,8 @@ export function PlayerProvider({
     isPlaying,
     currentTime,
     duration,
-    onPlay: () => togglePlayPause(),
-    onPause: () => togglePlayPause(),
+    onPlay: () => handleTogglePlayPause(),
+    onPause: () => handleTogglePlayPause(),
     onNext: () => handleNextTrack(),
     onPrev: () => handlePrevTrack(),
     onSeekTo: (sec) => seekTo(sec),
@@ -618,7 +676,7 @@ export function PlayerProvider({
 
   // Atalhos Globais de Teclado
   useKeyboardShortcuts({
-    togglePlayPause,
+    togglePlayPause: handleTogglePlayPause,
     handleNextTrack,
     handlePrevTrack,
     seekTo,
@@ -716,7 +774,7 @@ export function PlayerProvider({
       handleReorderQueue,
       handleNextTrack,
       handlePrevTrack,
-      togglePlayPause,
+      togglePlayPause: handleTogglePlayPause,
       handleSeekTo: seekTo,
       handleVolumeChange,
       toggleMute,
@@ -756,7 +814,7 @@ export function PlayerProvider({
       pastTracks,
       upcomingTracks,
       seekTo,
-      togglePlayPause,
+      handleTogglePlayPause,
       handleReorderQueue,
       openContextMenu,
       closeContextMenu,

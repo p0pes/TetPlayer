@@ -2,14 +2,15 @@ export type PlaylistEnqueueMode = "replace" | "append";
 export type VisualizerStyle = "bars" | "blocks" | "gradient" | "pulse" | "wave";
 export type CloseAction = "tray" | "exit";
 export type AccentTheme =
+  | "chameleon"
   | "ruby"
-  | "indigo"
-  | "emerald"
-  | "ocean"
   | "rose"
+  | "indigo"
+  | "ocean"
+  | "emerald"
+  | "lime"
   | "amber"
   | "sunset"
-  | "lime"
   | "monochrome";
 
 export interface ThemeColorTokens {
@@ -26,6 +27,18 @@ export interface ThemeColorTokens {
 }
 
 export const THEME_PALETTES: Record<AccentTheme, ThemeColorTokens> = {
+  chameleon: {
+    primary: "#ef4444",
+    hover: "#dc2626",
+    active: "#b91c1c",
+    text: "#f87171",
+    subtle: "rgba(239, 68, 68, 0.16)",
+    border: "rgba(239, 68, 68, 0.40)",
+    glow: "rgba(239, 68, 68, 0.85)",
+    gradientFrom: "#ef4444",
+    gradientVia: "#8b5cf6",
+    gradientTo: "#0ea5e9",
+  },
   ruby: {
     primary: "#ef4444",
     hover: "#dc2626",
@@ -175,6 +188,8 @@ const SETTINGS_EVENT = "tetplayer:settings-changed";
 
 type SettingsListener = (settings: AppSettings, keyChanged?: keyof AppSettings) => void;
 const listeners = new Set<SettingsListener>();
+let activeChameleonTokens: ThemeColorTokens | null = null;
+
 
 export const SettingsService = {
   getSettings(): AppSettings {
@@ -259,7 +274,10 @@ export const SettingsService = {
     const currentTheme = settings.accentTheme || "ruby";
     root.setAttribute("data-theme", currentTheme);
 
-    const palette = THEME_PALETTES[currentTheme] || THEME_PALETTES.ruby;
+    const palette =
+      currentTheme === "chameleon" && activeChameleonTokens
+        ? activeChameleonTokens
+        : THEME_PALETTES[currentTheme] || THEME_PALETTES.ruby;
     root.style.setProperty("--accent", palette.primary);
     root.style.setProperty("--accent-primary", palette.primary);
     root.style.setProperty("--accent-hover", palette.hover);
@@ -282,6 +300,29 @@ export const SettingsService = {
     } else {
       root.classList.remove("reduce-motion");
     }
+  },
+
+  applyChameleonTokens(tokens: ThemeColorTokens): void {
+    activeChameleonTokens = tokens;
+    if (typeof document === "undefined") return;
+    if (this.getSetting("accentTheme") !== "chameleon") return;
+
+    const root = document.documentElement;
+    root.style.setProperty("--accent", tokens.primary);
+    root.style.setProperty("--accent-primary", tokens.primary);
+    root.style.setProperty("--accent-hover", tokens.hover);
+    root.style.setProperty("--accent-active", tokens.active);
+    root.style.setProperty("--accent-text", tokens.text);
+    root.style.setProperty("--accent-subtle", tokens.subtle);
+    root.style.setProperty("--accent-border", tokens.border);
+    root.style.setProperty("--accent-glow", tokens.glow);
+    root.style.setProperty("--accent-gradient-from", tokens.gradientFrom);
+    root.style.setProperty("--accent-gradient-via", tokens.gradientVia);
+    root.style.setProperty("--accent-gradient-to", tokens.gradientTo);
+  },
+
+  getActiveChameleonTokens(): ThemeColorTokens | null {
+    return activeChameleonTokens;
   },
 
   subscribe(listener: SettingsListener): () => void {

@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { Playlist, Track, Album, AlbumDetail, ArtistDetail } from "../types";
 import { clearLyricsCache } from "../hooks/useLyrics";
+import { LikesService } from "./likes";
 
 const PLAYLISTS_CACHE_KEY = "tetplayer_cache_playlists";
 const PLAYLIST_TRACKS_CACHE_PREFIX = "tetplayer_cache_tracks_";
@@ -141,7 +142,11 @@ export const LocalCacheService = {
       const data = localStorage.getItem(`${PLAYLIST_TRACKS_CACHE_PREFIX}${playlistId}`);
       if (!data) return null;
       touchPlaylistLru(playlistId);
-      return JSON.parse(data) as Track[];
+      const parsed = JSON.parse(data) as Track[];
+      if (playlistId === "VLLM") {
+        LikesService.syncLikedTracks(parsed);
+      }
+      return parsed;
     } catch {
       return null;
     }
@@ -149,6 +154,9 @@ export const LocalCacheService = {
 
   // Salvar faixas de uma playlist no cache local com política de evicção LRU e espelhamento no SQLite
   saveCachedPlaylistTracks(playlistId: string, tracks: Track[]): void {
+    if (playlistId === "VLLM") {
+      LikesService.syncLikedTracks(tracks);
+    }
     const cacheKey = `${PLAYLIST_TRACKS_CACHE_PREFIX}${playlistId}`;
     const serialized = JSON.stringify(tracks);
 

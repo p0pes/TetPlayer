@@ -21,8 +21,34 @@ export function useYouTubePlayer({
 
   const [isPlayerReady, setIsPlayerReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(() => {
+    try {
+      const raw = localStorage.getItem("tetplayer_player_session");
+      if (raw) {
+        const s = JSON.parse(raw);
+        if (typeof s.currentTime === "number" && s.currentTime > 0) {
+          return s.currentTime;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return 0;
+  });
+  const [duration, setDuration] = useState(() => {
+    try {
+      const raw = localStorage.getItem("tetplayer_player_session");
+      if (raw) {
+        const s = JSON.parse(raw);
+        if (typeof s.duration === "number" && s.duration > 0) {
+          return s.duration;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return 0;
+  });
 
   const [volume, setVolume] = useState<number>(() => {
     try {
@@ -352,7 +378,7 @@ export function useYouTubePlayer({
     }
   }
 
-  async function loadAndPlayVideo(videoId: string) {
+  async function loadAndPlayVideo(videoId: string, seekSec = 0) {
     setLoadingTrackId(videoId);
     currentVideoIdRef.current = videoId;
 
@@ -382,6 +408,9 @@ export function useYouTubePlayer({
 
         nativeAudioEngine.setNormalizeVolume(SettingsService.getSetting("normalizeVolume"));
         nativeAudioEngine.load(stream.stream_url, videoId, stream.loudness_db);
+        if (seekSec > 0) {
+          nativeAudioEngine.seek(seekSec);
+        }
         const initialVol = isMutedRef.current ? 0 : volumeRef.current;
         nativeAudioEngine.setVolume(crossfadeSecondsRef.current > 0 ? 0 : initialVol);
         if (stream.duration_seconds) {
@@ -409,7 +438,7 @@ export function useYouTubePlayer({
     // 2. Fallback Transparente para o IFrame Player do YouTube
     activeEngineRef.current = "iframe";
     nativeAudioEngine.stop();
-    playIframeVideo(videoId);
+    playIframeVideo(videoId, seekSec);
   }
 
   const togglePlayPause = useCallback(() => {

@@ -16,11 +16,13 @@ import {
   VolumeX,
   Radio,
   Tv,
+  Heart,
 } from "lucide-react";
 import { usePlayer } from "../../context/PlayerContext";
 import { TimelineScrubber } from "./TimelineScrubber";
 import { SpectrumVisualizer } from "../Visualizer/SpectrumVisualizer";
 import { upgradeArtworkQuality, handleArtworkError } from "../../utils/artwork";
+import { useLikedTrack } from "../../services/likes";
 
 export const PlayerBar = memo(function PlayerBar() {
   const {
@@ -50,6 +52,7 @@ export const PlayerBar = memo(function PlayerBar() {
     toggleShowLyrics,
   } = usePlayer();
 
+  const { isLiked, toggleLike } = useLikedTrack(currentTrack);
   const isDrawerOpen = isNowPlayingOpen || showLyrics;
 
   return (
@@ -123,6 +126,26 @@ export const PlayerBar = memo(function PlayerBar() {
             </p>
           </div>
         </div>
+        {/* Botão de Curtir Música (Item 5.1) */}
+        {currentTrack && (
+          <button
+            type="button"
+            onClick={toggleLike}
+            title={isLiked ? "Remover dos favoritos (Descurtir)" : "Adicionar às Músicas Curtidas"}
+            aria-label={isLiked ? "Descurtir música" : "Curtir música"}
+            className={`p-1.5 rounded-xl transition-all cursor-pointer shrink-0 ml-1 ${
+              isLiked
+                ? "text-[var(--accent)] hover:scale-110 drop-shadow-[0_0_8px_var(--accent-glow)]"
+                : "text-[#71778c] hover:text-white hover:bg-[#1a1d28]"
+            }`}
+          >
+            <Heart
+              className={`w-4 h-4 transition-transform ${
+                isLiked ? "fill-current scale-105" : ""
+              }`}
+            />
+          </button>
+        )}
       </div>
 
       {/* Controles Centrais e Scrubber */}

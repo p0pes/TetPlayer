@@ -2,8 +2,44 @@ import { useEffect, useRef } from "react";
 import { Track } from "../types";
 import { ColorWorkerResponse, ColorWorkerResult, ColorRgb } from "../workers/colorWorker";
 import { upgradeArtworkQuality } from "../utils/artwork";
+import { SettingsService, ThemeColorTokens } from "../services/settings";
 
 const PALETTE_CACHE_KEY = "tetplayer_palette_cache";
+
+export function colorRgbToThemeTokens(c1: ColorRgb, c2: ColorRgb, c3: ColorRgb): ThemeColorTokens {
+  let { r, g, b } = c1;
+  const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+  if (lum < 90) {
+    const factor = Math.min(2.5, 120 / Math.max(lum, 10));
+    r = Math.min(255, Math.round(r * factor + 30));
+    g = Math.min(255, Math.round(g * factor + 30));
+    b = Math.min(255, Math.round(b * factor + 30));
+  } else if (lum > 235) {
+    const factor = 200 / lum;
+    r = Math.round(r * factor);
+    g = Math.round(g * factor);
+    b = Math.round(b * factor);
+  }
+
+  const hex = (n: number) => n.toString(16).padStart(2, "0");
+  const primary = `#${hex(r)}${hex(g)}${hex(b)}`;
+  const hover = `#${hex(Math.min(255, Math.round(r * 1.15)))}${hex(Math.min(255, Math.round(g * 1.15)))}${hex(Math.min(255, Math.round(b * 1.15)))}`;
+  const active = `#${hex(Math.max(0, Math.round(r * 0.85)))}${hex(Math.max(0, Math.round(g * 0.85)))}${hex(Math.max(0, Math.round(b * 0.85)))}`;
+  const text = `#${hex(Math.min(255, Math.round(r * 1.25 + 20)))}${hex(Math.min(255, Math.round(g * 1.25 + 20)))}${hex(Math.min(255, Math.round(b * 1.25 + 20)))}`;
+
+  return {
+    primary,
+    hover,
+    active,
+    text,
+    subtle: `rgba(${r}, ${g}, ${b}, 0.18)`,
+    border: `rgba(${r}, ${g}, ${b}, 0.45)`,
+    glow: `rgba(${r}, ${g}, ${b}, 0.85)`,
+    gradientFrom: primary,
+    gradientVia: `#${hex(c2.r)}${hex(c2.g)}${hex(c2.b)}`,
+    gradientTo: `#${hex(c3.r)}${hex(c3.g)}${hex(c3.b)}`,
+  };
+}
 
 function applyPaletteToRoot(c1: ColorRgb, c2: ColorRgb, c3: ColorRgb) {
   const root = document.documentElement;
@@ -13,6 +49,9 @@ function applyPaletteToRoot(c1: ColorRgb, c2: ColorRgb, c3: ColorRgb) {
   root.style.setProperty("--aurora-1-glow", `rgba(${c1.r}, ${c1.g}, ${c1.b}, 0.88)`);
   root.style.setProperty("--aurora-2-glow", `rgba(${c2.r}, ${c2.g}, ${c2.b}, 0.78)`);
   root.style.setProperty("--aurora-3-glow", `rgba(${c3.r}, ${c3.g}, ${c3.b}, 0.68)`);
+
+  const tokens = colorRgbToThemeTokens(c1, c2, c3);
+  SettingsService.applyChameleonTokens(tokens);
 }
 
 function computeFallbackPalette(track: Track): ColorWorkerResult {

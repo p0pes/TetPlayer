@@ -56,5 +56,27 @@ describe("SettingsService", () => {
 
     SettingsService.updateSetting("accentTheme", "lime");
     expect(SettingsService.getSetting("accentTheme")).toBe("lime");
+
+    SettingsService.updateSetting("accentTheme", "chameleon");
+    expect(SettingsService.getSetting("accentTheme")).toBe("chameleon");
+  });
+
+  it("aplica tokens dinâmicos para o tema camaleão (Item 2.1)", () => {
+    SettingsService.updateSetting("accentTheme", "chameleon");
+    const customTokens = {
+      primary: "#06b6d4",
+      hover: "#0891b2",
+      active: "#0e7490",
+      text: "#67e8f9",
+      subtle: "rgba(6, 182, 212, 0.18)",
+      border: "rgba(6, 182, 212, 0.45)",
+      glow: "rgba(6, 182, 212, 0.85)",
+      gradientFrom: "#06b6d4",
+      gradientVia: "#3b82f6",
+      gradientTo: "#8b5cf6",
+    };
+
+    SettingsService.applyChameleonTokens(customTokens);
+    expect(SettingsService.getActiveChameleonTokens()).toEqual(customTokens);
   });
 });

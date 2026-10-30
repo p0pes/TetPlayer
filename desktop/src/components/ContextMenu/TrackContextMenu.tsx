@@ -10,10 +10,12 @@ import {
   Disc3,
   FolderPlus,
   FolderMinus,
+  Heart,
 } from "lucide-react";
 import { Track } from "../../types";
 import { usePlayer } from "../../context/PlayerContext";
 import { upgradeArtworkQuality } from "../../utils/artwork";
+import { useLikedTrack } from "../../services/likes";
 
 export interface ContextMenuPosition {
   x: number;
@@ -35,6 +37,7 @@ export function TrackContextMenu({
 }: TrackContextMenuProps) {
   const { handlePlayNext, handleAddToQueue, handleStartRadio, searchArtist } =
     usePlayer();
+  const { isLiked, toggleLike } = useLikedTrack(track);
   const menuRef = useRef<HTMLDivElement>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isClosing, setIsClosing] = useState(false);
@@ -80,7 +83,7 @@ export function TrackContextMenu({
   // Ajuste inteligente para evitar que o menu transborde a tela
   const isCustomPlaylist = !!contextPlaylistId && contextPlaylistId !== "VLLM";
   const menuWidth = 240;
-  const menuHeight = isCustomPlaylist ? 350 : 310;
+  const menuHeight = isCustomPlaylist ? 390 : 350;
   const safeX = Math.min(position.x, window.innerWidth - menuWidth - 16);
   const safeY = Math.min(position.y, window.innerHeight - menuHeight - 16);
 
@@ -200,6 +203,24 @@ export function TrackContextMenu({
             <p className="text-[11px] text-[#8c91a4] truncate">{track.artist}</p>
           </div>
         </div>
+
+        {/* Opção Curtir / Descurtir (Item 5.1) */}
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => {
+            toggleLike();
+            showToast(isLiked ? "Removida das Músicas Curtidas" : "Adicionada às Músicas Curtidas!");
+          }}
+          className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-[#c4c8d8] hover:text-white hover:bg-[var(--accent-subtle)] hover:border-[var(--accent-border)] border border-transparent transition-all cursor-pointer group text-left"
+        >
+          <Heart
+            className={`w-4 h-4 shrink-0 group-hover:scale-110 transition-transform ${
+              isLiked ? "text-[var(--accent)] fill-current" : "text-[#8c91a4] group-hover:text-[var(--accent)]"
+            }`}
+          />
+          <span>{isLiked ? "Descurtir música" : "Curtir música"}</span>
+        </button>
 
         {/* Opção 1: Tocar a Seguir */}
         <button

@@ -3,6 +3,7 @@ import {
   playerReducer,
   createInitialQueueState,
   QueueState,
+  SESSION_STORAGE_KEY,
 } from "../playerReducer";
 import { Track } from "../../types";
 
@@ -203,5 +204,29 @@ describe("playerReducer (FSM da Fila e Reprodução)", () => {
     expect(nextState.activeQueue).toHaveLength(3);
     expect(nextState.activeQueue.map((t) => t.id)).toEqual(["1", "2", "3"]);
     expect(nextState.originalQueue.map((t) => t.id)).toEqual(["1", "2", "3"]);
+  });
+
+  it("deve restaurar sessão salva ao inicializar quando há dados persistidos (Item 4.3)", () => {
+    const savedSession = {
+      currentTrack: mockTrack2,
+      activeQueue: mockQueue,
+      originalQueue: mockQueue,
+      currentQueueIndex: 1,
+      currentTime: 42,
+      duration: 180,
+      isShuffle: true,
+      repeatMode: "all",
+      isAutoplayRadio: false,
+      timestamp: Date.now(),
+    };
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(savedSession));
+
+    const state = createInitialQueueState();
+    expect(state.currentTrack?.id).toBe("2");
+    expect(state.activeQueue).toHaveLength(3);
+    expect(state.currentQueueIndex).toBe(1);
+    expect(state.isShuffle).toBe(true);
+    expect(state.repeatMode).toBe("all");
+    expect(state.isAutoplayRadio).toBe(false);
   });
 });
