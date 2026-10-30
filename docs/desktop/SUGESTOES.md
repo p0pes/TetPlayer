@@ -1,4 +1,4 @@
-# 🚀 TetPlayer Desktop — Guia Mestre de Evolução, Diferenciais de Mercado, UI/UX & Roadmap (v1.4.0+)
+# 🚀 TetPlayer Desktop — Guia Mestre de Evolução, Diferenciais de Mercado, UI/UX & Roadmap (v2.0.1+)
 
 > **Escopo do Documento:** Planejamento estratégico de produto, pesquisa comparativa de mercado (Plexamp, Cider 2, Roon, Namida, Foobar2000, Pear Desktop / `th-ch/youtube-music`, Spotify e Apple Music), propostas de identidade visual exclusiva, inovações de áudio DSP via Web Audio API e histórico consolidado de engenharia do **TetPlayer Desktop** (Tauri v2 + Rust + React 19 + TypeScript + Tailwind CSS).
 
@@ -6,9 +6,9 @@
 
 ## 📑 Índice Navegável
 
-1. [Visão Geral da Arquitetura Atual (Estado da Arte v1.4.0+)](#1-visão-geral-da-arquitetura-atual-estado-da-arte-v140)
+1. [Visão Geral da Arquitetura Atual (Estado da Arte v2.0.1+)](#1-visão-geral-da-arquitetura-atual-estado-da-arte-v201)
 2. [Pesquisa de Mercado Comparativa & Benchmarking](#2-pesquisa-de-mercado-comparativa--benchmarking)
-3. [Catálogo de Sugestões Ativas (Organizado por 6 Eixos Estratégicos)](#3-catálogo-de-sugestões-ativas-organizado-por-6-eixos-estratégicos)
+3. [Catálogo de Sugestões Ativas em Destaque (Organizado por 6 Eixos Estratégicos)](#3-catálogo-de-sugestões-ativas-em-destaque-organizado-por-6-eixos-estratégicos)
    - [Eixo 1: Motor de Áudio, DSP & Qualidade Sonora Audiófila](#eixo-1-motor-de-áudio-dsp--qualidade-sonora-audiófila)
    - [Eixo 2: Identidade Visual Única, Temas & Estética Imersiva](#eixo-2-identidade-visual-única-temas--estética-imersiva)
    - [Eixo 3: Experiência de Letras, Karaokê & Diferenciais Culturais (J-Pop / Vocaloid / Global)](#eixo-3-experiência-de-letras-karaokê--diferenciais-culturais-j-pop--vocaloid--global)
@@ -16,11 +16,11 @@
    - [Eixo 5: Curadoria, Biblioteca & Playlists Inteligentes](#eixo-5-curadoria-biblioteca--playlists-inteligentes)
    - [Eixo 6: Ecossistema, Integrações Sociais & Modo Offline](#eixo-6-ecossistema-integrações-sociais--modo-offline)
 4. [Matriz de Priorização (Impacto × Esforço) & Roadmap Visual](#4-matriz-de-priorização-impacto--esforço--roadmap-visual)
-5. [Histórico Consolidado: 53 Funcionalidades e Otimizações Concluídas](#5-histórico-consolidado-53-funcionalidades-e-otimizações-concluídas)
+5. [Histórico Consolidado: 58 Funcionalidades e Otimizações Concluídas](#5-histórico-consolidado-58-funcionalidades-e-otimizações-concluídas)
 
 ---
 
-## 1. Visão Geral da Arquitetura Atual (Estado da Arte v1.4.0+)
+## 1. Visão Geral da Arquitetura Atual (Estado da Arte v2.0.1+)
 
 O TetPlayer Desktop evoluiu de um cliente leve para uma plataforma multimídia desktop madura, combinando a leveza nativa do **Tauri v2 + Rust** com uma interface **React 19** otimizada para monitores de alta taxa de atualização (**144 FPS**).
 
@@ -32,16 +32,17 @@ O TetPlayer Desktop evoluiu de um cliente leve para uma plataforma multimídia d
 ├──────────────────────────────────────┼───────────────────────────────────────┤
 │ • Contextos Desacoplados:            │ • InnerTube Client (ytm.rs):          │
 │   PlayerContext + PlaybackProgress   │   HTTP_CLIENT global com pool TLS,    │
-│ • Motor Híbrido de Áudio:            │   SAPISIDHASH 1P, paginação de até    │
-│   AudioEngine (Web Audio API + Gain) │   2.500 faixas, CRUD de playlists,    │
-│   com fallback transparente p/ IFrame│   reordenação determinística e álbuns │
+│ • Motor de Áudio Dual-Deck:          │   SAPISIDHASH 1P, paginação de até    │
+│   AudioEngine (Deck A/B Crossfade +  │   2.500 faixas, CRUD de playlists,    │
+│   ReplayGain loudnessDb + GainNode)  │   reordenação determinística, busca   │
+│   com fallback transparente p/ IFrame│   nativa de álbuns e StreamInfo       │
 │ • UI Virtualizada a 144 FPS:         │ • Persistência Local (stats.rs):      │
 │   @tanstack/react-virtual + Drag &   │   SQLite WAL + Compressão flate2      │
 │   Drop com Card Flutuante no Portal  │   Deflate + Histórico de Reprodução   │
 │ • Efeitos Visuais Acelerados (GPU):  │ • Autenticação Isolada (auth.rs):     │
 │   Aurora Boreal (@property CSS),     │   Webview Google Login nativa sem     │
-│   Motion Cover 3D, Kinetic Lyrics    │   depender de navegadores externos    │
-│   com Spring Bounce e 8 Temas Neon   │ • Integração OS (lib.rs):             │
+│   Motion Cover 3D, Waveform Seekbar  │   depender de navegadores externos    │
+│   com preview de letras e 8 Temas    │ • Integração OS (lib.rs):             │
 │ • Mini Player PiP & Docking Lateral  │   System Tray, Global Media Keys,     │
 │   com snap magnético Win32           │   Auto-Updater assinado (Minisign)    │
 └──────────────────────────────────────┴───────────────────────────────────────┘
@@ -55,37 +56,25 @@ Para definir o que tornará o TetPlayer **inconfundível e superior** às altern
 
 | Player de Referência | Seus Maiores Diferenciais no Mercado | Como o TetPlayer Pode Absorver e Superar |
 | :--- | :--- | :--- |
-| **Plexamp** | *Waveform Seekbar* (barra de progresso em onda sonora real), *Sweet Fades* (crossfade inteligente), *Sonic Sage / Time Travel Mixes* e *Visualizer Overlays*. | Combinar o `AudioEngine` nativo com `AnalyserNode` para desenhar **Waveform Seekbar interativa** e criar **Smart Mixes locais** baseados no banco SQLite (`playback_history`). |
+| **Plexamp** | *Waveform Seekbar* (barra de progresso em onda sonora real), *Sweet Fades* (crossfade inteligente), *Sonic Sage / Time Travel Mixes* e *Visualizer Overlays*. | Já absorvemos a **Waveform Seekbar** e o **Dual-Deck True Crossfade**. O próximo passo é criar **Smart Mixes locais** baseados no banco SQLite (`playback_history`). |
 | **Cider 2 (Apple Music)** | Estética *Acrylic Glass*, **Modo Camaleão** (cor de destaque do app muda dinamicamente com a capa do álbum), *Sing Mode* (letras com vocal/tradução) e *Turntable Vinyl Mode*. | Adicionar **Tema Camaleão Dinâmico** alimentado pelo `colorWorker.ts`, **Modo Vitrola (Vinil 33⅓ RPM)** na gaveta e **Romanização/Tradução de Letras**. |
-| **Roon** | *Signal Path Badge* (mostra com transparência a cadeia de áudio: fonte → codec → DSP → saída) e *Digital Booklet* (páginas ricas de artistas, créditos e discografia). | Criar o **Signal Path Badge** na `PlayerBar` (`Opus 160kbps • WebAudio Engine • Gain/EQ`) e a **Página Nativa de Artista** com discografia separada entre Álbuns e Singles/EPs. |
+| **Roon** | *Signal Path Badge* (mostra com transparência a cadeia de áudio: fonte → codec → DSP → saída) e *Digital Booklet* (páginas ricas de artistas, créditos e discografia). | Já criamos a **Página de Artista Nativa** (`ArtistDetailView`). O próximo passo é o **Signal Path Badge** na `PlayerBar` (`Opus 160kbps • Dual-Deck Engine • ReplayGain`). |
 | **Namida / NetEase / Musicolet** | **Desktop Floating Lyrics Overlay** (letras transparentes *click-through* sobre jogos/editores), sincronia palavra-por-palavra e múltiplos perfis de equalização. | Implementar uma segunda janela Tauri transparente e *click-through* (**Karaoke Desktop Overlay**) para exibir a linha atual da letra enquanto o usuário joga ou programa. |
 | **Pear Desktop (`th-ch/youtube-music`)** | Plugins de **Discord Rich Presence**, **SponsorBlock** (`music_offtopic`), **Last.fm Scrobbler**, **Downloader MP3/Opus** e servidor de **Controle Remoto**. | Integrar esses recursos **nativamente em Rust** sem o peso de 350 MB de RAM do Electron e com interface unificada. |
 | **Foobar2000 / DeaDBeeF** | Foco em zero desperdício de CPU, DSP modular (Equalizador de 10+ bandas, Compressor Noturno, Pitch/Tempo Shift) e busca instantânea por atalhos. | Expandir o grafo Web Audio API do `AudioEngine` com **EQ de 10 Bandas**, **Efeitos DSP (Slowed + Reverb / Nightcore)** e **Command Palette (`Ctrl+K`)**. |
 
 ---
 
-## 3. Catálogo de Sugestões Ativas (Organizado por 6 Eixos Estratégicos)
+## 3. Catálogo de Sugestões Ativas em Destaque (Organizado por 6 Eixos Estratégicos)
+
+> [!NOTE]
+> Esta seção destaca **exclusivamente as 24 propostas ativas** que ainda precisam ser implementadas, com numeração sequencial saneada e categorizada por eixo técnico. Todas as funcionalidades já concluídas foram promovidas para a [Seção 5 (Histórico Consolidado)](#5-histórico-consolidado-58-funcionalidades-e-otimizações-concluídas).
 
 ---
 
 ### Eixo 1: Motor de Áudio, DSP & Qualidade Sonora Audiófila
 
-> [!TIP]
-> Com a implementação do **Motor de Áudio Nativo Híbrido (Histórico #49)** em [`audioEngine.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/audioEngine.ts), o TetPlayer já possui um `AudioContext` e `GainNode` reais conectados ao stream direto do YouTube Music. Isso desbloqueia todo o poder de processamento digital de sinais (DSP) da Web Audio API!
-
-#### 1.1 Crossfade Real com Sobreposição de Duplo Deck (*Dual-Deck True Crossfade*)
-* **Status:** `[Em Aberto / Alta Prioridade]` 💡
-* **Impacto:** `[Muito Alto / Experiência Contínua]` | **Esforço:** `[Médio]`
-* **Diagnóstico do Estado Atual:**
-  Atualmente, o crossfade em [`useYouTubePlayer.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useYouTubePlayer.ts) realiza um *fade-out* nos segundos finais da faixa A e um *fade-in* no início da faixa B, mas de forma sequencial (sem sobreposição simultânea das duas músicas).
-* **Proposta de Evolução:**
-  - Instanciar dois decks independentes (`Deck A` e `Deck B`) dentro do [`AudioEngine`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/audioEngine.ts), cada um com seu próprio `HTMLAudioElement` e `GainNode`.
-  - Quando restarem $N$ segundos (configurados no Crossfade de 1s a 12s) para o término da faixa ativa no `Deck A`, o `Deck B` (já pré-carregado em RAM pelo prefetch de 88%) inicia imediatamente a reprodução da próxima faixa com ganho `0.0` subindo em curva *equal-power* ($\sin/\cos$), enquanto o `Deck A` desce suavemente até `0.0`.
-  - Resultado: transições de estúdio estilo DJ / Plexamp *Sweet Fades*, com zero silêncio entre músicas.
-
----
-
-#### 1.2 Equalizador Paramétrico/Gráfico de 10 Bandas + Efeitos Criativos (*Slowed + Reverb* & *Nightcore*)
+#### 1.1 Equalizador Paramétrico/Gráfico de 10 Bandas + Efeitos Criativos (*Slowed + Reverb* & *Nightcore*)
 * **Status:** `[Em Aberto / Alta Prioridade]` 💡
 * **Impacto:** `[Alto para Audiófilos e Comunidade]` | **Esforço:** `[Médio]`
 * **Arquitetura no `AudioEngine`:**
@@ -98,35 +87,15 @@ Para definir o que tornará o TetPlayer **inconfundível e superior** às altern
 
 ---
 
-#### 1.3 Normalização Real de Volume por Faixa via `loudnessDb` (ReplayGain Nativo)
-* **Status:** `[Em Aberto / Alta Prioridade]` 💡
-* **Impacto:** `[Alto]` | **Esforço:** `[Baixo]`
-* **Diagnóstico do Estado Atual:**
-  A opção *"Normalização de Volume"* em [`useYouTubePlayer.ts:320-324`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useYouTubePlayer.ts#L320-L324) funciona apenas como um compressor de topo acima de 85% (`85 + (vol - 85) * 0.5`), sem igualar músicas gravadas muito baixas ou muito altas.
-* **Proposta de Evolução:**
-  - Extrair o campo `playerConfig.audioConfig.loudnessDb` já retornado pela resposta JSON do endpoint `/player` em [`ytm.rs:2081`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/ytm.rs#L2081) dentro da struct `StreamInfo`.
-  - Aplicar a atenuação logarítmica exata ($10^{-\text{loudnessDb}/20}$) no `GainNode` do `AudioEngine` (e proporcionalmente no fallback IFrame), igualando o volume percebido (LUFS) entre faixas de diferentes décadas e produtores.
-
----
-
-#### 1.4 Barra de Progresso em Onda Sonora Interativa (*Waveform Seekbar* estilo Plexamp)
-* **Status:** `[Em Aberto / Diferencial Visual & UX]` 💡
-* **Impacto:** `[Alto / Identidade Visual]` | **Esforço:** `[Médio]`
-* **Descrição Conceitual:**
-  Permitir alternar o [`TimelineScrubber.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Player/TimelineScrubber.tsx) entre a barra minimalista atual e uma **Waveform Seekbar** composta por micro-barras de amplitude (geradas a partir do perfil de energia da faixa ou envelope dinâmico cacheado).
-  - **Tooltip de Preview ao Passar o Mouse:** Ao mover o cursor sobre qualquer ponto da barra de progresso, exibir uma pílula flutuante com o **timestamp exato** (`02:14`) e a **estrofe da letra correspondente àquele segundo**, facilitando encontrar o refrão instantaneamente.
-
----
-
-#### 1.5 Insígnia de Caminho de Sinal Audiófilo (*Signal Path Badge* estilo Roon)
+#### 1.2 Insígnia de Caminho de Sinal Audiófilo (*Signal Path Badge* estilo Roon)
 * **Status:** `[Em Aberto]` 💡
 * **Impacto:** `[Médio / Charme Técnico]` | **Esforço:** `[Baixo]`
 * **Descrição Conceitual:**
   Um pequeno indicador luminoso na `PlayerBar` ou no cabeçalho do `NowPlayingDrawer` (ex: ponto verde-esmeralda/ciano `OPUS 160k` ou âmbar `IFRAME`). Ao passar o mouse ou clicar, exibe o card de diagnóstico em tempo real:
   - **Fonte:** YouTube Music InnerTube Stream (`itag 251`)
   - **Codec & Bitrate:** `audio/webm; codecs="opus" (~160 kbps)`
-  - **Motor Ativo:** `TetPlayer Native WebAudio Engine (RAM Pre-buffered)`
-  - **Processamento DSP:** `Loudness Normalization (-2.4 dB) • Crossfade (3s)`
+  - **Motor Ativo:** `TetPlayer Native Dual-Deck Engine (RAM Pre-buffered)`
+  - **Processamento DSP:** `ReplayGain Normalization (-2.4 dB) • Equal-Power Crossfade (3s)`
 
 ---
 
@@ -192,7 +161,7 @@ Para definir o que tornará o TetPlayer **inconfundível e superior** às altern
 * **Contexto:**
   Grande parte das bibliotecas modernas no YouTube Music inclui faixas em japonês (ex: *Kikuo, DECO*27, ryo/supercell, Hatsune Miku, Kasane Teto, Ado, YOASOBI*), coreano ou outros idiomas.
 * **Proposta de Implementação:**
-  - Adicionar um botão compacto **`[あ→A Romaji]`** e **`[Traduzir]`** no topo da [`LyricsView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/LyricsView/LyricsView.tsx) quando o texto contiver caracteres CJK (`[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]`).
+  - Adicionar um botão compacto **`[あ→A Romaji]`** e **`[Traduzir]`** no topo da [`LyricsView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/LyricsView/LyricsView.tsx) quando o texto contiver caracteres CJK (`[぀-ヿ㐀-䶿一-鿿가-힯]`).
   - Renderizar uma sub-linha discreta (`text-xs text-zinc-400 font-normal`) imediatamente abaixo de cada verso original com a pronúncia romanizada (para cantar junto no karaokê!) e/ou tradução contextual cacheada no SQLite local, sem poluir o destaque principal.
 
 ---
@@ -218,31 +187,7 @@ Para definir o que tornará o TetPlayer **inconfundível e superior** às altern
 
 ---
 
-#### 4.2 Busca Multi-Categoria (Abas de *Músicas*, *Álbuns*, *Artistas* e *Playlists da Comunidade*)
-* **Status:** `[Em Aberto / Alta Prioridade]` 💡
-* **Impacto:** `[Muito Alto]` | **Esforço:** `[Médio]`
-* **Diagnóstico do Estado Atual:**
-  Atualmente, [`search_ytm`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/ytm.rs#L947-L1086) em `ytm.rs` filtra apenas músicas (`params: EgWKAQIIAWoKEAkQBRAKEAMQBA%3D%3D`) e [`SearchView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/SearchView.tsx) exibe somente uma lista plana de faixas.
-* **Proposta de Evolução:**
-  - Adicionar pílulas de filtro deslizantes no topo da `SearchView`: **`Tudo`**, **`Músicas`**, **`Álbuns`**, **`Artistas`** e **`Playlists`**.
-  - Permitir abrir qualquer álbum ou playlist pública encontrada na busca diretamente na `AlbumDetailView` ou `PlaylistDetailView` (com botão *"Salvar Álbum/Playlist na Biblioteca"*).
-  - Histórico recente de buscas com chips clicáveis quando o campo de pesquisa estiver vazio.
-
----
-
-#### 4.3 Página Dedicada de Artista (*Artist Hub & Digital Booklet* estilo Roon)
-* **Status:** `[Em Aberto]` 💡
-* **Impacto:** `[Alto]` | **Esforço:** `[Médio]`
-* **Descrição Conceitual:**
-  Transformar o nome do artista em todas as linhas (`TrackRow`, `PlayerBar`, `NowPlayingDrawer`, `AlbumDetailView`) em um link interativo que abre a `ArtistDetailView`:
-  - Banner panorâmico com foto do artista e botão **"Iniciar Rádio do Artista"**.
-  - Top 5 músicas mais populares com reprodução em 1 clique.
-  - Carrossel/Grade de **Álbuns** e **Singles / EPs** completos (via browseId `UC...` do InnerTube).
-  - Seção *"Fãs também curtem"* (Artistas Relacionados) e estatísticas pessoais de quantas vezes você já ouviu esse artista no TetPlayer!
-
----
-
-#### 4.4 Histórico de Navegação Voltar / Avançar (`Alt+←` / `Alt+→` e Botões Laterais do Mouse)
+#### 4.2 Histórico de Navegação Voltar / Avançar (`Alt+←` / `Alt+→` e Botões Laterais do Mouse)
 * **Status:** `[Em Aberto]` 💡
 * **Impacto:** `[Médio / Ergonomia Desktop]` | **Esforço:** `[Baixo]`
 * **Descrição Conceitual:**
@@ -250,7 +195,7 @@ Para definir o que tornará o TetPlayer **inconfundível e superior** às altern
 
 ---
 
-#### 4.5 Persistência e Restauração Completa de Sessão ao Reabrir o App
+#### 4.3 Persistência e Restauração Completa de Sessão ao Reabrir o App
 * **Status:** `[Em Aberto / Alta Prioridade]` 💡
 * **Impacto:** `[Alto]` | **Esforço:** `[Baixo]`
 * **Descrição Conceitual:**
@@ -259,7 +204,7 @@ Para definir o que tornará o TetPlayer **inconfundível e superior** às altern
 
 ---
 
-#### 4.6 Sleep Timer (Temporizador de Suspensão com Fade-Out Gradual) & Volume pela Roda do Mouse
+#### 4.4 Sleep Timer (Temporizador de Suspensão com Fade-Out Gradual) & Volume pela Roda do Mouse
 * **Status:** `[Em Aberto]` 💡
 * **Impacto:** `[Médio]` | **Esforço:** `[Baixo]`
 * **Funcionalidades:**
@@ -375,61 +320,58 @@ Para definir o que tornará o TetPlayer **inconfundível e superior** às altern
 
 | Prioridade | ID | Sugestão | Impacto | Esforço | Versão Alvo |
 | :---: | :---: | :--- | :---: | :---: | :---: |
-| 🔥 **P0** | **1.3** | Normalização Real de Volume por Faixa (`loudnessDb`) | Alto | Baixo | `v1.4.x` |
-| 🔥 **P0** | **2.1** | Tema Camaleão Dinâmico (Cor do App pela Capa Atual) | Muito Alto | Baixo/Médio | `v1.4.x` |
-| 🔥 **P0** | **4.1** | Command Palette Universal (`Ctrl+K`) | Muito Alto | Baixo/Médio | `v1.4.x` |
-| 🔥 **P0** | **4.5** | Restaurar Sessão Completa (Fila + Posição) ao Reabrir | Alto | Baixo | `v1.4.x` |
-| 🔥 **P0** | **5.1** | Curtir / Descurtir Sincronizado com YouTube Music | Muito Alto | Baixo/Médio | `v1.4.x` |
-| ⚡ **P1** | **1.1** | Crossfade Real com Duplo Deck (`Dual-AudioEngine`) | Muito Alto | Médio | `v1.5.0` |
-| ⚡ **P1** | **1.2** | Equalizador 10 Bandas + Efeitos DSP (*Slowed+Reverb*) | Alto | Médio | `v1.5.0` |
-| ⚡ **P1** | **3.2** | Romanização (Romaji) e Tradução Bilíngue nas Letras | Muito Alto | Médio | `v1.5.0` |
-| ⚡ **P1** | **4.2** | Busca Multi-Categoria (Músicas, Álbuns, Artistas, Playlists) | Muito Alto | Médio | `v1.5.0` |
-| ⚡ **P1** | **6.1** | Integração Discord Rich Presence (Discord RPC) | Muito Alto | Baixo/Médio | `v1.5.0` |
-| 🌟 **P2** | **1.4** | Waveform Seekbar Interativa + Preview de Letra no Hover | Alto | Médio | `v1.5.x` |
-| 🌟 **P2** | **2.3** | Modo Vitrola / Vinil Giratório 33⅓ RPM na Gaveta | Alto | Médio | `v1.5.x` |
-| 🌟 **P2** | **3.1** | Overlay Transparente Click-Through de Letras para Jogos | Muito Alto | Médio | `v1.6.0` |
-| 🌟 **P2** | **4.3** | Página Dedicada de Artista (*Artist Hub*) | Alto | Médio | `v1.6.0` |
-| 🌟 **P2** | **5.2** | Smart Mixes Locais (*Time Travel / Sessão da Madrugada*) | Alto | Baixo/Médio | `v1.6.0` |
-| 🔮 **P3** | **6.2** | Downloads Offline (`.opus`/`.m4a`) & Modo Híbrido Local | Muito Alto | Alto | `v1.6.0+` |
-| 🔮 **P3** | **6.3–6.7** | SponsorBlock, Last.fm, Controle Remoto QR, Importador CSV | Médio | Médio | `v1.6.0+` |
+| 🔥 **P0** | **2.1** | Tema Camaleão Dinâmico (Cor do App pela Capa Atual) | Muito Alto | Baixo/Médio | `v2.1.0` |
+| 🔥 **P0** | **4.1** | Command Palette Universal (`Ctrl+K`) | Muito Alto | Baixo/Médio | `v2.1.0` |
+| 🔥 **P0** | **4.3** | Restaurar Sessão Completa (Fila + Posição) ao Reabrir | Alto | Baixo | `v2.1.0` |
+| 🔥 **P0** | **5.1** | Curtir / Descurtir Sincronizado com YouTube Music | Muito Alto | Baixo/Médio | `v2.1.0` |
+| ⚡ **P1** | **1.1** | Equalizador 10 Bandas + Efeitos DSP (*Slowed+Reverb*) | Alto | Médio | `v2.2.0` |
+| ⚡ **P1** | **3.2** | Romanização (Romaji) e Tradução Bilíngue nas Letras | Muito Alto | Médio | `v2.2.0` |
+| ⚡ **P1** | **6.1** | Integração Discord Rich Presence (Discord RPC) | Muito Alto | Baixo/Médio | `v2.2.0` |
+| 🌟 **P2** | **1.2** | Insígnia de Caminho de Sinal Audiófilo (*Signal Path Badge*) | Médio | Baixo | `v2.3.0` |
+| 🌟 **P2** | **2.3** | Modo Vitrola / Vinil Giratório 33⅓ RPM na Gaveta | Alto | Médio | `v2.3.0` |
+| 🌟 **P2** | **3.1** | Overlay Transparente Click-Through de Letras para Jogos | Muito Alto | Médio | `v2.3.0` |
+| 🌟 **P2** | **5.2** | Smart Mixes Locais (*Time Travel / Sessão da Madrugada*) | Alto | Baixo/Médio | `v2.3.0` |
+| 🔮 **P3** | **6.2** | Downloads Offline (`.opus`/`.m4a`) & Modo Híbrido Local | Muito Alto | Alto | `v2.4.0+` |
+| 🔮 **P3** | **6.3–6.7** | SponsorBlock, Last.fm, Controle Remoto QR, Importador CSV | Médio | Médio | `v2.4.0+` |
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │                     LINHA DO TEMPO EVOLUTIVA — TETPLAYER                     │
 └──────────────────────────────────────────────────────────────────────────────┘
-
-  [CONCLUÍDO] Fases 1, 2, 3 e 4A-Core (v0.1 → v1.0 → v1.3 → v1.4.0) ✅
+  [CONCLUÍDO] Fases 1 a 4 & Milestone v2.0 GA (v0.1 → v1.0 → v1.4 → v2.0.1) ✅
   ├── Arquitetura Modular + Virtualização 144 FPS + Cache SQLite Comprimido
-  ├── Motor de Áudio Nativo Híbrido (Web Audio API) + Paginação 2.500 faixas
+  ├── Motor de Áudio Dual-Deck (Deck A/B True Crossfade + ReplayGain loudnessDb)
+  ├── Waveform Seekbar Interativa + Tooltip com Preview de Letra no Hover
+  ├── Página Dedicada de Artista (ArtistDetailView) + Busca Multi-Categoria
   ├── Login Google Nativo via Webview + Auto-Updater Silencioso Assinado
   ├── Suporte Completo a Álbuns (Grade, Detalhes Editoriais, Discografia)
   └── Manipulação Bidirecional de Playlists + Drag & Drop Flutuante 144 FPS
 
-  [PRÓXIMA ONDA] v1.4.x — Ergonomia Imediata & Identidade Viva 🎯
+  [PRÓXIMA ONDA] v2.1.0 — Ergonomia Imediata & Identidade Viva 🎯
   ├── Tema Camaleão Dinâmico + Modo OLED Abyss (#000000)
   ├── Command Palette Universal (Ctrl+K) + Salvar Fila como Playlist
   ├── Curtir/Descurtir Sincronizado + Restauração de Sessão ao Reabrir
-  └── Normalização Real de Volume (loudnessDb) + Sleep Timer com Fade-Out
+  └── Histórico de Navegação Voltar/Avançar + Sleep Timer com Fade-Out
 
-  [EXPANSÃO AUDIÓFILA & CULTURAL] v1.5.0 — Som & Letras de Estúdio 🎧
-  ├── Dual-Deck True Crossfade + Equalizador 10 Bandas + Slowed & Reverb
-  ├── Romanização (Romaji) e Tradução nas Letras + Waveform Seekbar
-  ├── Busca Multi-Categoria (Álbuns/Artistas/Playlists) + Discord RPC
+  [EXPANSÃO AUDIÓFILA & CULTURAL] v2.2.0 — Som & Letras de Estúdio 🎧
+  ├── Equalizador 10 Bandas + Slowed & Reverb / Nightcore DSP
+  ├── Romanização (Romaji) e Tradução Bilíngue nas Letras
+  ├── Discord Rich Presence (RPC nativo em Rust)
   └── Modo Vitrola (Vinil 33⅓ RPM) + Signal Path Badge Audiófilo
 
-  [ECOSSISTEMA & IMERSÃO] v1.6.0+ — Desktop Overlay & Offline 🔮
+  [ECOSSISTEMA & IMERSÃO] v2.3.0+ — Desktop Overlay & Offline 🔮
   ├── Overlay Transparente Click-Through de Letras na Área de Trabalho
   ├── Downloads Offline (.opus/.m4a) com Reprodução Híbrida Local
-  ├── Página Dedicada de Artista + Smart Mixes Locais do SQLite
+  ├── Smart Mixes Locais do SQLite (Cápsula do Tempo / Sessão Madrugada)
   └── SponsorBlock, Last.fm Scrobbling e Controle Remoto via QR Code
 ```
 
 ---
 
-## 5. Histórico Consolidado: 53 Funcionalidades e Otimizações Concluídas
+## 5. Histórico Consolidado: 58 Funcionalidades e Otimizações Concluídas
 
 > [!NOTE]
-> Todos os **53 itens** listados abaixo foram projetados, implementados, testados e validados no código-fonte do TetPlayer Desktop. Eles estão organizados cronologicamente e servem como registro arquitetural definitivo da evolução do projeto.
+> Todos os **58 itens** listados abaixo foram projetados, implementados, testados e validados no código-fonte do TetPlayer Desktop. Eles estão organizados cronologicamente e servem como registro arquitetural definitivo da evolução do projeto.
 
 ### Resumo Rápido por Marcos de Versão
 
@@ -439,10 +381,11 @@ Para definir o que tornará o TetPlayer **inconfundível e superior** às altern
 | **#19 – #37** | **Performance Extrema & Release Oficial (`v0.2` → `v1.0.0`)** | `PlaybackProgressContext`, Gapless Prefetch (88%), Cache SQLite com `flate2`, Vitest, `TimelineScrubber` isolado, `playerReducer`, Menu de Contexto, Motion Cover 3D, `SettingsModal`, Drag & Drop na Fila, Teclas Globais de Mídia e Share Cards PNG. |
 | **#38 – #49** | **Maturidade, Auto-Update & Motor Nativo (`v1.1` → `v1.3.3`)** | Crossfade, Histórico "Músicas que Já Passaram", Scroll Cinético de Letras com Spring Bounce, Login Google Nativo via Webview, Auto-Update In-App Minisign, Pasta Portátil `data/`, Busca/Ordenação em Playlists, Paginação de 2.500 Faixas e Motor de Áudio Nativo Híbrido (`AudioEngine`). |
 | **#50 – #53** | **Álbuns, CRUD de Playlists & UI/UX 144 FPS (`v1.4.0+`)** | Suporte Completo a Álbuns com Discografia Relacionada, Manipulação Bidirecional de Playlists (Criar/Editar/Excluir/Adicionar/Remover), Drag & Drop com Card Flutuante a 144 FPS sincronizado com o YouTube Music e Seletores Customizados Dark com Pílula Deslizante. |
+| **#54 – #58** | **Release GA v2.0 & DSP de Alta Fidelidade (`v2.0.0` → `v2.0.1+`)** | Página Dedicada de Artista (`ArtistDetailView`), Busca Multi-Categoria (Tudo, Músicas, Álbuns), Dual-Deck True Crossfade com rampa equal-power, Normalização de Volume ReplayGain via `loudnessDb` e Waveform Seekbar com preview de letras no hover. |
 
 ---
 
-### Detalhamento Completo dos 53 Itens Concluídos
+### Detalhamento Completo dos 58 Itens Concluídos
 
 #### 1. Modularização de `App.tsx` em Componentes e Custom Hooks
 * **Status:** `[Implementado e Validado]` ✅
@@ -557,7 +500,7 @@ Para definir o que tornará o TetPlayer **inconfundível e superior** às altern
 #### 23. Suíte de Testes Automatizados Unitários e de Integração com Vitest
 * **Status:** `[Implementado e Validado]` ✅
 * **Localização:** [`desktop/vite.config.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/vite.config.ts) e [`desktop/src/test/setup.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/test/setup.ts).
-* **Implementação Concluída:** Suíte completa de testes cobrindo parser LRC, cache LRU, `playerReducer`, `TimelineScrubber`, `AudioEngine`, `Sidebar` e `PlaylistDetailView` (77 testes Vitest + 11 testes Cargo).
+* **Implementação Concluída:** Suíte completa de testes cobrindo parser LRC, cache LRU, `playerReducer`, `TimelineScrubber`, `AudioEngine`, `Sidebar`, `PlaylistDetailView` e `SearchView` (89 testes Vitest + 14 testes Cargo).
 
 #### 24. Isolamento do Scrubber da Linha do Tempo em Componente Memoizado (`TimelineScrubber`)
 * **Status:** `[Implementado e Validado]` ✅
@@ -720,3 +663,40 @@ Para definir o que tornará o TetPlayer **inconfundível e superior** às altern
 * **Implementação Concluída:**
   - Substituídos os elementos `<select>` nativos claros do Windows por menus dropdown customizados em vidro escuro (`bg-[#12151f]/95 backdrop-blur-xl`), com destaque pelo tema ativo, ícone `Check`, fechamento por `Escape`/clique externo e hierarquia de empilhamento (`z-30` vs `z-10`) sempre acima da lista de faixas.
   - Implementado Segmented Control unificado entre *Playlists* e *Álbuns* com pílula deslizante neutra animada via `transform: translateX(100%)` e `cubic-bezier(0.22, 1, 0.36, 1)` sem desmontar o cabeçalho.
+
+#### 54. Perfil Completo e Página Dedicada de Artista (`ArtistDetailView`) com Discografia, Músicas e Biografia (Antigo Item 4.3 — Release v2.0.0)
+* **Status:** `[Implementado e Validado]` ✅
+* **Localização:** [`desktop/src/components/MainView/ArtistDetailView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/ArtistDetailView.tsx), [`desktop/src-tauri/src/ytm.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/ytm.rs) (`get_artist_details`) e [`desktop/src/App.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/App.tsx).
+* **Implementação Concluída:**
+  - Clique no nome do artista em qualquer faixa abre o perfil rico do artista com banner fotográfico em alta resolução, bio expansível, métricas de ouvintes e botão de rádio contínua.
+  - Seções completas de **Músicas Mais Populares**, **Álbuns Completos** e **Singles & EPs**, integrados com cache local Stale-While-Revalidate em 0ms.
+
+#### 55. Busca Multi-Categoria e Segmented Control Dinâmico (Tudo, Músicas e Álbuns) a 144 FPS (Antigo Item 4.2 — Release v2.0.1)
+* **Status:** `[Implementado e Validado]` ✅
+* **Localização:** [`desktop/src-tauri/src/ytm.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/ytm.rs) (`search_albums`), [`desktop/src-tauri/src/lib.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/lib.rs) e [`desktop/src/components/MainView/SearchView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/SearchView.tsx).
+* **Implementação Concluída:**
+  - Extração nativa de álbuns via `search_albums` com filtro oficial do YouTube Music (`EgWKAQIYAWoKEAkQBRAKEAMQBA%3D%3D`).
+  - Segmented Control com pílula deslizante acelerada por GPU entre abas **Tudo**, **Músicas** e **Álbuns** com contadores dinâmicos.
+  - Cards de álbum no resultado de busca com navegação direta para `AlbumDetailView`, reprodução rápida e fixação na coleção.
+
+#### 56. Crossfade Real com Sobreposição de Duplo Deck (*Dual-Deck True Crossfade*) (Antigo Item 1.1 — Release v2.0.1+)
+* **Status:** `[Implementado e Validado]` ✅
+* **Localização:** [`desktop/src/services/audioEngine.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/audioEngine.ts) e [`desktop/src/hooks/useYouTubePlayer.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useYouTubePlayer.ts).
+* **Implementação Concluída:**
+  - Evolução do `AudioEngine` para arquitetura Dual-Deck com instâncias independentes (`primaryDeck` e `secondaryDeck`).
+  - Método `startCrossfadeToNext` executando rampa *equal-power* contínua baseada em curva trigonométrica ($\sin/\cos$) entre a faixa em encerramento e a faixa pré-carregada em RAM, eliminando qualquer silêncio ou oscilação de volume acústico.
+
+#### 57. Normalização Real de Volume por Faixa via `loudnessDb` (ReplayGain Nativo) (Antigo Item 1.3 — Release v2.0.1+)
+* **Status:** `[Implementado e Validado]` ✅
+* **Localização:** [`desktop/src-tauri/src/ytm.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/ytm.rs), [`desktop/src/services/audioEngine.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/audioEngine.ts) e [`desktop/src/hooks/useYouTubePlayer.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useYouTubePlayer.ts).
+* **Implementação Concluída:**
+  - Extração do campo `playerConfig.audioConfig.loudnessDb` retornado pelo endpoint `/player` do YouTube Music dentro da struct `StreamInfo`.
+  - Cálculo de atenuação logarítmica ($10^{-	ext{loudnessDb}/20}$) dentro de uma faixa de ganho seguro (`0.35` a `1.6`) no `AudioEngine` e no player IFrame, garantindo volume percebido (LUFS) constante entre gravações antigas e contemporâneas.
+
+#### 58. Barra de Progresso em Onda Sonora Interativa (*Waveform Seekbar*) & Tooltip de Letras no Hover (Antigo Item 1.4 — Release v2.0.1+)
+* **Status:** `[Implementado e Validado]` ✅
+* **Localização:** [`desktop/src/components/Player/TimelineScrubber.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Player/TimelineScrubber.tsx), [`desktop/src/components/SettingsModal/SettingsModal.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/SettingsModal/SettingsModal.tsx) e [`desktop/src/services/settings.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/settings.ts).
+* **Implementação Concluída:**
+  - Micro-barras de onda dinâmicas ultra-leves (64 segmentos calculados por hash/envelope determinístico em $O(1) < 0.1	ext{ms}$, sem sobrecarga de CPU ou decodificação pesada de áudio na thread principal).
+  - Tooltip flutuante dark glassmorphic no hover com **timestamp exato** e a **estrofe correspondente da letra** via busca binária em $O(\log N)$, facilitando encontrar refrões antes do clique.
+  - Configuração opcional no `SettingsModal` permitindo alternar entre o modo Waveform e o modo Minimalista clássico.
