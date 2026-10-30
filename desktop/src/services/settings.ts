@@ -150,6 +150,7 @@ export interface AppSettings {
   motionCoverEnabled: boolean;
   visualizerStyle: VisualizerStyle;
   reducedMotion: boolean;
+  waveformSeekbar: boolean;
 
   // Aba 4: Sistema & Janela
   closeAction: CloseAction;
@@ -165,6 +166,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   motionCoverEnabled: true,
   visualizerStyle: "bars",
   reducedMotion: false,
+  waveformSeekbar: true,
   closeAction: "tray",
 };
 

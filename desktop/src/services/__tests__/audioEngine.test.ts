@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { AudioEngine } from "../audioEngine";
 
-describe("AudioEngine (Item 1.1 - Motor de Áudio Nativo)", () => {
+describe("AudioEngine (Item 1.1 e 1.3 - Motor de Áudio Nativo, Dual-Deck e ReplayGain)", () => {
   let engine: AudioEngine;
 
   beforeEach(() => {
@@ -18,9 +18,19 @@ describe("AudioEngine (Item 1.1 - Motor de Áudio Nativo)", () => {
 
   it("deve carregar URL de áudio corretamente", () => {
     const testUrl = "https://example.com/audio.opus";
-    engine.load(testUrl);
-    // Em jsdom, o elemento Audio atualiza sua propriedade src
+    engine.load(testUrl, "test_video_1", -2.5);
     expect(engine.getCurrentTime()).toBe(0);
+    expect(engine.getActiveVideoId()).toBe("test_video_1");
+  });
+
+  it("deve calcular ganhos de normalização loudnessDb corretamente (ReplayGain)", () => {
+    // loudnessDb positivo (faixa mais alta que a referência) -> deve atenuar (ganho < 1.0)
+    expect(engine.calculateLoudnessGain(6.0)).toBeCloseTo(0.501, 2);
+    // loudnessDb negativo (faixa mais baixa que a referência) -> deve amplificar (ganho > 1.0)
+    expect(engine.calculateLoudnessGain(-3.0)).toBeCloseTo(1.412, 2);
+    // nulo / indefinido -> neutro 1.0
+    expect(engine.calculateLoudnessGain(null)).toBe(1.0);
+    expect(engine.calculateLoudnessGain(undefined)).toBe(1.0);
   });
 
   it("deve limitar o volume entre 0 e 1", () => {
@@ -37,6 +47,7 @@ describe("AudioEngine (Item 1.1 - Motor de Áudio Nativo)", () => {
 
     engine.stop();
     expect(engine.getCurrentTime()).toBe(0);
+    expect(engine.getActiveVideoId()).toBeNull();
   });
 
   it("deve disparar callbacks registrados quando eventos do elemento ocorrerem", () => {
@@ -50,19 +61,18 @@ describe("AudioEngine (Item 1.1 - Motor de Áudio Nativo)", () => {
     engine.onEnded = onEnded;
     engine.onTimeUpdate = onTimeUpdate;
 
-    // Dispara eventos simulados no elemento interno
-    const audioEl = (engine as unknown as { audio: HTMLAudioElement }).audio;
-    audioEl.dispatchEvent(new Event("play"));
+    // Dispara eventos simulados no elemento interno do deck ativo
+    const primaryDeck = (engine as unknown as { primaryDeck: { audio: HTMLAudioElement } }).primaryDeck;
+    primaryDeck.audio.dispatchEvent(new Event("play"));
     expect(onPlay).toHaveBeenCalled();
 
-    audioEl.dispatchEvent(new Event("pause"));
+    primaryDeck.audio.dispatchEvent(new Event("pause"));
     expect(onPause).toHaveBeenCalled();
 
-    audioEl.dispatchEvent(new Event("ended"));
+    primaryDeck.audio.dispatchEvent(new Event("ended"));
     expect(onEnded).toHaveBeenCalled();
 
-    audioEl.dispatchEvent(new Event("timeupdate"));
+    primaryDeck.audio.dispatchEvent(new Event("timeupdate"));
     expect(onTimeUpdate).toHaveBeenCalled();
   });
 });
-

@@ -236,10 +236,11 @@ export const PlayerBar = memo(function PlayerBar() {
           </button>
         </div>
 
-        {/* Scrubber Timeline Isolado (Sugestão 1.2) */}
+        {/* Scrubber Timeline Isolado (Sugestão 1.2 e 1.4) */}
         <TimelineScrubber
           disabled={!currentTrack}
           onSeek={handleSeekTo}
+          currentTrack={currentTrack}
         />
       </div>
 

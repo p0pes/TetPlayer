@@ -2,16 +2,19 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { TimelineScrubber } from "../Player/TimelineScrubber";
 import { PlaybackProgressProvider } from "../../context/PlaybackProgressContext";
+import { setCachedLyrics } from "../../hooks/useLyrics";
+import { Track } from "../../types";
 
 function renderScrubberWithProgress(
   currentTime: number,
   duration: number,
   disabled = false,
-  onSeek = vi.fn()
+  onSeek = vi.fn(),
+  currentTrack?: Track | null
 ) {
   return render(
     <PlaybackProgressProvider currentTime={currentTime} duration={duration}>
-      <TimelineScrubber disabled={disabled} onSeek={onSeek} />
+      <TimelineScrubber disabled={disabled} onSeek={onSeek} currentTrack={currentTrack} />
     </PlaybackProgressProvider>
   );
 }
@@ -63,5 +66,46 @@ describe("TimelineScrubber", () => {
     const input = screen.getByTestId("scrubber-range-input") as HTMLInputElement;
     expect(input).toBeDisabled();
   });
-});
 
+  it("deve exibir tooltip com timestamp e estrofe sincronizada ao mover o cursor sobre a barra (Item 1.4)", () => {
+    const mockTrack: Track = {
+      id: "track_test_lrc",
+      title: "Música Teste",
+      artist: "Artista Teste",
+    };
+
+    setCachedLyrics("track_test_lrc", {
+      synced: "[00:10.00]Primeiro verso da canção\n[00:45.00]Refrão vibrante e marcante",
+      plain: "Primeiro verso da canção\nRefrão vibrante e marcante",
+      source: "lrclib",
+    });
+
+    const { container } = renderScrubberWithProgress(15, 120, false, vi.fn(), mockTrack);
+
+    // Simula container com largura de 200px
+    const scrubberContainer = container.querySelector(".group.cursor-pointer") as HTMLElement;
+    expect(scrubberContainer).toBeDefined();
+
+    scrubberContainer.getBoundingClientRect = vi.fn(() => ({
+      width: 200,
+      left: 0,
+      right: 200,
+      top: 0,
+      bottom: 20,
+      height: 20,
+      x: 0,
+      y: 0,
+      toJSON: () => {},
+    }));
+
+    // Mouse na posição 80px (80 / 200 = 40% de 120s = 48s -> deve pegar o Refrão em 45s)
+    fireEvent.mouseMove(scrubberContainer, { clientX: 80 });
+
+    expect(screen.getByText("0:48")).toBeDefined();
+    expect(screen.getByText(/Refrão vibrante e marcante/i)).toBeDefined();
+
+    // Ao sair com o mouse, o tooltip deve sumir
+    fireEvent.mouseLeave(scrubberContainer);
+    expect(screen.queryByText(/Refrão vibrante e marcante/i)).toBeNull();
+  });
+});

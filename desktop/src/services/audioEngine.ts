@@ -1,11 +1,12 @@
 /**
- * AudioEngine - Motor de Áudio Nativo de Alta Fidelidade (Item 1.1)
+ * AudioEngine - Motor de Áudio Nativo de Alta Fidelidade com Dual-Deck e ReplayGain
+ * (Itens 1.1 e 1.3 do Guia de Sugestões)
  *
- * Utiliza HTML5 Audio element para:
- * - Reprodução direta com pré-buffer antecipado
- * - Fim de micro-travamentos do IFrame de vídeo
- * - Controle suave de ganho e volume sem latência de postMessage
- * - Monitoramento preciso de tempo e término da faixa
+ * Características:
+ * - Dual-Deck (Deck A e Deck B) para True Crossfade com sobreposição real
+ * - Normalização de volume inteligente via loudnessDb (ReplayGain ITU-R BS.1770)
+ * - Reprodução de alta fidelidade sem engasgos de processamento de vídeo
+ * - Controle fino de ganho digital com rampa suave
  */
 
 export interface StreamInfo {
@@ -17,11 +18,24 @@ export interface StreamInfo {
   duration_seconds?: number;
   bitrate?: number;
   mime_type?: string;
+  loudness_db?: number | null;
+}
+
+interface DeckState {
+  audio: HTMLAudioElement;
+  videoId: string | null;
+  loudnessGain: number; // 0.0 a 2.0 (fator ReplayGain normalizado)
+  currentVolume: number;
 }
 
 export class AudioEngine {
-  private audio: HTMLAudioElement;
-  private lastAppliedVolume = -1;
+  private primaryDeck: DeckState;
+  private secondaryDeck: DeckState;
+  private activeDeckIndex: 0 | 1 = 0;
+
+  private userVolume = 0.8;
+  private isMuted = false;
+  private isNormalizeEnabled = false;
   private isSuppressingPauseEvent = false;
 
   public onTimeUpdate: ((currentTime: number, duration: number) => void) | null = null;
@@ -31,70 +45,127 @@ export class AudioEngine {
   public onPause: (() => void) | null = null;
 
   constructor() {
-    this.audio = new Audio();
-    this.audio.preload = "auto";
-
-    this.setupListeners();
+    this.primaryDeck = this.createDeck();
+    this.secondaryDeck = this.createDeck();
   }
 
-  private setupListeners() {
-    this.audio.addEventListener("timeupdate", () => {
-      if (this.onTimeUpdate) {
-        this.onTimeUpdate(this.audio.currentTime, this.audio.duration || 0);
+  private createDeck(): DeckState {
+    const audio = new Audio();
+    audio.preload = "auto";
+
+    const deck: DeckState = {
+      audio,
+      videoId: null,
+      loudnessGain: 1.0,
+      currentVolume: 1.0,
+    };
+
+    audio.addEventListener("timeupdate", () => {
+      if (this.getActiveDeck().audio === audio) {
+        if (this.onTimeUpdate) {
+          this.onTimeUpdate(audio.currentTime, audio.duration || 0);
+        }
       }
     });
 
-    this.audio.addEventListener("ended", () => {
-      if (this.onEnded) {
-        this.onEnded();
+    audio.addEventListener("ended", () => {
+      if (this.getActiveDeck().audio === audio) {
+        if (this.onEnded) {
+          this.onEnded();
+        }
       }
     });
 
-    this.audio.addEventListener("play", () => {
-      if (this.onPlay) {
-        this.onPlay();
+    audio.addEventListener("play", () => {
+      if (this.getActiveDeck().audio === audio) {
+        if (this.onPlay) {
+          this.onPlay();
+        }
       }
     });
 
-    this.audio.addEventListener("pause", () => {
+    audio.addEventListener("pause", () => {
       if (this.isSuppressingPauseEvent) return;
-      if (this.onPause) {
-        this.onPause();
+      if (this.getActiveDeck().audio === audio) {
+        if (this.onPause) {
+          this.onPause();
+        }
       }
     });
 
-    this.audio.addEventListener("error", (e) => {
-      this.isSuppressingPauseEvent = true;
-      console.warn("[AudioEngine] Erro no elemento de áudio nativo:", e);
-      if (this.onError) {
-        this.onError(this.audio.error || e);
+    audio.addEventListener("error", (e) => {
+      if (this.getActiveDeck().audio === audio) {
+        this.isSuppressingPauseEvent = true;
+        console.warn("[AudioEngine] Erro no elemento de áudio nativo:", e);
+        if (this.onError) {
+          this.onError(audio.error || e);
+        }
+        this.isSuppressingPauseEvent = false;
       }
-      this.isSuppressingPauseEvent = false;
     });
+
+    return deck;
+  }
+
+  private getActiveDeck(): DeckState {
+    return this.activeDeckIndex === 0 ? this.primaryDeck : this.secondaryDeck;
+  }
+
+  private getInactiveDeck(): DeckState {
+    return this.activeDeckIndex === 0 ? this.secondaryDeck : this.primaryDeck;
   }
 
   /**
-   * Carrega uma URL de áudio direta e configura o pré-buffer sem disparar falso evento de pausa
+   * Converte loudnessDb do YouTube Music (ex: -3.5 dB ou +1.2 dB) em fator linear de ganho.
+   * Target de normalização: -14 LUFS (padrão YouTube Music / Spotify).
+   * Limita a atenuação/ganho entre 0.35 (-9dB) e 1.6 (+4dB) para evitar distorção ou silêncio.
    */
-  public load(url: string) {
+  public calculateLoudnessGain(loudnessDb?: number | null): number {
+    if (loudnessDb === undefined || loudnessDb === null || isNaN(loudnessDb)) {
+      return 1.0;
+    }
+    // loudnessDb positivo significa que a faixa é mais alta que a referência
+    // Ex: +3dB -> atenua 10^(-3/20) = ~0.707
+    // Ex: -3dB -> amplifica 10^(+3/20) = ~1.41
+    const rawGain = Math.pow(10, -loudnessDb / 20);
+    return Math.max(0.35, Math.min(1.6, rawGain));
+  }
+
+  /**
+   * Atualiza a flag de normalização inteligente de volume (ReplayGain)
+   */
+  public setNormalizeVolume(enabled: boolean) {
+    this.isNormalizeEnabled = enabled;
+    this.applyEffectiveVolume(this.primaryDeck);
+    this.applyEffectiveVolume(this.secondaryDeck);
+  }
+
+  /**
+   * Carrega uma URL direta no deck ativo e calcula o ganho de normalização
+   */
+  public load(url: string, videoId?: string, loudnessDb?: number | null) {
     this.isSuppressingPauseEvent = true;
-    this.audio.pause();
-    this.audio.src = url;
-    this.audio.load();
+    const active = this.getActiveDeck();
+    active.audio.pause();
+    active.audio.src = url;
+    active.videoId = videoId || null;
+    active.loudnessGain = this.calculateLoudnessGain(loudnessDb);
+    active.audio.load();
+    this.applyEffectiveVolume(active);
     this.isSuppressingPauseEvent = false;
   }
 
   /**
-   * Inicia ou retoma a reprodução de áudio de forma segura
+   * Inicia a reprodução no deck ativo
    */
   public async play(): Promise<void> {
     this.isSuppressingPauseEvent = false;
+    const active = this.getActiveDeck();
     try {
-      await this.audio.play();
+      await active.audio.play();
     } catch (err: unknown) {
       this.isSuppressingPauseEvent = true;
       const errName = (err as Error)?.name;
-      // AbortError é comum quando uma nova faixa é selecionada antes da anterior iniciar
       if (errName !== "AbortError") {
         console.warn("[AudioEngine] Erro ao reproduzir áudio:", err);
         if (this.onError) {
@@ -106,61 +177,151 @@ export class AudioEngine {
     }
   }
 
-  /**
-   * Pausa a reprodução por ação explícita do usuário
-   */
   public pause() {
     this.isSuppressingPauseEvent = false;
-    this.audio.pause();
+    this.getActiveDeck().audio.pause();
+    this.getInactiveDeck().audio.pause();
   }
 
-  /**
-   * Interrompe o áudio e limpa o buffer sem disparar falso evento de pausa
-   */
   public stop() {
     this.isSuppressingPauseEvent = true;
-    this.audio.pause();
-    this.audio.removeAttribute("src");
-    this.audio.load();
+    this.primaryDeck.audio.pause();
+    this.primaryDeck.audio.removeAttribute("src");
+    this.primaryDeck.audio.load();
+    this.primaryDeck.videoId = null;
+
+    this.secondaryDeck.audio.pause();
+    this.secondaryDeck.audio.removeAttribute("src");
+    this.secondaryDeck.audio.load();
+    this.secondaryDeck.videoId = null;
     this.isSuppressingPauseEvent = false;
   }
 
-  /**
-   * Posiciona a agulha de reprodução no segundo especificado
-   */
   public seek(seconds: number) {
-    const dur = this.audio.duration;
+    const active = this.getActiveDeck();
+    const dur = active.audio.duration;
     const clamped = Math.max(0, dur && !isNaN(dur) ? Math.min(seconds, dur) : seconds);
-    this.audio.currentTime = clamped;
+    active.audio.currentTime = clamped;
   }
 
   /**
-   * Ajusta o volume linear (0.0 a 1.0) no HTMLAudioElement
-   * Contém sentinela de cache para evitar escritas redundantes a cada 80ms (Item 69)
+   * Define o volume master do usuário (0.0 a 1.0)
    */
   public setVolume(vol: number) {
-    const clamped = Math.max(0, Math.min(1, vol));
-    if (Math.abs(this.lastAppliedVolume - clamped) < 0.001) {
+    this.userVolume = Math.max(0, Math.min(1, vol));
+    this.applyEffectiveVolume(this.primaryDeck);
+    this.applyEffectiveVolume(this.secondaryDeck);
+  }
+
+  public setMuted(muted: boolean) {
+    this.isMuted = muted;
+    this.applyEffectiveVolume(this.primaryDeck);
+    this.applyEffectiveVolume(this.secondaryDeck);
+  }
+
+  /**
+   * Aplica o volume final ponderando volume do usuário, crossfade e normalização ReplayGain
+   */
+  private applyEffectiveVolume(deck: DeckState, crossfadeFactor = 1.0) {
+    if (this.isMuted) {
+      deck.audio.volume = 0;
+      deck.currentVolume = 0;
       return;
     }
-    this.lastAppliedVolume = clamped;
-    this.audio.volume = clamped;
+
+    let effective = this.userVolume * crossfadeFactor;
+    if (this.isNormalizeEnabled) {
+      effective = effective * deck.loudnessGain;
+    }
+
+    const clamped = Math.max(0, Math.min(1, effective));
+    if (Math.abs(deck.currentVolume - clamped) > 0.001) {
+      deck.currentVolume = clamped;
+      deck.audio.volume = clamped;
+    }
+  }
+
+  /**
+   * Dual-Deck True Crossfade (Item 1.1):
+   * Dispara a próxima música no deck secundário com rampa equal-power,
+   * enquanto desvanece o deck atual suavemente.
+   */
+  public async startCrossfadeToNext(
+    nextStreamUrl: string,
+    nextVideoId: string,
+    nextLoudnessDb?: number | null,
+    crossfadeSeconds = 3
+  ): Promise<void> {
+    const outgoing = this.getActiveDeck();
+    const incoming = this.getInactiveDeck();
+
+    // Prepara o deck receptor
+    incoming.audio.pause();
+    incoming.audio.src = nextStreamUrl;
+    incoming.videoId = nextVideoId;
+    incoming.loudnessGain = this.calculateLoudnessGain(nextLoudnessDb);
+    incoming.audio.currentTime = 0;
+    incoming.audio.volume = 0;
+    incoming.currentVolume = 0;
+
+    try {
+      await incoming.audio.play();
+    } catch (err) {
+      console.warn("[AudioEngine] Falha ao iniciar incoming deck para crossfade:", err);
+      return;
+    }
+
+    // Alterna o deck ativo no estado interno para os eventos responderem ao incoming
+    this.activeDeckIndex = this.activeDeckIndex === 0 ? 1 : 0;
+
+    const durationMs = Math.max(500, crossfadeSeconds * 1000);
+    const startTime = performance.now();
+
+    const step = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(1, elapsed / durationMs);
+
+      // Curva Equal-Power (sin / cos) para volume acústico constante durante a transição
+      const inFactor = Math.sin((progress * Math.PI) / 2);
+      const outFactor = Math.cos((progress * Math.PI) / 2);
+
+      this.applyEffectiveVolume(incoming, inFactor);
+      this.applyEffectiveVolume(outgoing, outFactor);
+
+      if (progress < 1) {
+        requestAnimationFrame(step);
+      } else {
+        outgoing.audio.pause();
+        outgoing.audio.removeAttribute("src");
+        outgoing.audio.load();
+        outgoing.videoId = null;
+        this.applyEffectiveVolume(incoming, 1.0);
+      }
+    };
+
+    requestAnimationFrame(step);
   }
 
   public getCurrentTime(): number {
-    return this.audio.currentTime || 0;
+    return this.getActiveDeck().audio.currentTime || 0;
   }
 
   public getDuration(): number {
-    return this.audio.duration && !isNaN(this.audio.duration) ? this.audio.duration : 0;
+    const dur = this.getActiveDeck().audio.duration;
+    return dur && !isNaN(dur) ? dur : 0;
   }
 
   public isPlaying(): boolean {
-    return !this.audio.paused && !this.audio.ended && this.audio.readyState > 2;
+    const audio = this.getActiveDeck().audio;
+    return !audio.paused && !audio.ended && audio.readyState > 2;
   }
 
   public getBufferedRanges(): TimeRanges {
-    return this.audio.buffered;
+    return this.getActiveDeck().audio.buffered;
+  }
+
+  public getActiveVideoId(): string | null {
+    return this.getActiveDeck().videoId;
   }
 }
 

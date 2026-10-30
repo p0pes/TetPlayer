@@ -94,6 +94,7 @@ pub struct StreamInfo {
     pub duration_seconds: Option<u64>,
     pub bitrate: Option<u64>,
     pub mime_type: Option<String>,
+    pub loudness_db: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -650,6 +651,15 @@ pub async fn get_stream_info(session: &AuthSession, video_id: &str) -> Result<Op
     let mime_type = best["mimeType"].as_str().map(|s| s.to_string());
     let bitrate = best["bitrate"].as_u64();
 
+    // Extrai loudnessDb (Item 1.3 - ReplayGain / Normalizacao Real de Volume)
+    let loudness_db = json_val["playerConfig"]["audioConfig"]["loudnessDb"]
+        .as_f64()
+        .or_else(|| {
+            json_val["playerConfig"]["audioConfig"]["loudnessDb"]
+                .as_str()
+                .and_then(|s| s.parse::<f64>().ok())
+        });
+
     Ok(Some(StreamInfo {
         video_id: video_id.to_string(),
         title,
@@ -659,6 +669,7 @@ pub async fn get_stream_info(session: &AuthSession, video_id: &str) -> Result<Op
         duration_seconds,
         bitrate,
         mime_type,
+        loudness_db,
     }))
 }
 

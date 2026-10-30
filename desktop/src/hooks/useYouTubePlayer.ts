@@ -155,9 +155,7 @@ export function useYouTubePlayer({
           }
         }
 
-        if (SettingsService.getSetting("normalizeVolume") && target > 0.85) {
-          target = 0.85 + (target - 0.85) * 0.5;
-        }
+        nativeAudioEngine.setNormalizeVolume(SettingsService.getSetting("normalizeVolume"));
 
         if (Math.abs(lastAppliedNativeVolumeRef.current - target) > 0.001) {
           nativeAudioEngine.setVolume(target);
@@ -382,7 +380,8 @@ export function useYouTubePlayer({
           }
         }
 
-        nativeAudioEngine.load(stream.stream_url);
+        nativeAudioEngine.setNormalizeVolume(SettingsService.getSetting("normalizeVolume"));
+        nativeAudioEngine.load(stream.stream_url, videoId, stream.loudness_db);
         const initialVol = isMutedRef.current ? 0 : volumeRef.current;
         nativeAudioEngine.setVolume(crossfadeSecondsRef.current > 0 ? 0 : initialVol);
         if (stream.duration_seconds) {
