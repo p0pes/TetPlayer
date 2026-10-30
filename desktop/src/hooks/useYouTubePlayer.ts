@@ -294,6 +294,11 @@ export function useYouTubePlayer({
             ytPlayerRef.current.unMute();
           }
           ytPlayerRef.current.setPlaybackRate(1.0);
+
+          // Item #111: Dispara a faixa pendente caso o usuário tenha clicado antes do IFrame estar pronto
+          if (currentVideoIdRef.current && isPlayingRef.current && activeEngineRef.current === "iframe") {
+            playIframeVideo(currentVideoIdRef.current, currentTimeRef.current);
+          }
         },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onStateChange: (event: any) => {
@@ -350,6 +355,7 @@ export function useYouTubePlayer({
     startTransitionGuard();
     isPlayingRef.current = true;
     setIsPlaying(true);
+    setLoadingTrackId(videoId);
 
     if (ytPlayerRef.current && typeof ytPlayerRef.current.loadVideoById === "function") {
       if (isMutedRef.current) {
@@ -364,12 +370,20 @@ export function useYouTubePlayer({
       ytPlayerRef.current.loadVideoById(videoId, seekSec);
       ytPlayerRef.current.setPlaybackRate(1.0);
       ytPlayerRef.current.playVideo();
-      setLoadingTrackId(null);
+      // Item #112: setLoadingTrackId(null) só é acionado quando event.data === 1 (PLAYING) ou onError
     } else {
-      setTimeout(() => {
-        if (currentVideoIdRef.current !== videoId) return;
+      // Item #113: Polling resiliente de até 3.5 segundos aguardando o IFrame estar pronto
+      let attempts = 0;
+      const maxAttempts = 35; // 35 * 100ms = 3.5s
+      const checkTimer = window.setInterval(() => {
+        attempts++;
+        if (currentVideoIdRef.current !== videoId) {
+          window.clearInterval(checkTimer);
+          return;
+        }
 
         if (ytPlayerRef.current && typeof ytPlayerRef.current.loadVideoById === "function") {
+          window.clearInterval(checkTimer);
           startTransitionGuard();
           if (isMutedRef.current) {
             ytPlayerRef.current.mute();
@@ -385,9 +399,14 @@ export function useYouTubePlayer({
           ytPlayerRef.current.playVideo();
           isPlayingRef.current = true;
           setIsPlaying(true);
+        } else if (attempts >= maxAttempts) {
+          window.clearInterval(checkTimer);
+          clearTransitionGuard();
           setLoadingTrackId(null);
+          onTrackErrorRef.current("Não foi possível inicializar o reprodutor de vídeo. Tentando próxima faixa...");
+          onTrackEndedRef.current();
         }
-      }, 500);
+      }, 100);
     }
   }
 
