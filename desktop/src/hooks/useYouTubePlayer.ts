@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { SettingsService } from "../services/settings";
 import { nativeAudioEngine } from "../services/audioEngine";
-import { fetchStreamInfoCached } from "../services/streamCache";
+import { fetchStreamInfoCached, getCachedStreamInfo } from "../services/streamCache";
 
 interface UseYouTubePlayerProps {
   crossfadeSeconds: number;
@@ -407,87 +407,61 @@ export function useYouTubePlayer({
     isPlayingRef.current = true;
     setIsPlaying(true);
 
-    // 1. Interrompe imediatamente o áudio anterior para eliminar o atraso/engasgo perceptivo
-    if (activeEngineRef.current === "native") {
-      nativeAudioEngine.stop();
-    } else if (ytPlayerRef.current) {
-      try {
-        ytPlayerRef.current.pauseVideo();
-      } catch {
-        // ignore
-      }
-    }
-
     if (rapidSkipTimerRef.current !== null) {
       window.clearTimeout(rapidSkipTimerRef.current);
       rapidSkipTimerRef.current = null;
     }
 
-    // 2. Arquitetura Híbrida: obtém stream direto via cache ou requisição rápida com timeout
-    try {
-      const stream = await fetchStreamInfoCached(videoId, 650);
-      // Prevenção de Race Condition em pulos múltiplos rápidos
-      if (requestId !== loadRequestIdRef.current || currentVideoIdRef.current !== videoId) return;
-
-      if (stream && stream.stream_url) {
-        activeEngineRef.current = "native";
-
-        // Pausa e silencia o player IFrame para evitar playback em duplicidade ou processamento de vídeo
-        if (ytPlayerRef.current) {
-          try {
-            ytPlayerRef.current.pauseVideo();
-            ytPlayerRef.current.mute();
-          } catch {
-            // ignore
-          }
+    // 1. Resolução Síncrona Imediata (0ms) se o stream nativo já estiver em cache
+    const instantCached = getCachedStreamInfo(videoId);
+    if (instantCached && instantCached.stream_url) {
+      activeEngineRef.current = "native";
+      if (ytPlayerRef.current) {
+        try {
+          ytPlayerRef.current.pauseVideo();
+          ytPlayerRef.current.mute();
+        } catch {
+          // ignore
         }
+      }
 
-        nativeAudioEngine.setNormalizeVolume(SettingsService.getSetting("normalizeVolume"));
-        nativeAudioEngine.load(stream.stream_url, videoId, stream.loudness_db);
-        if (seekSec > 0) {
-          nativeAudioEngine.seek(seekSec);
-        }
-        const userVol = isMutedRef.current ? 0 : volumeRef.current;
-        // Pulo manual inicia no volume normal do usuário sem silêncio de transição
-        const initialVol = (isManual || crossfadeSecondsRef.current <= 0) ? userVol : 0;
-        nativeAudioEngine.setVolume(initialVol);
-        if (stream.duration_seconds) {
-          setDuration(stream.duration_seconds);
-        }
+      nativeAudioEngine.setNormalizeVolume(SettingsService.getSetting("normalizeVolume"));
+      nativeAudioEngine.load(instantCached.stream_url, videoId, instantCached.loudness_db);
+      if (seekSec > 0) {
+        nativeAudioEngine.seek(seekSec);
+      }
+      const userVol = isMutedRef.current ? 0 : volumeRef.current;
+      const initialVol = (isManual || crossfadeSecondsRef.current <= 0) ? userVol : 0;
+      nativeAudioEngine.setVolume(initialVol);
+      if (instantCached.duration_seconds) {
+        setDuration(instantCached.duration_seconds);
+      }
 
-        await nativeAudioEngine.play();
-        if (requestId !== loadRequestIdRef.current || currentVideoIdRef.current !== videoId) {
-          nativeAudioEngine.stop();
-          return;
-        }
-        activeLoadedVideoIdRef.current = videoId;
-        clearTransitionGuard();
-        isPlayingRef.current = true;
-        setIsPlaying(true);
-        setLoadingTrackId(null);
+      await nativeAudioEngine.play();
+      if (requestId !== loadRequestIdRef.current || currentVideoIdRef.current !== videoId) {
+        nativeAudioEngine.stop();
         return;
       }
-    } catch (err) {
-      if (requestId !== loadRequestIdRef.current || currentVideoIdRef.current !== videoId) return;
-      console.warn("[Player] Stream direto nativo não disponível, utilizando IFrame fallback:", err);
+      activeLoadedVideoIdRef.current = videoId;
+      clearTransitionGuard();
+      isPlayingRef.current = true;
+      setIsPlaying(true);
+      setLoadingTrackId(null);
+      return;
     }
 
-    if (requestId !== loadRequestIdRef.current || currentVideoIdRef.current !== videoId) return;
-
-    // 3. Fallback Transparente para o IFrame Player do YouTube
-    const executeIframe = () => {
-      if (requestId !== loadRequestIdRef.current || currentVideoIdRef.current !== videoId) return;
-      activeEngineRef.current = "iframe";
+    // 2. Se o stream nativo não está em cache e o motor anterior era nativo, encerra o áudio nativo
+    if (activeEngineRef.current === "native") {
       nativeAudioEngine.stop();
-      playIframeVideo(videoId, seekSec, isManual);
-    };
-
-    // Em pulos rápidos manuais, debounce sutil de 80ms para estabilizar no alvo final sem engasgar o IFrame
-    if (isManual) {
-      rapidSkipTimerRef.current = window.setTimeout(executeIframe, 80);
-    } else {
-      executeIframe();
     }
+
+    // 3. Fallback Instantâneo para o IFrame Player do YouTube:
+    // Dispara loadVideoById IMEDIATAMENTE no milissegundo 0 sem esperar timeouts nem debounces artificiais
+    activeEngineRef.current = "iframe";
+    playIframeVideo(videoId, seekSec, isManual);
+
+    // 4. Em background, busca os dados da faixa para popular o cache de futuras execuções
+    fetchStreamInfoCached(videoId, 1000).catch(() => {});
   }
 
   const togglePlayPause = useCallback(() => {

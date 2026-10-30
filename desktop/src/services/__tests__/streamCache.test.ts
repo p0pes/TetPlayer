@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fetchStreamInfoCached, prefetchStreamInfo, clearStreamCache } from "../streamCache";
+import { fetchStreamInfoCached, prefetchStreamInfo, clearStreamCache, getCachedStreamInfo } from "../streamCache";
 import { invoke } from "@tauri-apps/api/core";
 
 vi.mock("@tauri-apps/api/core", () => ({
@@ -44,6 +44,20 @@ describe("StreamCache (Cache e Prefetch Instantâneo de Streams)", () => {
     (invoke as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(null);
     expect(() => prefetchStreamInfo("next_track_vid")).not.toThrow();
     expect(invoke).toHaveBeenCalledWith("get_stream_info", { videoId: "next_track_vid" });
+  });
+
+  it("deve retornar stream síncrono em 0ms quando presente em memória", async () => {
+    const mockStream = {
+      video_id: "sync_vid",
+      title: "Sync Song",
+      artist: "Sync Artist",
+      stream_url: "https://example.com/sync.opus",
+    };
+    (invoke as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(mockStream);
+
+    expect(getCachedStreamInfo("sync_vid")).toBeNull();
+    await fetchStreamInfoCached("sync_vid");
+    expect(getCachedStreamInfo("sync_vid")).toEqual(mockStream);
   });
 });
 

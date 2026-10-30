@@ -267,9 +267,26 @@ export function PlayerProvider({
     }
   }, []);
 
+  const saveSessionTimeoutRef = useRef<number | null>(null);
+
+  const debouncedSaveSession = useCallback(() => {
+    if (saveSessionTimeoutRef.current !== null) {
+      window.clearTimeout(saveSessionTimeoutRef.current);
+    }
+    saveSessionTimeoutRef.current = window.setTimeout(() => {
+      saveSessionTimeoutRef.current = null;
+      saveSession();
+    }, 1000);
+  }, [saveSession]);
+
   useEffect(() => {
-    saveSession();
-  }, [currentTrack, activeQueue, currentQueueIndex, isShuffle, repeatMode, isAutoplayRadio, saveSession]);
+    debouncedSaveSession();
+    return () => {
+      if (saveSessionTimeoutRef.current !== null) {
+        window.clearTimeout(saveSessionTimeoutRef.current);
+      }
+    };
+  }, [currentTrack, activeQueue, currentQueueIndex, isShuffle, repeatMode, isAutoplayRadio, debouncedSaveSession]);
 
   useEffect(() => {
     if (!isPlaying) {

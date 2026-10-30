@@ -15,6 +15,18 @@ const inFlightRequests = new Map<string, Promise<StreamInfo | null>>();
  * Busca informações de stream nativo com cache em memória e timeout resiliente.
  * Se já estiver em cache, resolve em 0ms sem qualquer chamada de rede.
  */
+/**
+ * Retorna de forma síncrona (0ms) as informações de stream se já estiverem em memória
+ */
+export function getCachedStreamInfo(videoId: string): StreamInfo | null {
+  if (!videoId) return null;
+  const cached = memoryStreamCache.get(videoId);
+  if (cached && Date.now() - cached.timestamp < STREAM_CACHE_TTL) {
+    return cached.stream;
+  }
+  return null;
+}
+
 export async function fetchStreamInfoCached(
   videoId: string,
   timeoutMs = 650
