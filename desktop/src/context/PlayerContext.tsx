@@ -704,9 +704,13 @@ export function PlayerProvider({
   // 1. Pré-carregamento IMEDIATO da próxima faixa assim que a fila ou a faixa muda (latência zero no pulo manual)
   useEffect(() => {
     const nextTrack = upcomingTracks[0];
+    const secondNextTrack = upcomingTracks[1];
     if (nextTrack?.id && prefetchedTrackIdRef.current !== nextTrack.id) {
       prefetchedTrackIdRef.current = nextTrack.id;
       prefetchStreamInfo(nextTrack.id);
+      if (secondNextTrack?.id) {
+        prefetchStreamInfo(secondNextTrack.id);
+      }
       prefetchTrackLyrics(nextTrack).catch(() => {});
       prefetchArtworkColors(nextTrack);
     }

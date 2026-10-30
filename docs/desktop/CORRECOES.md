@@ -551,3 +551,15 @@ Todos os **15 novos apontamentos técnicos (#92 a #106)** foram integralmente so
   3. **Volume Direto no Pulo Manual:** Ao pular manualmente uma música, o som entra instantaneamente no volume normal do usuário, eliminando o início em volume 0 (mudo) do crossfade.
   4. **Fim do Jitter/Glitch na Wave:** Implementação de relógio temporal de alta resolução com interpolação contínua entre os ticks de 80ms do timer de áudio, além da desativação de transições CSS conflitantes (`transition: none` durante a reprodução), eliminando qualquer tremida ou tremor de recálculo.
   5. **Alta Energia e Dinâmica Vívida:** Aumento do ganho e expansão dos transientes de bumbo, caixa, vocais e pratos (alturas de até 100% com brilho neon nos picos), aliados a uma física de ataque rápido (0.78) e decaimento orgânico (0.22) a 144 FPS.
+
+
+---
+
+### 109. Eliminação do Congelamento da Linha do Tempo em 10s e Travamentos em Pulos Múltiplos Rápidos + Wave 100% Contínua e Sem Glitches
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [desktop/src/hooks/useYouTubePlayer.ts](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useYouTubePlayer.ts), [desktop/src/components/Visualizer/SpectrumVisualizer.tsx](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Visualizer/SpectrumVisualizer.tsx), [desktop/src/context/PlayerContext.tsx](file:///d:/progrmação/programas/TetPlayer/desktop/src/context/PlayerContext.tsx).
+* **Solução Implementada:**
+  1. **Sentinela de Vídeo Ativo & Reset Imediato de Timeline:** Ao pular de faixa, o estado de currentTime e duration é imediatamente zerado no milissegundo do clique (seekSec = 0). Além disso, foi introduzido ctiveLoadedVideoIdRef com trava no sincronizador unificado de 80ms (if (activeLoadedVideoIdRef.current !== currentVideoIdRef.current) return;), impedindo terminantemente que o poller continue lendo a posição da faixa antiga (ex: 10s) do IFrame enquanto a nova faixa está carregando.
+  2. **Cancelamento de Requisições Obsoletas & Debounce em Pulos Rápidos:** Criação de loadRequestIdRef e debounce sutil de 80ms no fallback de IFrame para pulos manuais consecutivos. Se o usuário avançar 2 ou mais faixas rapidamente, as requisições antigas são canceladas antes de bombardear o IFrame do YouTube, eliminando o engasgo e o travamento interno do player.
+  3. **Multi-Track Prefetch na Fila:** O PlayerContext agora antecipa e carrega em cache em background os streams de upcomingTracks[0] e upcomingTracks[1], garantindo que saltos duplos ocorram com resolução em 0ms.
+  4. **Wave com Relógio de Fase Acumulada e Eliminação Completa de Glitches:** O SpectrumVisualizer substituiu a interpolação direta por um acumulador contínuo continuousTimeRef com ajuste suave de deriva (drift * 0.06), eliminando descontinuidades de fase matemática ao receber ticks de áudio. As letras sincronizadas são pré-processadas uma única vez com busca binária (\\log N)$, e a modelagem acústica agora emprega ondas positivas (0.5 + 0.5 * sin) em todo o espectro, impedindo cancelamentos destrutivos onde colunas ficavam presas no piso e garantindo energia vibrante (35% a 100%) a 144 FPS.

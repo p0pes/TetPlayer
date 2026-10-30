@@ -18,6 +18,9 @@ export function useYouTubePlayer({
   const ytPlayerRef = useRef<any>(null);
   const activeEngineRef = useRef<"native" | "iframe">("iframe");
   const currentVideoIdRef = useRef<string | null>(null);
+  const activeLoadedVideoIdRef = useRef<string | null>(null);
+  const loadRequestIdRef = useRef<number>(0);
+  const rapidSkipTimerRef = useRef<number | null>(null);
 
   const [isPlayerReady, setIsPlayerReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -131,6 +134,7 @@ export function useYouTubePlayer({
 
     nativeAudioEngine.onPlay = () => {
       if (activeEngineRef.current === "native") {
+        activeLoadedVideoIdRef.current = currentVideoIdRef.current;
         isPlayingRef.current = true;
         setIsPlaying(true);
       }
@@ -157,6 +161,11 @@ export function useYouTubePlayer({
 
     // Sincronizador unificado de timeline (80ms para sincronia de letras e scrubber)
     const interval = setInterval(() => {
+      // Impede leitura da posição da faixa antiga (ex: 10s) enquanto a nova faixa está carregando
+      if (activeLoadedVideoIdRef.current !== currentVideoIdRef.current) {
+        return;
+      }
+
       if (activeEngineRef.current === "native") {
         const curr = nativeAudioEngine.getCurrentTime();
         const dur = nativeAudioEngine.getDuration();
@@ -237,6 +246,7 @@ export function useYouTubePlayer({
       clearInterval(interval);
       if (seekTimeoutRef.current) window.clearTimeout(seekTimeoutRef.current);
       if (transitionTimeoutRef.current) window.clearTimeout(transitionTimeoutRef.current);
+      if (rapidSkipTimerRef.current) window.clearTimeout(rapidSkipTimerRef.current);
     };
   }, [isPlayerReady, clearTransitionGuard, startTransitionGuard]);
 
@@ -292,6 +302,7 @@ export function useYouTubePlayer({
           if (event.data === 1) { // PLAYING
             isSeekingRef.current = false;
             clearTransitionGuard();
+            activeLoadedVideoIdRef.current = currentVideoIdRef.current;
             isPlayingRef.current = true;
             setIsPlaying(true);
             setLoadingTrackId(null);
@@ -381,8 +392,15 @@ export function useYouTubePlayer({
   }
 
   async function loadAndPlayVideo(videoId: string, seekSec = 0, isManual = false) {
+    const requestId = ++loadRequestIdRef.current;
     setLoadingTrackId(videoId);
     currentVideoIdRef.current = videoId;
+
+    // Reseta imediatamente o progresso no milissegundo do clique (elimina a barra congelada no tempo anterior)
+    activeLoadedVideoIdRef.current = null;
+    setCurrentTime(seekSec);
+    currentTimeRef.current = seekSec;
+    setDuration(0);
 
     // Feedback otimista imediato sem oscilar Play -> Pause -> Play
     startTransitionGuard();
@@ -400,11 +418,16 @@ export function useYouTubePlayer({
       }
     }
 
+    if (rapidSkipTimerRef.current !== null) {
+      window.clearTimeout(rapidSkipTimerRef.current);
+      rapidSkipTimerRef.current = null;
+    }
+
     // 2. Arquitetura Híbrida: obtém stream direto via cache ou requisição rápida com timeout
     try {
       const stream = await fetchStreamInfoCached(videoId, 650);
-      // Prevenção de Race Condition (Item 68): descarta se o usuário já selecionou outra faixa
-      if (currentVideoIdRef.current !== videoId) return;
+      // Prevenção de Race Condition em pulos múltiplos rápidos
+      if (requestId !== loadRequestIdRef.current || currentVideoIdRef.current !== videoId) return;
 
       if (stream && stream.stream_url) {
         activeEngineRef.current = "native";
@@ -433,10 +456,11 @@ export function useYouTubePlayer({
         }
 
         await nativeAudioEngine.play();
-        if (currentVideoIdRef.current !== videoId) {
+        if (requestId !== loadRequestIdRef.current || currentVideoIdRef.current !== videoId) {
           nativeAudioEngine.stop();
           return;
         }
+        activeLoadedVideoIdRef.current = videoId;
         clearTransitionGuard();
         isPlayingRef.current = true;
         setIsPlaying(true);
@@ -444,16 +468,26 @@ export function useYouTubePlayer({
         return;
       }
     } catch (err) {
-      if (currentVideoIdRef.current !== videoId) return;
+      if (requestId !== loadRequestIdRef.current || currentVideoIdRef.current !== videoId) return;
       console.warn("[Player] Stream direto nativo não disponível, utilizando IFrame fallback:", err);
     }
 
-    if (currentVideoIdRef.current !== videoId) return;
+    if (requestId !== loadRequestIdRef.current || currentVideoIdRef.current !== videoId) return;
 
     // 3. Fallback Transparente para o IFrame Player do YouTube
-    activeEngineRef.current = "iframe";
-    nativeAudioEngine.stop();
-    playIframeVideo(videoId, seekSec, isManual);
+    const executeIframe = () => {
+      if (requestId !== loadRequestIdRef.current || currentVideoIdRef.current !== videoId) return;
+      activeEngineRef.current = "iframe";
+      nativeAudioEngine.stop();
+      playIframeVideo(videoId, seekSec, isManual);
+    };
+
+    // Em pulos rápidos manuais, debounce sutil de 80ms para estabilizar no alvo final sem engasgar o IFrame
+    if (isManual) {
+      rapidSkipTimerRef.current = window.setTimeout(executeIframe, 80);
+    } else {
+      executeIframe();
+    }
   }
 
   const togglePlayPause = useCallback(() => {

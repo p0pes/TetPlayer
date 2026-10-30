@@ -46,3 +46,4 @@ describe("StreamCache (Cache e Prefetch Instantâneo de Streams)", () => {
     expect(invoke).toHaveBeenCalledWith("get_stream_info", { videoId: "next_track_vid" });
   });
 });
+
