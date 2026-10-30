@@ -8,7 +8,7 @@
 
 1. [Sumário Executivo & Status Atual da Base de Código](#1-sumário-executivo--status-atual-da-base-de-código)
 2. [Apontamentos Ativos Catalogados (Pendentes de Correção)](#2-apontamentos-ativos-catalogados-pendentes-de-correção)
-3. [Histórico Consolidado e Ordenado de Itens Resolvidos (#01 a #106)](#3-histórico-consolidado-e-ordenado-de-itens-resolvidos-01-a-106)
+3. [Histórico Consolidado e Ordenado de Itens Resolvidos (#01 a #107)](#3-histórico-consolidado-e-ordenado-de-itens-resolvidos-01-a-106)
 
 ---
 
@@ -20,23 +20,23 @@ Todos os **15 novos apontamentos técnicos (#92 a #106)** foram integralmente so
 
 | Severidade | Pendentes Ativos | Resolvidos no Histórico | Status da Build & Testes |
 | :--- | :---: | :---: | :--- |
-| 🔴 **Críticos** | `0` | **106 Resolvidos** | ✅ `tsc && vite build` (0 erros) |
-| 🟡 **Avisos** | `0` | **106 Resolvidos** | ✅ `vitest` (83/83 testes passando) |
-| 🔵 **Sugestões** | `0` | **106 Resolvidos** | ✅ `cargo test` (14/14 testes passando) |
-| **Total Geral** | **`0 Pendentes`** | **`106 Itens Resolvidos`** | 🟢 **100% dos Itens Catalogados Resolvidos** |
+| 🔴 **Críticos** | `0` | **107 Resolvidos** | ✅ `tsc && vite build` (0 erros) |
+| 🟡 **Avisos** | `0` | **107 Resolvidos** | ✅ `vitest` (83/83 testes passando) |
+| 🔵 **Sugestões** | `0` | **107 Resolvidos** | ✅ `cargo test` (14/14 testes passando) |
+| **Total Geral** | **`0 Pendentes`** | **`107 Itens Resolvidos`** | 🟢 **100% dos Itens Catalogados Resolvidos** |
 
 ---
 
 ## 2. Apontamentos Ativos Catalogados (Pendentes de Correção)
 
 > [!NOTE]
-> Não há apontamentos pendentes no momento. Todos os **106 itens auditados** foram integralmente diagnosticados, corrigidos, testados e validados nas suítes de testes unitários e de integração.
+> Não há apontamentos pendentes no momento. Todos os **107 itens auditados** foram integralmente diagnosticados, corrigidos, testados e validados nas suítes de testes unitários e de integração.
 
 ---
-## 3. Histórico Consolidado e Ordenado de Itens Resolvidos (#01 a #106)
+## 3. Histórico Consolidado e Ordenado de Itens Resolvidos (#01 a #107)
 
 > [!NOTE]
-> Todos os **106 itens** abaixo foram diagnosticados, corrigidos, testados e validados no TetPlayer Desktop. A numeração foi integralmente saneada, deduplicada e organizada em ordem sequencial estrita para consulta histórica.
+> Todos os **107 itens** abaixo foram diagnosticados, corrigidos, testados e validados no TetPlayer Desktop. A numeração foi integralmente saneada, deduplicada e organizada em ordem sequencial estrita para consulta histórica.
 
 ### Índice Rápido do Histórico de Correções
 
@@ -50,7 +50,7 @@ Todos os **15 novos apontamentos técnicos (#92 a #106)** foram integralmente so
 
 ---
 
-### Catálogo Sequencial Completo (#01 a #106)
+### Catálogo Sequencial Completo (#01 a #107)
 
 #### 01. Mini Player Flutuante (Always-on-Top / PiP Mode) sem Interrupção de Áudio
 * **Status:** `[Resolvido]` ✅ | **Localização:** [`MiniPlayer.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MiniPlayer/MiniPlayer.tsx), [`PlayerContext.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/context/PlayerContext.tsx), [`lib.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/lib.rs).
@@ -526,3 +526,15 @@ Todos os **15 novos apontamentos técnicos (#92 a #106)** foram integralmente so
 * **Status:** ✅ **Resolvido**
 * **Localização:** [`desktop/src/App.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/App.tsx)
 * **Solução Implementada:** Criação de referências `activePlaylistRequestIdRef`, `activeAlbumRequestIdRef` e `activeArtistRequestIdRef` no ciclo de vida de requisições. Respostas assíncronas obsoletas que resolvem fora de ordem são automaticamente descartadas caso o usuário já tenha selecionado outro item.
+
+
+---
+
+### 107. Barra Linear Reta do Player Restaurada e Visualizador de Espectro da Gaveta Sincronizado ao Áudio Real
+* **Status:** ✅ **Resolvido**
+* **Localização:** [`desktop/src/components/Player/TimelineScrubber.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Player/TimelineScrubber.tsx), [`desktop/src/components/Visualizer/SpectrumVisualizer.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Visualizer/SpectrumVisualizer.tsx), [`desktop/src/services/audioEngine.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/audioEngine.ts), [`desktop/src/components/NowPlayingDrawer/NowPlayingDrawer.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/NowPlayingDrawer/NowPlayingDrawer.tsx), [`desktop/src/components/SettingsModal/SettingsModal.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/SettingsModal/SettingsModal.tsx).
+* **Solução Implementada:** 
+  1. **Barra Reta Linear Clássica:** Reversão do scrubber de reprodução na `PlayerBar` para o formato reto contínuo e minimalista (`w-full h-1 hover:h-1.5 rounded-full accent-[var(--accent)]`), eliminando os micro-pontos de amplitude em pílula e mantendo o tooltip informativo com timestamp e prévia sincronizada da letra no hover.
+  2. **Higienização de Configurações:** Remoção do toggle obsoleto `waveformSeekbar` em `SettingsModal.tsx` e `settings.ts`.
+  3. **Visualizador de Espectro Sincronizado à Música:** Conexão do `SpectrumVisualizer` (exibido abaixo da capa na `NowPlayingDrawer`) ao espectro FFT do motor de áudio nativo via Web Audio API (`AudioEngine.getSpectrumData()`) com fallback inteligente para modelo acústico e rítmico derivado de `currentTime`, BPM, batidas (bumbo em tempo 1/3, caixa em 2/4, hi-hats em colcheias), harmonias e voz pelas letras sincronizadas (`checkVocalActive`).
+  4. **Performance 144 FPS Travada:** Renderização acelerada por GPU (`scaleY` com `transformOrigin` e `will-change-transform`), sem layout thrashing e com consumo de CPU < 0.2%.

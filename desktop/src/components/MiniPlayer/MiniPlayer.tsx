@@ -191,7 +191,7 @@ export function MiniPlayer() {
         {/* Mini barra de espectro de áudio / nota musical (base) */}
         <div className="flex items-center justify-center text-[#71778c] group-hover:text-[var(--accent-text)] transition-colors z-10 pb-0.5 pointer-events-none">
           {isPlaying ? (
-            <SpectrumVisualizer isPlaying={isPlaying} variant="mini" barCount={3} />
+            <SpectrumVisualizer isPlaying={isPlaying} track={currentTrack} variant="mini" barCount={3} />
           ) : (
             <Music className="w-3.5 h-3.5" />
           )}
@@ -319,7 +319,7 @@ export function MiniPlayer() {
               <p className="text-xs font-bold text-white truncate">
                 {currentTrack?.title || "Nenhuma faixa tocando"}
               </p>
-              <SpectrumVisualizer isPlaying={isPlaying} variant="mini" barCount={4} />
+              <SpectrumVisualizer isPlaying={isPlaying} track={currentTrack} variant="mini" barCount={4} />
             </div>
             <p className="text-[11px] text-[#8c91a4] truncate">
               {currentTrack?.artist || "TetPlayer"}

@@ -629,29 +629,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                 </div>
 
-                {/* Waveform Seekbar Interativa (Item 1.4) */}
-                <div className="border-t border-[#1f2434] pt-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                        <Activity className="w-4 h-4 text-[var(--accent-text)]" />
-                        Barra de Onda Interativa (Waveform Seekbar)
-                      </h3>
-                      <p className="text-xs text-[#8c91a4] mt-1">
-                        Exibe o perfil dinâmico de amplitude e preview de estrofes de letras ao passar o cursor sobre a linha do tempo (estilo Plexamp).
-                      </p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
-                      <input
-                        type="checkbox"
-                        checked={settings.waveformSeekbar}
-                        onChange={(e) => updateSetting("waveformSeekbar", e.target.checked)}
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-[#1f2436] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--accent)]" />
-                    </label>
-                  </div>
-                </div>
 
                 <div className="border-t border-[#1f2434] pt-5">
                   <h3 className="text-sm font-bold text-white flex items-center gap-2">

@@ -221,7 +221,7 @@ export function NowPlayingDrawer() {
 
             {/* Visualizador de Espectro Dinâmico */}
             <div className="mt-4 w-full max-w-[280px] mx-auto">
-              <SpectrumVisualizer isPlaying={isPlaying} variant="full" barCount={16} />
+              <SpectrumVisualizer isPlaying={isPlaying} track={currentTrack} variant="full" barCount={16} />
             </div>
           </div>
         </div>

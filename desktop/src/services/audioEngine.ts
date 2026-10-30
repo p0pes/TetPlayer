@@ -38,6 +38,9 @@ export class AudioEngine {
   private isNormalizeEnabled = false;
   private isSuppressingPauseEvent = false;
 
+  private audioContext: AudioContext | null = null;
+  private analyser: AnalyserNode | null = null;
+
   public onTimeUpdate: ((currentTime: number, duration: number) => void) | null = null;
   public onEnded: (() => void) | null = null;
   public onError: ((error: unknown) => void) | null = null;
@@ -160,6 +163,7 @@ export class AudioEngine {
    */
   public async play(): Promise<void> {
     this.isSuppressingPauseEvent = false;
+    this.ensureAudioContext();
     const active = this.getActiveDeck();
     try {
       await active.audio.play();
@@ -322,6 +326,66 @@ export class AudioEngine {
 
   public getActiveVideoId(): string | null {
     return this.getActiveDeck().videoId;
+  }
+
+  /**
+   * Garante a inicialização sob demanda do AudioContext do Web Audio API
+   */
+  public ensureAudioContext(): void {
+    if (typeof window === "undefined") return;
+    try {
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!this.audioContext && AudioCtx) {
+        this.audioContext = new AudioCtx();
+        this.analyser = this.audioContext.createAnalyser();
+        this.analyser.fftSize = 64; // 32 bandas de frequência
+        this.analyser.smoothingTimeConstant = 0.8;
+      }
+      if (this.audioContext && this.audioContext.state === "suspended") {
+        this.audioContext.resume().catch(() => {});
+      }
+    } catch {
+      // Ignora em caso de indisponibilidade de Web Audio
+    }
+  }
+
+  /**
+   * Extrai o espectro real de frequências (FFT) em barCount bandas (0 a 100).
+   * Retorna null se não houver dados de sinal válidos (ex: IFrame ativo ou silêncio).
+   */
+  public getSpectrumData(barCount = 16): number[] | null {
+    if (!this.analyser) return null;
+    try {
+      const bufferLength = this.analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      this.analyser.getByteFrequencyData(dataArray);
+
+      let sum = 0;
+      for (let i = 0; i < bufferLength; i++) {
+        sum += dataArray[i];
+      }
+      if (sum === 0) return null;
+
+      const result: number[] = [];
+      const step = bufferLength / barCount;
+      for (let i = 0; i < barCount; i++) {
+        const start = Math.floor(i * step);
+        const end = Math.min(bufferLength, Math.floor((i + 1) * step));
+        let binSum = 0;
+        let count = 0;
+        for (let j = start; j < end; j++) {
+          binSum += dataArray[j];
+          count++;
+        }
+        const avg = count > 0 ? binSum / count : 0;
+        result.push(Math.max(10, Math.min(100, Math.round((avg / 255) * 100))));
+      }
+      return result;
+    } catch {
+      return null;
+    }
   }
 }
 

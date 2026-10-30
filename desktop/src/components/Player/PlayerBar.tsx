@@ -305,7 +305,7 @@ export const PlayerBar = memo(function PlayerBar() {
 
         {/* Visualizador de Áudio Mini & Status Badge (Sugestão 3.2) */}
         <div className="hidden 2xl:flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[#141724] border border-[#212638] shrink-0">
-          <SpectrumVisualizer isPlaying={isPlaying} variant="mini" barCount={4} />
+          <SpectrumVisualizer isPlaying={isPlaying} track={currentTrack} variant="mini" barCount={4} />
           <span className="text-[10px] font-mono text-emerald-400">
             {isPlaying ? "Tocando" : "Pausa"}
           </span>

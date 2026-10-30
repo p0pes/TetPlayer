@@ -1,41 +1,12 @@
 import { memo, useCallback, useState, useRef, useEffect, useMemo } from "react";
 import { usePlaybackProgress } from "../../context/PlayerContext";
 import { formatTime, getCachedLyrics, parseLrc } from "../../hooks/useLyrics";
-import { SettingsService } from "../../services/settings";
 import { Track, LyricLine } from "../../types";
 
 export interface TimelineScrubberProps {
   disabled?: boolean;
   onSeek: (seconds: number) => void;
   currentTrack?: Track | null;
-}
-
-/**
- * Gera um envelope de pseudo-waveform de 64 micro-barras determinístico
- * baseado no ID da faixa. Custo computacional O(1) < 0.1ms, zero alocação de RAM pesada.
- */
-function generateDeterministicWaveform(trackId?: string): number[] {
-  const bars = 64;
-  if (!trackId) {
-    return Array.from({ length: bars }, () => 0.35);
-  }
-
-  let hash = 0;
-  for (let i = 0; i < trackId.length; i++) {
-    hash = (hash << 5) - hash + trackId.charCodeAt(i);
-    hash |= 0;
-  }
-
-  const result: number[] = [];
-  for (let i = 0; i < bars; i++) {
-    // Envelope natural de música: curva suave com elevação no meio e picos rítmicos
-    const progress = i / bars;
-    const baseEnvelope = Math.sin(progress * Math.PI) * 0.5 + 0.35;
-    const pseudoRandom = Math.abs(Math.sin((hash + i * 37) * 0.123));
-    const height = Math.min(1.0, Math.max(0.18, baseEnvelope * (0.6 + pseudoRandom * 0.65)));
-    result.push(Number(height.toFixed(2)));
-  }
-  return result;
 }
 
 /**
@@ -73,7 +44,7 @@ function findLyricSnippetForTime(lyrics: LyricLine[], time: number): string | nu
  * Consome isoladamente o PlaybackProgressContext para impedir que o PlayerBar
  * e seus elementos filhos (botões centrais, capa, volume) re-renderizem nos ticks de áudio.
  *
- * Suporta Waveform Seekbar com Tooltip de Letras no Hover (Item 1.4).
+ * Mantém a barra reta e contínua com tooltip informativo de letras no hover.
  */
 export const TimelineScrubber = memo(function TimelineScrubber({
   disabled = false,
@@ -84,20 +55,7 @@ export const TimelineScrubber = memo(function TimelineScrubber({
   const [isDragging, setIsDragging] = useState(false);
   const [dragValue, setDragValue] = useState(0);
 
-  // Estado de Waveform Seekbar das Configurações
-  const [isWaveformEnabled, setIsWaveformEnabled] = useState(() =>
-    SettingsService.getSetting("waveformSeekbar")
-  );
-
-  useEffect(() => {
-    return SettingsService.subscribe((settings, key) => {
-      if (!key || key === "waveformSeekbar") {
-        setIsWaveformEnabled(settings.waveformSeekbar);
-      }
-    });
-  }, []);
-
-  // Tooltip flutuante no Hover
+  // Tooltip flutuante no Hover (Timestamp + Trecho da Letra)
   const [hoverState, setHoverState] = useState<{
     x: number;
     time: number;
@@ -109,7 +67,6 @@ export const TimelineScrubber = memo(function TimelineScrubber({
   const dragValueRef = useRef(0);
 
   const displayTime = isDragging ? dragValue : currentTime;
-  const progressRatio = duration > 0 ? Math.min(1, Math.max(0, displayTime / duration)) : 0;
 
   // Letras em cache para o tooltip do hover
   const parsedLyrics = useMemo<LyricLine[]>(() => {
@@ -119,11 +76,6 @@ export const TimelineScrubber = memo(function TimelineScrubber({
       return parseLrc(cached.synced);
     }
     return [];
-  }, [currentTrack?.id]);
-
-  // Waveform memoizada (calculada apenas quando a faixa muda)
-  const waveformHeights = useMemo(() => {
-    return generateDeterministicWaveform(currentTrack?.id);
   }, [currentTrack?.id]);
 
   const handleInputChange = useCallback(
@@ -237,61 +189,21 @@ export const TimelineScrubber = memo(function TimelineScrubber({
           </div>
         )}
 
-        {/* Modo Waveform Seekbar Dinâmico */}
-        {isWaveformEnabled ? (
-          <div className="relative w-full h-4 flex items-center">
-            {/* Barras de Amplitude de Fundo */}
-            <div className="absolute inset-0 flex items-center justify-between gap-[2px] pointer-events-none overflow-hidden">
-              {waveformHeights.map((h, idx) => {
-                const barRatio = idx / waveformHeights.length;
-                const isPlayed = barRatio <= progressRatio;
-                return (
-                  <div
-                    key={idx}
-                    className="flex-1 rounded-full transition-colors duration-100 ease-out"
-                    style={{
-                      height: `${Math.round(h * 100)}%`,
-                      backgroundColor: isPlayed ? "var(--accent)" : "#232733",
-                      opacity: isPlayed ? 1 : 0.65,
-                    }}
-                  />
-                );
-              })}
-            </div>
-
-            {/* Input Range transparente sobreposto para manter acessibilidade e ergonomia */}
-            <input
-              type="range"
-              min={0}
-              max={duration || 100}
-              value={displayTime}
-              onChange={handleInputChange}
-              onPointerDown={handlePointerDown}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerUp}
-              disabled={disabled}
-              aria-label="Posição da música na linha do tempo"
-              data-testid="scrubber-range-input"
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed z-10"
-            />
-          </div>
-        ) : (
-          /* Modo Clássico / Minimalista (Barra Linear) */
-          <input
-            type="range"
-            min={0}
-            max={duration || 100}
-            value={displayTime}
-            onChange={handleInputChange}
-            onPointerDown={handlePointerDown}
-            onPointerUp={handlePointerUp}
-            onPointerCancel={handlePointerUp}
-            disabled={disabled}
-            aria-label="Posição da música na linha do tempo"
-            data-testid="scrubber-range-input"
-            className="w-full h-1 hover:h-1.5 bg-[#232733] hover:bg-[#2e3344] rounded-full accent-[var(--accent)] cursor-pointer disabled:cursor-not-allowed transition-all duration-150 ease-out"
-          />
-        )}
+        {/* Barra Linear Reta Clássica */}
+        <input
+          type="range"
+          min={0}
+          max={duration || 100}
+          value={displayTime}
+          onChange={handleInputChange}
+          onPointerDown={handlePointerDown}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          disabled={disabled}
+          aria-label="Posição da música na linha do tempo"
+          data-testid="scrubber-range-input"
+          className="w-full h-1 hover:h-1.5 bg-[#232733] hover:bg-[#2e3344] rounded-full accent-[var(--accent)] cursor-pointer disabled:cursor-not-allowed transition-all duration-150 ease-out"
+        />
       </div>
 
       <span data-testid="scrubber-duration" className="w-8 text-left">
