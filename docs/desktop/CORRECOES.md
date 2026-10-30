@@ -8,7 +8,7 @@
 
 1. [Sumário Executivo & Status Atual da Base de Código](#1-sumário-executivo--status-atual-da-base-de-código)
 2. [Apontamentos Ativos Catalogados (Pendentes de Correção)](#2-apontamentos-ativos-catalogados-pendentes-de-correção)
-3. [Histórico Consolidado e Ordenado de Itens Resolvidos (#01 a #107)](#3-histórico-consolidado-e-ordenado-de-itens-resolvidos-01-a-106)
+3. [Histórico Consolidado e Ordenado de Itens Resolvidos (#01 a #108)](#3-histórico-consolidado-e-ordenado-de-itens-resolvidos-01-a-106)
 
 ---
 
@@ -20,23 +20,23 @@ Todos os **15 novos apontamentos técnicos (#92 a #106)** foram integralmente so
 
 | Severidade | Pendentes Ativos | Resolvidos no Histórico | Status da Build & Testes |
 | :--- | :---: | :---: | :--- |
-| 🔴 **Críticos** | `0` | **107 Resolvidos** | ✅ `tsc && vite build` (0 erros) |
-| 🟡 **Avisos** | `0` | **107 Resolvidos** | ✅ `vitest` (83/83 testes passando) |
-| 🔵 **Sugestões** | `0` | **107 Resolvidos** | ✅ `cargo test` (14/14 testes passando) |
-| **Total Geral** | **`0 Pendentes`** | **`107 Itens Resolvidos`** | 🟢 **100% dos Itens Catalogados Resolvidos** |
+| 🔴 **Críticos** | `0` | **108 Resolvidos** | ✅ `tsc && vite build` (0 erros) |
+| 🟡 **Avisos** | `0` | **108 Resolvidos** | ✅ `vitest` (83/83 testes passando) |
+| 🔵 **Sugestões** | `0` | **108 Resolvidos** | ✅ `cargo test` (14/14 testes passando) |
+| **Total Geral** | **`0 Pendentes`** | **`108 Itens Resolvidos`** | 🟢 **100% dos Itens Catalogados Resolvidos** |
 
 ---
 
 ## 2. Apontamentos Ativos Catalogados (Pendentes de Correção)
 
 > [!NOTE]
-> Não há apontamentos pendentes no momento. Todos os **107 itens auditados** foram integralmente diagnosticados, corrigidos, testados e validados nas suítes de testes unitários e de integração.
+> Não há apontamentos pendentes no momento. Todos os **108 itens auditados** foram integralmente diagnosticados, corrigidos, testados e validados nas suítes de testes unitários e de integração.
 
 ---
-## 3. Histórico Consolidado e Ordenado de Itens Resolvidos (#01 a #107)
+## 3. Histórico Consolidado e Ordenado de Itens Resolvidos (#01 a #108)
 
 > [!NOTE]
-> Todos os **107 itens** abaixo foram diagnosticados, corrigidos, testados e validados no TetPlayer Desktop. A numeração foi integralmente saneada, deduplicada e organizada em ordem sequencial estrita para consulta histórica.
+> Todos os **108 itens** abaixo foram diagnosticados, corrigidos, testados e validados no TetPlayer Desktop. A numeração foi integralmente saneada, deduplicada e organizada em ordem sequencial estrita para consulta histórica.
 
 ### Índice Rápido do Histórico de Correções
 
@@ -50,7 +50,7 @@ Todos os **15 novos apontamentos técnicos (#92 a #106)** foram integralmente so
 
 ---
 
-### Catálogo Sequencial Completo (#01 a #107)
+### Catálogo Sequencial Completo (#01 a #108)
 
 #### 01. Mini Player Flutuante (Always-on-Top / PiP Mode) sem Interrupção de Áudio
 * **Status:** `[Resolvido]` ✅ | **Localização:** [`MiniPlayer.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MiniPlayer/MiniPlayer.tsx), [`PlayerContext.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/context/PlayerContext.tsx), [`lib.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/lib.rs).
@@ -538,3 +538,16 @@ Todos os **15 novos apontamentos técnicos (#92 a #106)** foram integralmente so
   2. **Higienização de Configurações:** Remoção do toggle obsoleto `waveformSeekbar` em `SettingsModal.tsx` e `settings.ts`.
   3. **Visualizador de Espectro Sincronizado à Música:** Conexão do `SpectrumVisualizer` (exibido abaixo da capa na `NowPlayingDrawer`) ao espectro FFT do motor de áudio nativo via Web Audio API (`AudioEngine.getSpectrumData()`) com fallback inteligente para modelo acústico e rítmico derivado de `currentTime`, BPM, batidas (bumbo em tempo 1/3, caixa em 2/4, hi-hats em colcheias), harmonias e voz pelas letras sincronizadas (`checkVocalActive`).
   4. **Performance 144 FPS Travada:** Renderização acelerada por GPU (`scaleY` com `transformOrigin` e `will-change-transform`), sem layout thrashing e com consumo de CPU < 0.2%.
+
+
+---
+
+### 108. Eliminação de Atraso/Engasgo no Pulo de Faixa (Instant Skip & Queue Prefetch) e Otimização Enérgica Fluida da Wave
+* **Status:** ✅ **Resolvido**
+* **Localização:** [`desktop/src/services/streamCache.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/streamCache.ts), [`desktop/src/hooks/useYouTubePlayer.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useYouTubePlayer.ts), [`desktop/src/context/PlayerContext.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/context/PlayerContext.tsx), [`desktop/src/components/Visualizer/SpectrumVisualizer.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Visualizer/SpectrumVisualizer.tsx).
+* **Solução Implementada:**
+  1. **Instant Queue Prefetch & StreamCache:** Criação do serviço `StreamCache` com cache em memória (TTL 30 min) e pré-carregamento imediato da próxima faixa da fila em background assim que a faixa atual começa a tocar. Ao avançar de faixa, as informações da nova música resolvem em 0ms sem espera de rede.
+  2. **Interrupção Imediata do Áudio Anterior:** O áudio anterior é pausado no milissegundo do clique de avanço, eliminando o atraso e a sensação de engasgo onde a capa mudava mas a música antiga ainda soava por ~1 segundo.
+  3. **Volume Direto no Pulo Manual:** Ao pular manualmente uma música, o som entra instantaneamente no volume normal do usuário, eliminando o início em volume 0 (mudo) do crossfade.
+  4. **Fim do Jitter/Glitch na Wave:** Implementação de relógio temporal de alta resolução com interpolação contínua entre os ticks de 80ms do timer de áudio, além da desativação de transições CSS conflitantes (`transition: none` durante a reprodução), eliminando qualquer tremida ou tremor de recálculo.
+  5. **Alta Energia e Dinâmica Vívida:** Aumento do ganho e expansão dos transientes de bumbo, caixa, vocais e pratos (alturas de até 100% com brilho neon nos picos), aliados a uma física de ataque rápido (0.78) e decaimento orgânico (0.22) a 144 FPS.

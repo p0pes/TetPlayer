@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { SettingsService } from "../services/settings";
-import { nativeAudioEngine, StreamInfo } from "../services/audioEngine";
+import { nativeAudioEngine } from "../services/audioEngine";
+import { fetchStreamInfoCached } from "../services/streamCache";
 
 interface UseYouTubePlayerProps {
   crossfadeSeconds: number;
@@ -333,7 +333,7 @@ export function useYouTubePlayer({
     });
   }
 
-  function playIframeVideo(videoId: string, seekSec = 0) {
+  function playIframeVideo(videoId: string, seekSec = 0, isManual = false) {
     if (currentVideoIdRef.current !== videoId) return;
 
     startTransitionGuard();
@@ -346,7 +346,8 @@ export function useYouTubePlayer({
       } else {
         ytPlayerRef.current.unMute();
       }
-      const targetVol = crossfadeSecondsRef.current > 0 ? 0 : Math.round(volumeRef.current * 100);
+      const userVol = Math.round(volumeRef.current * 100);
+      const targetVol = (isManual || crossfadeSecondsRef.current <= 0) ? userVol : 0;
       ytPlayerRef.current.setVolume(targetVol);
       lastAppliedVolumeRef.current = targetVol;
       ytPlayerRef.current.loadVideoById(videoId, seekSec);
@@ -364,7 +365,8 @@ export function useYouTubePlayer({
           } else {
             ytPlayerRef.current.unMute();
           }
-          const targetVol = crossfadeSecondsRef.current > 0 ? 0 : Math.round(volumeRef.current * 100);
+          const userVol = Math.round(volumeRef.current * 100);
+          const targetVol = (isManual || crossfadeSecondsRef.current <= 0) ? userVol : 0;
           ytPlayerRef.current.setVolume(targetVol);
           lastAppliedVolumeRef.current = targetVol;
           ytPlayerRef.current.loadVideoById(videoId, seekSec);
@@ -378,7 +380,7 @@ export function useYouTubePlayer({
     }
   }
 
-  async function loadAndPlayVideo(videoId: string, seekSec = 0) {
+  async function loadAndPlayVideo(videoId: string, seekSec = 0, isManual = false) {
     setLoadingTrackId(videoId);
     currentVideoIdRef.current = videoId;
 
@@ -387,9 +389,20 @@ export function useYouTubePlayer({
     isPlayingRef.current = true;
     setIsPlaying(true);
 
-    // 1. Arquitetura Híbrida: tenta obter stream direto de áudio nativo (Item 1.1)
+    // 1. Interrompe imediatamente o áudio anterior para eliminar o atraso/engasgo perceptivo
+    if (activeEngineRef.current === "native") {
+      nativeAudioEngine.stop();
+    } else if (ytPlayerRef.current) {
+      try {
+        ytPlayerRef.current.pauseVideo();
+      } catch {
+        // ignore
+      }
+    }
+
+    // 2. Arquitetura Híbrida: obtém stream direto via cache ou requisição rápida com timeout
     try {
-      const stream = await invoke<StreamInfo | null>("get_stream_info", { videoId });
+      const stream = await fetchStreamInfoCached(videoId, 650);
       // Prevenção de Race Condition (Item 68): descarta se o usuário já selecionou outra faixa
       if (currentVideoIdRef.current !== videoId) return;
 
@@ -411,8 +424,10 @@ export function useYouTubePlayer({
         if (seekSec > 0) {
           nativeAudioEngine.seek(seekSec);
         }
-        const initialVol = isMutedRef.current ? 0 : volumeRef.current;
-        nativeAudioEngine.setVolume(crossfadeSecondsRef.current > 0 ? 0 : initialVol);
+        const userVol = isMutedRef.current ? 0 : volumeRef.current;
+        // Pulo manual inicia no volume normal do usuário sem silêncio de transição
+        const initialVol = (isManual || crossfadeSecondsRef.current <= 0) ? userVol : 0;
+        nativeAudioEngine.setVolume(initialVol);
         if (stream.duration_seconds) {
           setDuration(stream.duration_seconds);
         }
@@ -435,10 +450,10 @@ export function useYouTubePlayer({
 
     if (currentVideoIdRef.current !== videoId) return;
 
-    // 2. Fallback Transparente para o IFrame Player do YouTube
+    // 3. Fallback Transparente para o IFrame Player do YouTube
     activeEngineRef.current = "iframe";
     nativeAudioEngine.stop();
-    playIframeVideo(videoId, seekSec);
+    playIframeVideo(videoId, seekSec, isManual);
   }
 
   const togglePlayPause = useCallback(() => {

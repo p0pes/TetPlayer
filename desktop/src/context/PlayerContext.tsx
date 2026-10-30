@@ -15,6 +15,7 @@ import { listen } from "@tauri-apps/api/event";
 import { Track, RepeatMode, NowPlayingTab } from "../types";
 import { useYouTubePlayer } from "../hooks/useYouTubePlayer";
 import { useAuroraColor, prefetchArtworkColors } from "../hooks/useAuroraColor";
+import { prefetchStreamInfo } from "../services/streamCache";
 import { useMediaSession } from "../hooks/useMediaSession";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 import { prefetchTrackLyrics } from "../hooks/useLyrics";
@@ -222,7 +223,7 @@ export function PlayerProvider({
     restartCurrentTrack,
   } = useYouTubePlayer({
     crossfadeSeconds,
-    onTrackEnded: () => handleNextTrack(),
+    onTrackEnded: () => handleNextTrack(false),
     onTrackError: (msg) => setErrorMessage(msg),
   });
 
@@ -451,7 +452,7 @@ export function PlayerProvider({
     }
 
     hasStartedPlaybackRef.current = true;
-    loadAndPlayVideo(track.id);
+    loadAndPlayVideo(track.id, 0, true);
   }
 
   function toggleShuffle() {
@@ -482,7 +483,7 @@ export function PlayerProvider({
       recordTrackPlayed(track);
       dispatchQueue({ type: "PLAY_FROM_QUEUE", payload: { index: idx } });
       hasStartedPlaybackRef.current = true;
-    loadAndPlayVideo(track.id);
+    loadAndPlayVideo(track.id, 0, true);
     }
   }
 
@@ -500,7 +501,7 @@ export function PlayerProvider({
   }, []);
 
   // Avançar faixa com suporte a Autoplay Infinito & Rádio Contínua (Sugestão 2.6)
-  function handleNextTrack() {
+  function handleNextTrack(isManual = true) {
     const queue = activeQueueRef.current;
     const currentIndex = currentQueueIndexRef.current;
     const repeat = repeatModeRef.current;
@@ -520,12 +521,12 @@ export function PlayerProvider({
       const nextTrack = queue[nextIndex];
       recordTrackPlayed(nextTrack);
       dispatchQueue({ type: "PLAY_FROM_QUEUE", payload: { index: nextIndex } });
-      loadAndPlayVideo(nextTrack.id);
+      loadAndPlayVideo(nextTrack.id, 0, isManual);
     } else if (repeat === "all" && queue.length > 0) {
       const firstTrack = queue[0];
       recordTrackPlayed(firstTrack);
       dispatchQueue({ type: "PLAY_FROM_QUEUE", payload: { index: 0 } });
-      loadAndPlayVideo(firstTrack.id);
+      loadAndPlayVideo(firstTrack.id, 0, isManual);
     } else if (isAutoplayRadioRef.current && currentTrackRef.current) {
       // Autoplay Infinito: busca recomendações da rádio do YouTube Music
       const lastTrack = currentTrackRef.current;
@@ -542,7 +543,7 @@ export function PlayerProvider({
               type: "PLAY_FROM_QUEUE",
               payload: { index: nextIdx },
             });
-            loadAndPlayVideo(radioTracks[0].id);
+            loadAndPlayVideo(radioTracks[0].id, 0, isManual);
           }
         })
         .catch((err) => {
@@ -568,7 +569,7 @@ export function PlayerProvider({
       const prevTrack = queue[prevIndex];
       recordTrackPlayed(prevTrack);
       dispatchQueue({ type: "PLAY_FROM_QUEUE", payload: { index: prevIndex } });
-      loadAndPlayVideo(prevTrack.id);
+      loadAndPlayVideo(prevTrack.id, 0, true);
     } else if (repeat === "all" && queue.length > 0) {
       const lastIndex = queue.length - 1;
       const lastTrack = queue[lastIndex];
@@ -693,26 +694,32 @@ export function PlayerProvider({
     closeNowPlaying,
   });
 
-  // Pipeline de pré-carregamento inteligente da próxima faixa (Gapless Playback - Sugestão 1.2)
+  // Pipeline de pré-carregamento inteligente da próxima faixa (Gapless Playback & Instant Skip)
   const prefetchedTrackIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     prefetchedTrackIdRef.current = null;
   }, [currentTrack?.id]);
 
+  // 1. Pré-carregamento IMEDIATO da próxima faixa assim que a fila ou a faixa muda (latência zero no pulo manual)
+  useEffect(() => {
+    const nextTrack = upcomingTracks[0];
+    if (nextTrack?.id && prefetchedTrackIdRef.current !== nextTrack.id) {
+      prefetchedTrackIdRef.current = nextTrack.id;
+      prefetchStreamInfo(nextTrack.id);
+      prefetchTrackLyrics(nextTrack).catch(() => {});
+      prefetchArtworkColors(nextTrack);
+    }
+  }, [currentTrack?.id, upcomingTracks]);
+
+  // 2. Antecipação de rádio contínua quando a faixa atual estiver perto do fim
   useEffect(() => {
     if (!duration || duration <= 15 || currentTime <= 10) return;
     const nextTrack = upcomingTracks[0];
-    if (!nextTrack || prefetchedTrackIdRef.current === nextTrack.id) return;
 
-    // Dispara quando faltar 20 segundos ou passar de 88% da faixa atual
+    // Se rádio contínua estiver ativa e a fila estiver no fim, antecipa a busca
     if (currentTime / duration >= 0.88 || duration - currentTime <= 20) {
-      prefetchedTrackIdRef.current = nextTrack.id;
-      prefetchTrackLyrics(nextTrack).catch(() => { });
-      prefetchArtworkColors(nextTrack);
-
-      // Se rádio contínua estiver ativa e a fila estiver no fim, antecipa a busca
-      if (isAutoplayRadioRef.current && currentTrackRef.current && upcomingTracks.length <= 1) {
+      if (isAutoplayRadioRef.current && currentTrackRef.current && upcomingTracks.length <= 1 && nextTrack) {
         invoke<Track[]>("get_radio_tracks", { videoId: nextTrack.id })
           .then((radioTracks) => {
             if (radioTracks && radioTracks.length > 0) {

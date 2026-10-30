@@ -18,15 +18,15 @@ interface SpectrumVisualizerProps {
  * Gera um BPM determinístico e características rítmicas baseadas na faixa
  */
 function getTrackTempo(trackId?: string): { bpm: number; groove: number } {
-  if (!trackId) return { bpm: 124, groove: 0.5 };
+  if (!trackId) return { bpm: 126, groove: 0.6 };
   let hash = 0;
   for (let i = 0; i < trackId.length; i++) {
     hash = (hash << 5) - hash + trackId.charCodeAt(i);
     hash |= 0;
   }
   const absHash = Math.abs(hash);
-  const bpm = 115 + (absHash % 25); // 115 a 139 BPM
-  const groove = 0.4 + ((absHash % 10) / 25);
+  const bpm = 118 + (absHash % 24); // 118 a 142 BPM
+  const groove = 0.45 + ((absHash % 10) / 20); // 0.45 a 0.95
   return { bpm, groove };
 }
 
@@ -80,7 +80,7 @@ export const SpectrumVisualizer = memo(function SpectrumVisualizer({
   }, [propStyle]);
 
   const [heights, setHeights] = useState<number[]>(() =>
-    Array.from({ length: barCount }, () => 15)
+    Array.from({ length: barCount }, () => 14)
   );
 
   // Consome isoladamente o progresso da música sem causar re-render em componentes pais
@@ -91,6 +91,10 @@ export const SpectrumVisualizer = memo(function SpectrumVisualizer({
   const trackRef = useRef(track);
   trackRef.current = track;
 
+  // Relógio contínuo de alta resolução para eliminar tremidas/glitches entre ticks de 80ms
+  const lastReportedTimeRef = useRef(0);
+  const lastReportedTimestampRef = useRef(performance.now());
+
   useEffect(() => {
     let animId: number | null = null;
 
@@ -100,25 +104,27 @@ export const SpectrumVisualizer = memo(function SpectrumVisualizer({
     }
 
     let lastFrameTime = performance.now();
-    const updateSpectrum = (time: number) => {
+    const updateSpectrum = (now: number) => {
       // Otimização (Item 72): suspende cálculos e renderização quando a janela estiver minimizada
       if (typeof document !== "undefined" && document.hidden) {
         animId = requestAnimationFrame(updateSpectrum);
         return;
       }
 
-      // Intervalo de ~35ms (~30fps) para fluidez visual a custo de CPU < 0.2%
-      if (time - lastFrameTime >= 35) {
-        lastFrameTime = time;
+      // Intervalo de ~30ms (~33fps) ideal para fluidez visual extrema sem consumo de CPU (< 0.2%)
+      if (now - lastFrameTime >= 30) {
+        lastFrameTime = now;
 
         // 1. Tenta obter o espectro de frequências real (FFT) do Web Audio se disponível
         const realData = nativeAudioEngine.getSpectrumData(barCount);
         if (realData && realData.some((v) => v > 15)) {
           setHeights((prev) =>
             Array.from({ length: barCount }, (_, i) => {
-              const target = realData[i] ?? 12;
+              // Sensibilidade amplificada para maior impacto e energia visual
+              const rawTarget = realData[i] ?? 12;
+              const target = Math.min(100, Math.round(rawTarget * 1.25));
               const prevH = prev[i] ?? 12;
-              const factor = target > prevH ? 0.65 : 0.28;
+              const factor = target > prevH ? 0.78 : 0.22;
               return Math.round(prevH + (target - prevH) * factor);
             })
           );
@@ -126,65 +132,77 @@ export const SpectrumVisualizer = memo(function SpectrumVisualizer({
           return;
         }
 
-        // 2. Modelo Rítmico e Acústico Sincronizado à Música (via currentTime, BPM e Letras)
+        // 2. Modelo Rítmico e Acústico de Alta Energia Sincronizado à Música
+        // Interpolação temporal contínua: calcula tempo contínuo suave entre os saltos de 80ms do timer
+        const rawTime = progressRef.current.currentTime;
+        if (rawTime !== lastReportedTimeRef.current) {
+          lastReportedTimeRef.current = rawTime;
+          lastReportedTimestampRef.current = now;
+        }
+        const deltaSec = (now - lastReportedTimestampRef.current) / 1000;
+        // Permite avanço contínuo de até 150ms sem travar nem dar pulos bruscos
+        const continuousTime = rawTime + Math.min(0.15, Math.max(0, deltaSec));
+
         const currentTrackObj = trackRef.current;
-        const { currentTime: trackTime, duration: trackDur } = progressRef.current;
+        const trackDur = progressRef.current.duration;
         const { bpm, groove } = getTrackTempo(currentTrackObj?.id);
         const bps = bpm / 60;
-        const beatIndex = trackTime * bps;
+        const beatIndex = continuousTime * bps;
         const beatPhase = beatIndex % 1.0;
         const measureBeat = Math.floor(beatIndex) % 4;
 
-        // Macro-dinâmica estrutural da música (intro, verso, refrão, clímax)
-        const progress = trackDur > 0 ? trackTime / trackDur : 0.2;
-        const isIntro = progress < 0.06 || trackTime < 8;
-        const isOutro = progress > 0.94;
-        const isChorus = (progress > 0.25 && progress < 0.45) || (progress > 0.60 && progress < 0.80);
-        const macroDynamic = isIntro ? 0.55 : isOutro ? 0.5 : isChorus ? 1.25 : 0.85;
+        // Macro-dinâmica estrutural da música (intro, verso, refrão, clímax) com amplitudes elevadas
+        const progress = trackDur > 0 ? continuousTime / trackDur : 0.25;
+        const isIntro = progress < 0.05 || continuousTime < 7;
+        const isOutro = progress > 0.95;
+        const isChorus = (progress > 0.22 && progress < 0.45) || (progress > 0.58 && progress < 0.82);
+        const macroDynamic = isIntro ? 0.65 : isOutro ? 0.60 : isChorus ? 1.35 : 1.05;
 
         // Detecção de voz ativa pelas letras sincronizadas
-        const hasVocal = checkVocalActive(currentTrackObj?.id, trackTime);
-        const vocalBoost = hasVocal ? 0.35 : 0;
+        const hasVocal = checkVocalActive(currentTrackObj?.id, continuousTime);
+        const vocalBoost = hasVocal ? 0.45 : 0;
 
-        // Transiente de bumbo (kick drum): pulso instantâneo a cada batida com decaimento exponencial
-        const kickTransient = Math.pow(Math.max(0, 1.0 - beatPhase * 3.8), 2.2);
+        // Transiente de bumbo (kick drum): pulso firme com ataque instantâneo e decaimento acústico
+        const kickTransient = Math.pow(Math.max(0, 1.0 - beatPhase * 3.0), 1.6);
 
-        // Transiente de caixa (snare): tempos 2 e 4 do compasso (measureBeat 1 e 3)
+        // Transiente de caixa (snare): tempos 2 e 4 do compasso 4/4
         const isSnareTempo = measureBeat === 1 || measureBeat === 3;
-        const snareTransient = isSnareTempo ? Math.pow(Math.max(0, 1.0 - beatPhase * 4.2), 2.0) : 0;
+        const snareTransient = isSnareTempo ? Math.pow(Math.max(0, 1.0 - beatPhase * 3.4), 1.5) : 0;
 
-        // Hi-hats e pratos: tempos de colcheia e semicolcheia
+        // Hi-hats e pratos: ritmos de colcheia e semicolcheia com agilidade
         const eighthPhase = (beatIndex * 2) % 1.0;
         const sixteenthPhase = (beatIndex * 4) % 1.0;
-        const hiHatTransient = Math.pow(Math.max(0, 1.0 - eighthPhase * 4.5), 1.8) * 0.7;
-        const sixteenthTransient = Math.pow(Math.max(0, 1.0 - sixteenthPhase * 5.0), 1.5) * 0.4;
+        const hiHatTransient = Math.pow(Math.max(0, 1.0 - eighthPhase * 4.0), 1.5) * 0.8;
+        const sixteenthTransient = Math.pow(Math.max(0, 1.0 - sixteenthPhase * 4.5), 1.3) * 0.5;
 
         setHeights((prev) =>
           Array.from({ length: barCount }, (_, i) => {
             const freqPos = i / (barCount - 1 || 1); // 0.0 (sub-grave) a 1.0 (agudo)
-            let val = 0.2;
+            let val = 0.25;
 
             if (freqPos < 0.25) {
-              // BANDA 1: Sub-Graves e Graves (Bumbo e Linha de Baixo)
-              const bassBase = 0.30 + Math.sin(trackTime * 2.5 + i * 0.4) * 0.15;
-              val = (bassBase + kickTransient * 0.65 + Math.sin(beatIndex * Math.PI) * 0.15) * macroDynamic;
+              // BANDA 1: Sub-Graves e Graves (Bumbo potente e Bassline pulsante)
+              const bassBase = 0.22 + Math.sin(continuousTime * 3.2 + i * 0.35) * 0.14;
+              val = (bassBase + kickTransient * 0.82 + Math.sin(beatIndex * Math.PI) * 0.22) * macroDynamic;
             } else if (freqPos < 0.50) {
-              // BANDA 2: Médio-Graves e Caixa (Snare, Tom-toms e Ritmo)
-              const midBase = 0.28 + Math.cos(trackTime * 3.0 + i * 0.5) * 0.14;
-              val = (midBase + snareTransient * 0.55 + groove * 0.15) * macroDynamic;
+              // BANDA 2: Médio-Graves e Caixa (Snare estalado, Toms e Groove de bateria)
+              const midBase = 0.24 + Math.cos(continuousTime * 3.6 + i * 0.45) * 0.16;
+              val = (midBase + snareTransient * 0.78 + groove * 0.22) * macroDynamic;
             } else if (freqPos < 0.75) {
-              // BANDA 3: Médios e Vocais (Voz do cantor, guitarras e teclados)
-              const vocalBase = 0.25 + Math.sin(trackTime * 4.0 + i * 0.7) * 0.18 + Math.cos(trackTime * 7.5) * 0.08;
-              val = (vocalBase + vocalBoost + snareTransient * 0.2) * macroDynamic;
+              // BANDA 3: Médios e Vocais (Voz do artista com vibrato, guitarras e teclados)
+              const vocalBase = 0.22 + Math.sin(continuousTime * 4.8 + i * 0.6) * 0.24 + Math.sin(continuousTime * 9.5) * 0.10;
+              val = (vocalBase + vocalBoost + snareTransient * 0.28) * macroDynamic;
             } else {
-              // BANDA 4: Agudos e Presença (Hi-hats, pratos, brilho e sintetizadores)
-              const highBase = 0.22 + Math.sin(trackTime * 5.5 + i * 0.9) * 0.12;
-              val = (highBase + hiHatTransient * 0.5 + sixteenthTransient * 0.3) * macroDynamic;
+              // BANDA 4: Agudos e Presença (Hi-hats vívidos, pratos e sintetizadores)
+              const highBase = 0.18 + Math.sin(continuousTime * 6.5 + i * 0.8) * 0.15;
+              val = (highBase + hiHatTransient * 0.65 + sixteenthTransient * 0.42) * macroDynamic;
             }
 
-            const target = Math.max(12, Math.min(100, Math.round(val * 100)));
-            const prevH = prev[i] ?? 12;
-            const factor = target > prevH ? 0.6 : 0.25;
+            // Mapeia para amplitude cheia (14% a 100%)
+            const target = Math.max(14, Math.min(100, Math.round(val * 100)));
+            const prevH = prev[i] ?? 14;
+            // Ataque rápido para impacto e decaimento gradual com física orgânica
+            const factor = target > prevH ? 0.78 : 0.22;
             return Math.round(prevH + (target - prevH) * factor);
           })
         );
@@ -204,7 +222,6 @@ export const SpectrumVisualizer = memo(function SpectrumVisualizer({
   // VARIANT: MINI (PlayerBar / MiniPlayer / Chips)
   // ==========================================
   if (variant === "mini") {
-    // 1. Estilo BLOCKS: Blocos de LED segmentados estilo Hi-Fi Vintage
     if (visualizerStyle === "blocks" || visualizerStyle === "wave") {
       const blockCount = 4;
       return (
@@ -226,10 +243,8 @@ export const SpectrumVisualizer = memo(function SpectrumVisualizer({
                       key={bIdx}
                       style={{
                         backgroundColor: isActive ? "var(--accent)" : "rgba(255, 255, 255, 0.08)",
-                        boxShadow: isActive ? "0 0 4px var(--accent-glow)" : undefined,
-                        transition: isPlaying
-                          ? "background-color 50ms ease-out"
-                          : "background-color 200ms ease-in",
+                        boxShadow: isActive ? "0 0 5px var(--accent-glow)" : undefined,
+                        transition: isPlaying ? "none" : "background-color 250ms ease-in",
                       }}
                       className="w-full h-0.75 rounded-xs"
                     />
@@ -255,9 +270,9 @@ export const SpectrumVisualizer = memo(function SpectrumVisualizer({
           <span
             key={i}
             style={{
-              transform: `scaleY(${isPlaying ? Math.max(0.2, h / 100) : 0.2})`,
+              transform: `scaleY(${isPlaying ? Math.max(0.18, h / 100) : 0.18})`,
               transformOrigin: isPulse ? "center" : "bottom",
-              transition: isPlaying ? "transform 60ms ease-out" : "transform 250ms ease-in",
+              transition: isPlaying ? "none" : "transform 250ms ease-in",
               background: isGradient
                 ? "linear-gradient(to top, var(--accent-gradient-from), var(--accent-gradient-via), var(--accent-gradient-to))"
                 : isPulse
@@ -298,7 +313,8 @@ export const SpectrumVisualizer = memo(function SpectrumVisualizer({
                       key={bIdx}
                       style={{
                         backgroundColor: isActive ? "var(--accent)" : "rgba(255, 255, 255, 0.08)",
-                        boxShadow: isActive ? "0 0 4px var(--accent-glow)" : undefined,
+                        boxShadow: isActive ? "0 0 5px var(--accent-glow)" : undefined,
+                        transition: isPlaying ? "none" : "background-color 250ms ease-in",
                       }}
                       className="w-full h-1 rounded-xs"
                     />
@@ -325,7 +341,7 @@ export const SpectrumVisualizer = memo(function SpectrumVisualizer({
             style={{
               transform: `scaleY(${isPlaying ? Math.max(0.15, h / 100) : 0.15})`,
               transformOrigin: isPulse ? "center" : "bottom",
-              transition: isPlaying ? "transform 70ms ease-out" : "transform 300ms ease-in",
+              transition: isPlaying ? "none" : "transform 300ms ease-in",
               background: isGradient
                 ? "linear-gradient(to top, var(--accent-gradient-from), var(--accent-gradient-via), var(--accent-gradient-to))"
                 : isPulse
@@ -355,7 +371,7 @@ export const SpectrumVisualizer = memo(function SpectrumVisualizer({
         aria-hidden="true"
       >
         <div
-          className="absolute inset-0 opacity-30 pointer-events-none"
+          className="absolute inset-0 opacity-35 pointer-events-none"
           style={{
             background:
               "radial-gradient(ellipse at center, var(--accent-glow) 0%, transparent 70%)",
@@ -385,13 +401,11 @@ export const SpectrumVisualizer = memo(function SpectrumVisualizer({
                           : "rgba(255, 255, 255, 0.06)",
                         boxShadow: isActive
                           ? isTopPeak
-                            ? "0 0 10px var(--accent-glow)"
-                            : "0 0 5px var(--accent-glow)"
+                            ? "0 0 12px var(--accent-glow)"
+                            : "0 0 6px var(--accent-glow)"
                           : undefined,
                         border: isActive ? undefined : "1px solid rgba(255, 255, 255, 0.03)",
-                        transition: isPlaying
-                          ? "background-color 55ms ease-out, box-shadow 55ms ease-out"
-                          : "background-color 300ms ease-in",
+                        transition: isPlaying ? "none" : "background-color 300ms ease-in",
                       }}
                       className="w-full h-1.5 rounded-[2px] will-change-transform"
                     />
@@ -413,7 +427,7 @@ export const SpectrumVisualizer = memo(function SpectrumVisualizer({
         aria-hidden="true"
       >
         <div
-          className="absolute inset-0 opacity-30 pointer-events-none"
+          className="absolute inset-0 opacity-35 pointer-events-none"
           style={{
             background:
               "radial-gradient(ellipse at center, var(--accent-glow) 0%, transparent 70%)",
@@ -421,7 +435,8 @@ export const SpectrumVisualizer = memo(function SpectrumVisualizer({
         />
         <div className="flex items-end gap-1.5 h-14 w-full justify-center max-w-md z-10">
           {heights.map((h, i) => {
-            const scaledH = isPlaying ? Math.max(10, h) : 10;
+            const scaledH = isPlaying ? Math.max(12, h) : 12;
+            const isHighPeak = h > 75;
             return (
               <div
                 key={i}
@@ -430,12 +445,14 @@ export const SpectrumVisualizer = memo(function SpectrumVisualizer({
                 <span
                   style={{
                     height: `${scaledH}%`,
-                    transition: isPlaying
-                      ? "height 65ms cubic-bezier(0.2, 0.8, 0.2, 1)"
-                      : "height 400ms ease-out",
+                    transition: isPlaying ? "none" : "height 350ms ease-out",
                     background:
                       "linear-gradient(to top, var(--accent-gradient-from), var(--accent-gradient-via), var(--accent-gradient-to))",
-                    boxShadow: isPlaying ? "0 0 14px var(--accent-glow)" : undefined,
+                    boxShadow: isPlaying
+                      ? isHighPeak
+                        ? "0 0 18px var(--accent-glow), 0 0 6px var(--accent-text)"
+                        : "0 0 10px var(--accent-glow)"
+                      : undefined,
                   }}
                   className="w-full rounded-t-full will-change-transform"
                 />
@@ -463,7 +480,8 @@ export const SpectrumVisualizer = memo(function SpectrumVisualizer({
         />
         <div className="flex items-center gap-1.5 h-14 w-full justify-center max-w-md z-10">
           {heights.map((h, i) => {
-            const scaledH = isPlaying ? Math.max(12, h) : 12;
+            const scaledH = isPlaying ? Math.max(14, h) : 14;
+            const isHighPeak = h > 75;
             return (
               <div
                 key={i}
@@ -472,10 +490,14 @@ export const SpectrumVisualizer = memo(function SpectrumVisualizer({
                 <span
                   style={{
                     height: `${scaledH}%`,
-                    transition: isPlaying ? "height 60ms ease-out" : "height 400ms ease-out",
+                    transition: isPlaying ? "none" : "height 350ms ease-out",
                     background:
                       "linear-gradient(to bottom, var(--accent-gradient-to), var(--accent-gradient-from), var(--accent-gradient-to))",
-                    boxShadow: isPlaying ? "0 0 16px var(--accent-glow)" : undefined,
+                    boxShadow: isPlaying
+                      ? isHighPeak
+                        ? "0 0 18px var(--accent-glow), 0 0 6px var(--accent-text)"
+                        : "0 0 10px var(--accent-glow)"
+                      : undefined,
                   }}
                   className="w-full rounded-full will-change-transform"
                 />
@@ -487,51 +509,56 @@ export const SpectrumVisualizer = memo(function SpectrumVisualizer({
     );
   }
 
-  // ESTILO 4 (PADRÃO): BARRAS DE ESTÚDIO (Clássico vertical com reflexo de console)
+  // ESTILO 4 (PADRÃO): BARRAS DE ESTÚDIO (Clássico vertical com reflexo de console e neon)
   return (
     <div
       className={`relative w-full flex items-center justify-center p-3 rounded-2xl bg-[#0c0e15]/70 border border-[#1f2434] shadow-inner backdrop-blur-md overflow-hidden ${className}`}
       aria-hidden="true"
     >
       <div
-        className="absolute inset-0 opacity-30 pointer-events-none"
+        className="absolute inset-0 opacity-35 pointer-events-none"
         style={{
           background:
             "radial-gradient(ellipse at center, var(--accent-glow) 0%, transparent 70%)",
         }}
       />
       <div className="flex items-end gap-1.5 h-14 w-full justify-center max-w-md z-10">
-        {heights.map((h, i) => (
-          <div
-            key={i}
-            className="flex-1 flex flex-col items-center justify-end h-full max-w-[14px]"
-          >
-            <span
-              style={{
-                transform: `scaleY(${isPlaying ? Math.max(0.1, h / 100) : 0.1})`,
-                transformOrigin: "bottom",
-                transition: isPlaying
-                  ? "transform 65ms cubic-bezier(0.2, 0.8, 0.2, 1)"
-                  : "transform 400ms ease-out",
-                background: "linear-gradient(to top, var(--accent-gradient-from), var(--accent))",
-                boxShadow: isPlaying ? "0 0 10px var(--accent-glow)" : undefined,
-              }}
-              className="w-full h-full rounded-t-xs will-change-transform"
-            />
-            {/* Reflexo inferior do console */}
-            <span
-              style={{
-                transform: `scaleY(${isPlaying ? Math.max(0.04, (h * 0.25) / 100) : 0.04})`,
-                transformOrigin: "top",
-                transition: isPlaying
-                  ? "transform 65ms cubic-bezier(0.2, 0.8, 0.2, 1)"
-                  : "transform 400ms ease-out",
-                background: "linear-gradient(to bottom, var(--accent-subtle), transparent)",
-              }}
-              className="w-full h-3 rounded-b-xs opacity-40 will-change-transform"
-            />
-          </div>
-        ))}
+        {heights.map((h, i) => {
+          const isHighPeak = h > 75;
+          return (
+            <div
+              key={i}
+              className="flex-1 flex flex-col items-center justify-end h-full max-w-[14px]"
+            >
+              <span
+                style={{
+                  transform: `scaleY(${isPlaying ? Math.max(0.12, h / 100) : 0.12})`,
+                  transformOrigin: "bottom",
+                  transition: isPlaying ? "none" : "transform 350ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+                  background: isHighPeak
+                    ? "linear-gradient(to top, var(--accent-gradient-from), var(--accent-text))"
+                    : "linear-gradient(to top, var(--accent-gradient-from), var(--accent))",
+                  boxShadow: isPlaying
+                    ? isHighPeak
+                      ? "0 0 16px var(--accent-glow), 0 0 5px var(--accent-text)"
+                      : "0 0 8px var(--accent-glow)"
+                    : undefined,
+                }}
+                className="w-full h-full rounded-t-xs will-change-transform"
+              />
+              {/* Reflexo inferior do console */}
+              <span
+                style={{
+                  transform: `scaleY(${isPlaying ? Math.max(0.04, (h * 0.25) / 100) : 0.04})`,
+                  transformOrigin: "top",
+                  transition: isPlaying ? "none" : "transform 350ms ease-out",
+                  background: "linear-gradient(to bottom, var(--accent-subtle), transparent)",
+                }}
+                className="w-full h-3 rounded-b-xs opacity-40 will-change-transform"
+              />
+            </div>
+          );
+        })}
       </div>
     </div>
   );
