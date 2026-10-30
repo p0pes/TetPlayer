@@ -20,17 +20,51 @@ Todos os **15 novos apontamentos técnicos (#92 a #106)** foram integralmente so
 
 | Severidade | Pendentes Ativos | Resolvidos no Histórico | Status da Build & Testes |
 | :--- | :---: | :---: | :--- |
-| 🔴 **Críticos** | `0` | **108 Resolvidos** | ✅ `tsc && vite build` (0 erros) |
-| 🟡 **Avisos** | `0` | **108 Resolvidos** | ✅ `vitest` (83/83 testes passando) |
-| 🔵 **Sugestões** | `0` | **108 Resolvidos** | ✅ `cargo test` (14/14 testes passando) |
-| **Total Geral** | **`0 Pendentes`** | **`108 Itens Resolvidos`** | 🟢 **100% dos Itens Catalogados Resolvidos** |
+| 🔴 **Críticos** | `0` | **110 Resolvidos** | ✅ `tsc && vite build` (0 erros) |
+| 🟡 **Avisos** | `2` | **110 Resolvidos** | ✅ `vitest` (103/103 testes passando) |
+| 🔵 **Sugestões** | `1` | **110 Resolvidos** | ✅ `cargo test` (14/14 testes passando) |
+| **Total Geral** | **`3 Pendentes`** | **`110 Itens Resolvidos`** | 🟡 **3 Apontamentos Identificados em Auditoria** |
 
 ---
 
 ## 2. Apontamentos Ativos Catalogados (Pendentes de Correção)
 
-> [!NOTE]
-> Não há apontamentos pendentes no momento. Todos os **108 itens auditados** foram integralmente diagnosticados, corrigidos, testados e validados nas suítes de testes unitários e de integração.
+### 111. Falha de Inicialização em Cold Start: IFrame `onReady` Não Executa Faixa Pendente Selecionada Antes da Conclusão do Handshake
+* **Severidade:** `[Aviso]` (Race condition durante inicialização rápida da aplicação)
+* **Localização:** [`desktop/src/hooks/useYouTubePlayer.ts:286`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useYouTubePlayer.ts#L286)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  Ao abrir a aplicação e clicar imediatamente em uma música (ou ao restaurar sessão ativa com reprodução automática), o script `https://www.youtube.com/iframe_api` ainda pode estar em fase de download ou execução assíncrona. Quando a chamada `loadAndPlayVideo` é disparada, ela define `currentVideoIdRef.current` e tenta chamar o IFrame. Como `isPlayerReady` ainda é falso e o objeto `ytPlayerRef.current` não está pronto, a chamada cai em um fallback com timeout estático. Quando o evento `onReady` da API finalmente dispara no IFrame, ele apenas registra `setIsPlayerReady(true)` e ajusta o volume, mas **nunca dispara a reprodução da faixa pendente** que já estava selecionada em `currentVideoIdRef.current`. O usuário vê a capa e o título na barra, mas o áudio não inicializa.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  No callback de evento `onReady`, verificar se `currentVideoIdRef.current` possui um ID válido e `isPlayingRef.current` é verdadeiro; em caso afirmativo, invocar imediatamente `playIframeVideo(currentVideoIdRef.current, currentTimeRef.current)`.
+  ```ts
+  onReady: () => {
+    setIsPlayerReady(true);
+    // ... ajuste de volume ...
+    if (currentVideoIdRef.current && isPlayingRef.current) {
+      playIframeVideo(currentVideoIdRef.current, currentTimeRef.current);
+    }
+  }
+  ```
+
+---
+
+### 112. Feedback de Carregamento Prematuro: `loadingTrackId` Limpo Antes do Buffer Efetivo no IFrame Fallback
+* **Severidade:** `[Sugestão / UX]` (Inconsistência visual de feedback de estado)
+* **Localização:** [`desktop/src/hooks/useYouTubePlayer.ts:367`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useYouTubePlayer.ts#L367)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  Em `playIframeVideo`, a chamada `setLoadingTrackId(null)` está sendo executada sincronamente no mesmo instante em que `loadVideoById` é disparado. No entanto, o player IFrame do YouTube leva tipicamente entre 200ms e 600ms para baixar os fragmentos de áudio e transicionar para o estado 1 (`PLAYING`). Limpar o indicador de carregamento imediatamente faz com que o spinner de buffering desapareça da UI instantaneamente, deixando a interface em um estado aparentemente "morto" ou inerte até que o som comece a tocar. O estado de carregamento deve permanecer ativo até que a mídia realmente emita o evento `PLAYING` ou `onError`.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  Remover a chamada síncrona `setLoadingTrackId(null)` de dentro de `playIframeVideo` (linhas 367 e 388), delegando a limpeza de `loadingTrackId` exclusivamente para o evento `onStateChange` quando `event.data === 1` (PLAYING) ou `onError`.
+
+---
+
+### 113. Retry de Inicialização Frágil no Player IFrame (Timeout Único de 500ms com Perda Silenciosa de Playback)
+* **Severidade:** `[Aviso]` (Falha de resiliência em conexões instáveis)
+* **Localização:** [`desktop/src/hooks/useYouTubePlayer.ts:369`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useYouTubePlayer.ts#L369)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  Caso o IFrame do YouTube não esteja pronto no momento da chamada de `playIframeVideo`, o código agenda uma única tentativa via `setTimeout(..., 500)`. Se por oscilação de rede ou lentidão na carga do webview o script levar mais de 500ms para instanciar o player, essa segunda tentativa falha silenciosamente, nenhum retry subsequente é agendado e a promessa de reprodução é descartada sem emitir erro na UI ou avançar na fila.
+* **Diretriz de Correção (Instrução ao Desenvolvedor):**
+  Implementar um mecanismo de retry com backoff ou verificação intervalada delimitada (ex: polling a cada 100ms por até 3 segundos) ou armazenar a intenção pendente de reprodução em uma referência (`pendingPlayRef`) que é processada assim que `onReady` for emitido.
 
 ---
 ## 3. Histórico Consolidado e Ordenado de Itens Resolvidos (#01 a #108)
