@@ -560,44 +560,10 @@ pub async fn get_playlist_tracks_with_limit(
     Ok(tracks)
 }
 
-/// Obtém informações e stream direto de áudio nativo para reprodução de alta fidelidade sem stutter (Item 1.1)
-pub async fn get_stream_info(session: &AuthSession, video_id: &str) -> Result<Option<StreamInfo>, String> {
-    let client = &HTTP_CLIENT;
-    let url = "https://music.youtube.com/youtubei/v1/player?prettyPrint=false";
-    let headers = build_headers(session, "WEB_REMIX");
-
-    let payload = json!({
-        "context": {
-            "client": {
-                "clientName": "WEB_REMIX",
-                "clientVersion": "1.20240401.01.00",
-                "hl": "pt",
-                "gl": "BR"
-            }
-        },
-        "videoId": video_id
-    });
-
-    let resp = match client.post(url).headers(headers).json(&payload).send().await {
-        Ok(r) => r,
-        Err(e) => {
-            eprintln!("[get_stream_info] Erro na requisição do player: {e}");
-            return Ok(None);
-        }
-    };
-
-    if !resp.status().is_success() {
-        return Ok(None);
-    }
-
-    let json_val: Value = match resp.json().await {
-        Ok(v) => v,
-        Err(_) => return Ok(None),
-    };
-
+fn extract_stream_info_from_player_json(json_val: &Value, video_id: &str) -> Option<StreamInfo> {
     let status = json_val["playabilityStatus"]["status"].as_str().unwrap_or("");
     if status != "OK" {
-        return Ok(None);
+        return None;
     }
 
     let video_details = &json_val["videoDetails"];
@@ -610,10 +576,7 @@ pub async fn get_stream_info(session: &AuthSession, video_id: &str) -> Result<Op
         .and_then(|t| t["url"].as_str())
         .map(|u| upgrade_artwork_url(u));
 
-    let formats = match json_val["streamingData"]["adaptiveFormats"].as_array() {
-        Some(f) => f,
-        None => return Ok(None),
-    };
+    let formats = json_val["streamingData"]["adaptiveFormats"].as_array()?;
 
     // Filtra apenas formatos de áudio com stream direto (campo "url" presente sem necessidade de cipher)
     let mut audio_formats: Vec<&Value> = formats
@@ -625,8 +588,7 @@ pub async fn get_stream_info(session: &AuthSession, video_id: &str) -> Result<Op
         .collect();
 
     if audio_formats.is_empty() {
-        // Sem URL direta desprotegida: aciona fallback transparente para IFrame
-        return Ok(None);
+        return None;
     }
 
     // Ordena por qualidade de áudio: itag 251 (Opus ~160kbps), itag 140 (AAC 128kbps), maior bitrate
@@ -643,11 +605,7 @@ pub async fn get_stream_info(session: &AuthSession, video_id: &str) -> Result<Op
     });
 
     let best = audio_formats[0];
-    let stream_url = match best["url"].as_str() {
-        Some(u) => u.to_string(),
-        None => return Ok(None),
-    };
-
+    let stream_url = best["url"].as_str()?.to_string();
     let mime_type = best["mimeType"].as_str().map(|s| s.to_string());
     let bitrate = best["bitrate"].as_u64();
 
@@ -660,7 +618,7 @@ pub async fn get_stream_info(session: &AuthSession, video_id: &str) -> Result<Op
                 .and_then(|s| s.parse::<f64>().ok())
         });
 
-    Ok(Some(StreamInfo {
+    Some(StreamInfo {
         video_id: video_id.to_string(),
         title,
         artist,
@@ -670,7 +628,138 @@ pub async fn get_stream_info(session: &AuthSession, video_id: &str) -> Result<Op
         bitrate,
         mime_type,
         loudness_db,
-    }))
+    })
+}
+
+/// Obtém informações e stream direto de áudio nativo para reprodução de alta fidelidade sem stutter (Item 1.1)
+pub async fn get_stream_info(session: &AuthSession, video_id: &str) -> Result<Option<StreamInfo>, String> {
+    let client = &HTTP_CLIENT;
+
+    // Tentativa 1: WEB_REMIX com credenciais da sessão
+    let url_ytm = "https://music.youtube.com/youtubei/v1/player?prettyPrint=false";
+    let headers_ytm = build_headers(session, "WEB_REMIX");
+    let payload_ytm = json!({
+        "context": {
+            "client": {
+                "clientName": "WEB_REMIX",
+                "clientVersion": "1.20240401.01.00",
+                "hl": "pt",
+                "gl": "BR"
+            }
+        },
+        "videoId": video_id
+    });
+
+    if let Ok(resp) = client.post(url_ytm).headers(headers_ytm).json(&payload_ytm).send().await {
+        if resp.status().is_success() {
+            if let Ok(v) = resp.json::<Value>().await {
+                if let Some(info) = extract_stream_info_from_player_json(&v, video_id) {
+                    return Ok(Some(info));
+                }
+            }
+        }
+    }
+
+    // Tentativa 2: Cliente IOS (extrai streams diretos de áudio do googlevideo sem cipher/assinatura)
+    let url_ios = "https://www.youtube.com/youtubei/v1/player?prettyPrint=false";
+    let mut headers_ios = reqwest::header::HeaderMap::new();
+    headers_ios.insert(
+        reqwest::header::CONTENT_TYPE,
+        reqwest::header::HeaderValue::from_static("application/json"),
+    );
+    headers_ios.insert(
+        reqwest::header::USER_AGENT,
+        reqwest::header::HeaderValue::from_static("com.google.ios.youtube/20.03.2 (iPhone16,2; U; CPU iOS 18_3 like Mac OS X;)"),
+    );
+    headers_ios.insert(
+        reqwest::header::HeaderName::from_static("x-youtube-client-name"),
+        reqwest::header::HeaderValue::from_static("5"),
+    );
+    headers_ios.insert(
+        reqwest::header::HeaderName::from_static("x-youtube-client-version"),
+        reqwest::header::HeaderValue::from_static("20.03.2"),
+    );
+    headers_ios.insert(
+        reqwest::header::ORIGIN,
+        reqwest::header::HeaderValue::from_static("https://www.youtube.com"),
+    );
+
+    let payload_ios = json!({
+        "context": {
+            "client": {
+                "clientName": "IOS",
+                "clientVersion": "20.03.2",
+                "deviceMake": "Apple",
+                "deviceModel": "iPhone16,2",
+                "osName": "iOS",
+                "osVersion": "18.3.0.22D63",
+                "hl": "pt",
+                "gl": "BR"
+            }
+        },
+        "videoId": video_id
+    });
+
+    if let Ok(resp) = client.post(url_ios).headers(headers_ios).json(&payload_ios).send().await {
+        if resp.status().is_success() {
+            if let Ok(v) = resp.json::<Value>().await {
+                if let Some(info) = extract_stream_info_from_player_json(&v, video_id) {
+                    return Ok(Some(info));
+                }
+            }
+        }
+    }
+
+    // Tentativa 3: Cliente ANDROID_VR (segundo fallback direto)
+    let mut headers_vr = reqwest::header::HeaderMap::new();
+    headers_vr.insert(
+        reqwest::header::CONTENT_TYPE,
+        reqwest::header::HeaderValue::from_static("application/json"),
+    );
+    headers_vr.insert(
+        reqwest::header::USER_AGENT,
+        reqwest::header::HeaderValue::from_static("Dalvik/2.1.0 (Linux; U; Android 12; Quest 3 Build/SQ3A.220605.009.A1)"),
+    );
+    headers_vr.insert(
+        reqwest::header::HeaderName::from_static("x-youtube-client-name"),
+        reqwest::header::HeaderValue::from_static("28"),
+    );
+    headers_vr.insert(
+        reqwest::header::HeaderName::from_static("x-youtube-client-version"),
+        reqwest::header::HeaderValue::from_static("1.56.21"),
+    );
+    headers_vr.insert(
+        reqwest::header::ORIGIN,
+        reqwest::header::HeaderValue::from_static("https://www.youtube.com"),
+    );
+
+    let payload_vr = json!({
+        "context": {
+            "client": {
+                "clientName": "ANDROID_VR",
+                "clientVersion": "1.56.21",
+                "deviceMake": "Oculus",
+                "deviceModel": "Quest 3",
+                "osName": "Android",
+                "osVersion": "12",
+                "hl": "pt",
+                "gl": "BR"
+            }
+        },
+        "videoId": video_id
+    });
+
+    if let Ok(resp) = client.post(url_ios).headers(headers_vr).json(&payload_vr).send().await {
+        if resp.status().is_success() {
+            if let Ok(v) = resp.json::<Value>().await {
+                if let Some(info) = extract_stream_info_from_player_json(&v, video_id) {
+                    return Ok(Some(info));
+                }
+            }
+        }
+    }
+
+    Ok(None)
 }
 
 pub async fn get_radio_tracks(session: &AuthSession, video_id: &str) -> Result<Vec<Track>, String> {

@@ -9,3 +9,4 @@ describe("App Root Mounting", () => {
     expect(container.innerHTML).not.toBe("");
   });
 });
+

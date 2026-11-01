@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { PlaylistDetailView } from "../MainView/PlaylistDetailView";
 import { Playlist, Track } from "../../types";
+import { DownloadsService } from "../../services/downloads";
 
 vi.mock("../../context/PlayerContext", () => ({
   usePlayer: () => ({
@@ -198,6 +199,35 @@ describe("PlaylistDetailView (Busca e Ordenação - Item 2.2)", () => {
       );
 
       expect(screen.queryByRole("button", { name: /baixar playlist/i })).not.toBeInTheDocument();
+    });
+
+    it("deve exibir feedback visual e toast de confirmação ao concluir o download", async () => {
+      vi.spyOn(DownloadsService, "downloadPlaylist").mockResolvedValueOnce({
+        completed: 3,
+        failed: 0,
+      });
+
+      render(
+        <PlaylistDetailView
+          playlist={mockPlaylist}
+          tracks={mockTracks}
+          isLoadingTracks={false}
+          currentTrack={null}
+          isPlaying={false}
+          loadingTrackId={null}
+          onBack={vi.fn()}
+          onPlayPlaylist={vi.fn()}
+          onPlayTrack={vi.fn()}
+          scrollRef={{ current: null }}
+        />
+      );
+
+      const downloadBtn = screen.getByRole("button", { name: /baixar playlist/i });
+      fireEvent.click(downloadBtn);
+
+      expect(
+        await screen.findByText(/foram salvas para ouvir offline/i)
+      ).toBeInTheDocument();
     });
   });
 

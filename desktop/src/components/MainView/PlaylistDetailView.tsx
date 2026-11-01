@@ -13,6 +13,8 @@ import {
   ChevronDown,
   Check,
   Download,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 import { Playlist, Track } from "../../types";
 import { VirtualizedTrackList } from "./VirtualizedTrackList";
@@ -98,6 +100,58 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
     cancelDownload: handleCancelPlaylistDownload,
     removeDownloads: handleRemovePlaylistDownloads,
   } = usePlaylistDownload(playlist.id, tracks);
+
+  const [downloadFeedback, setDownloadFeedback] = useState<{
+    type: "success" | "error" | "info";
+    message: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!downloadFeedback) return;
+    const t = setTimeout(() => setDownloadFeedback(null), 5000);
+    return () => clearTimeout(t);
+  }, [downloadFeedback]);
+
+  const onStartDownloadWithFeedback = async () => {
+    try {
+      const res = await handleStartPlaylistDownload();
+      if (res) {
+        if (res.completed > 0 && res.failed === 0) {
+          setDownloadFeedback({
+            type: "success",
+            message: `Todas as ${res.completed} músicas de "${playlist.title}" foram salvas para ouvir offline!`,
+          });
+        } else if (res.completed > 0 && res.failed > 0) {
+          setDownloadFeedback({
+            type: "info",
+            message: `Download finalizado: ${res.completed} salvas com sucesso, ${res.failed} falharam.`,
+          });
+        } else if (res.failed > 0) {
+          setDownloadFeedback({
+            type: "error",
+            message: `Não foi possível baixar as músicas desta playlist. Verifique sua conexão.`,
+          });
+        }
+      }
+    } catch (err) {
+      setDownloadFeedback({
+        type: "error",
+        message: `Erro ao baixar: ${String(err)}`,
+      });
+    }
+  };
+
+  const onRemoveDownloadsWithFeedback = async () => {
+    try {
+      await handleRemovePlaylistDownloads();
+      setDownloadFeedback({
+        type: "info",
+        message: `Downloads offline de "${playlist.title}" removidos do disco.`,
+      });
+    } catch {
+      // ignore
+    }
+  };
 
   const [searchFilter, setSearchFilter] = useState("");
   const [sortBy, setSortBy] = useState<PlaylistSortOption>("original");
@@ -322,7 +376,7 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
                   </div>
                   <button
                     type="button"
-                    onClick={handleRemovePlaylistDownloads}
+                    onClick={onRemoveDownloadsWithFeedback}
                     title="Remover faixas baixadas desta playlist do disco"
                     aria-label="Remover downloads desta playlist"
                     className="p-2.5 bg-[#181c28] hover:bg-red-950/40 border border-[#272d40] hover:border-red-500/40 text-[#8c91a4] hover:text-red-400 rounded-xl transition-all cursor-pointer"
@@ -333,7 +387,7 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
               ) : (
                 <button
                   type="button"
-                  onClick={handleStartPlaylistDownload}
+                  onClick={onStartDownloadWithFeedback}
                   className="flex items-center gap-2 bg-[#181c28] hover:bg-[#202536] border border-[#272d40] hover:border-[var(--accent-border)] text-[#c4c8d8] hover:text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm group"
                   title={
                     downloadedCount > 0
@@ -520,6 +574,38 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
           />
         )}
       </div>
+
+      {/* Toast de Confirmação Visual de Download */}
+      {downloadFeedback && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={`fixed bottom-24 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-2xl border text-xs font-medium animate-fade-in ${
+            downloadFeedback.type === "success"
+              ? "bg-emerald-950/95 border-emerald-500/50 text-emerald-200 shadow-emerald-950/50"
+              : downloadFeedback.type === "error"
+              ? "bg-red-950/95 border-red-500/50 text-red-200 shadow-red-950/50"
+              : "bg-[#181c2b]/95 border-[#2b3248] text-[#c4c8d8]"
+          }`}
+        >
+          {downloadFeedback.type === "success" ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          ) : downloadFeedback.type === "error" ? (
+            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+          ) : (
+            <Download className="w-4 h-4 text-[var(--accent)] shrink-0" />
+          )}
+          <span>{downloadFeedback.message}</span>
+          <button
+            type="button"
+            onClick={() => setDownloadFeedback(null)}
+            className="ml-2 text-white/50 hover:text-white p-0.5 rounded cursor-pointer"
+            title="Fechar aviso"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 });

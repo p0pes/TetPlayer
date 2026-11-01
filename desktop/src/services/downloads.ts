@@ -543,8 +543,8 @@ export function usePlaylistDownload(playlistId?: string | null, tracks: Track[] 
   }, [playlistId, tracks]);
 
   const startDownload = useCallback(async () => {
-    if (!playlistId || tracks.length === 0) return;
-    await DownloadsService.downloadPlaylist(playlistId, tracks);
+    if (!playlistId || tracks.length === 0) return { completed: 0, failed: 0 };
+    return await DownloadsService.downloadPlaylist(playlistId, tracks);
   }, [playlistId, tracks]);
 
   const cancelDownload = useCallback(() => {
@@ -553,8 +553,8 @@ export function usePlaylistDownload(playlistId?: string | null, tracks: Track[] 
   }, [playlistId]);
 
   const removeDownloads = useCallback(async () => {
-    if (!tracks || tracks.length === 0) return;
-    await DownloadsService.removePlaylistDownloads(tracks, playlistId || undefined);
+    if (!tracks || tracks.length === 0) return 0;
+    return await DownloadsService.removePlaylistDownloads(tracks, playlistId || undefined);
   }, [tracks, playlistId]);
 
   return {
