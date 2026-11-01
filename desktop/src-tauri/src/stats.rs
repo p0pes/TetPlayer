@@ -39,6 +39,19 @@ pub struct PlaybackStats {
     pub recent_tracks: Vec<TrackStat>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DownloadedTrack {
+    pub video_id: String,
+    pub title: String,
+    pub artist: String,
+    pub artwork_url: Option<String>,
+    pub duration_seconds: Option<u64>,
+    pub file_path: String,
+    pub file_size_bytes: u64,
+    pub mime_type: String,
+    pub downloaded_at: i64,
+}
+
 /// Retorna o diretório unificado de armazenamento da aplicação na pasta de instalação (estilo jogos/programas tradicionais).
 /// Prioriza a pasta `data/` dentro do próprio diretório do executável instalado.
 /// Realiza migração automática de dados existentes em `%LOCALAPPDATA%` para que nada se perca em atualizações.
@@ -149,6 +162,28 @@ fn ensure_schema(conn: &Connection) -> Result<(), String> {
         [],
     )
     .map_err(|e| format!("Falha ao criar índice por updated_at no cache: {e}"))?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS downloads (
+            video_id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            artist TEXT NOT NULL,
+            artwork_url TEXT,
+            duration_seconds INTEGER,
+            file_path TEXT NOT NULL,
+            file_size_bytes INTEGER NOT NULL,
+            mime_type TEXT NOT NULL,
+            downloaded_at INTEGER NOT NULL
+        )",
+        [],
+    )
+    .map_err(|e| format!("Falha ao criar tabela downloads: {e}"))?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_downloads_time ON downloads (downloaded_at)",
+        [],
+    )
+    .map_err(|e| format!("Falha ao criar índice por data em downloads: {e}"))?;
 
     Ok(())
 }
@@ -427,6 +462,109 @@ pub fn clear_all_cache() -> Result<(), String> {
     Ok(())
 }
 
+pub fn save_download_record(record: &DownloadedTrack) -> Result<(), String> {
+    let conn = init_db()?;
+    conn.execute(
+        "INSERT OR REPLACE INTO downloads (
+            video_id, title, artist, artwork_url, duration_seconds, file_path, file_size_bytes, mime_type, downloaded_at
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        params![
+            record.video_id,
+            record.title,
+            record.artist,
+            record.artwork_url,
+            record.duration_seconds.map(|d| d as i64),
+            record.file_path,
+            record.file_size_bytes as i64,
+            record.mime_type,
+            record.downloaded_at,
+        ],
+    )
+    .map_err(|e| format!("Falha ao salvar registro de download no banco: {e}"))?;
+    Ok(())
+}
+
+pub fn get_all_downloads() -> Result<Vec<DownloadedTrack>, String> {
+    let conn = init_db()?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT video_id, title, artist, artwork_url, duration_seconds, file_path, file_size_bytes, mime_type, downloaded_at
+             FROM downloads ORDER BY downloaded_at DESC",
+        )
+        .map_err(|e| format!("Falha ao preparar consulta de downloads: {e}"))?;
+
+    let rows = stmt
+        .query_map([], |row| {
+            let duration_seconds: Option<i64> = row.get(4)?;
+            let file_size_bytes: i64 = row.get(6)?;
+            Ok(DownloadedTrack {
+                video_id: row.get(0)?,
+                title: row.get(1)?,
+                artist: row.get(2)?,
+                artwork_url: row.get(3)?,
+                duration_seconds: duration_seconds.map(|d| d.max(0) as u64),
+                file_path: row.get(5)?,
+                file_size_bytes: file_size_bytes.max(0) as u64,
+                mime_type: row.get(7)?,
+                downloaded_at: row.get(8)?,
+            })
+        })
+        .map_err(|e| format!("Falha ao mapear downloads: {e}"))?;
+
+    let mut result = Vec::new();
+    for r in rows {
+        if let Ok(item) = r {
+            result.push(item);
+        }
+    }
+    Ok(result)
+}
+
+pub fn get_download_by_id(video_id: &str) -> Result<Option<DownloadedTrack>, String> {
+    let conn = init_db()?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT video_id, title, artist, artwork_url, duration_seconds, file_path, file_size_bytes, mime_type, downloaded_at
+             FROM downloads WHERE video_id = ?1",
+        )
+        .map_err(|e| format!("Falha ao preparar consulta de download por id: {e}"))?;
+
+    let mut rows = stmt
+        .query_map(params![video_id], |row| {
+            let duration_seconds: Option<i64> = row.get(4)?;
+            let file_size_bytes: i64 = row.get(6)?;
+            Ok(DownloadedTrack {
+                video_id: row.get(0)?,
+                title: row.get(1)?,
+                artist: row.get(2)?,
+                artwork_url: row.get(3)?,
+                duration_seconds: duration_seconds.map(|d| d.max(0) as u64),
+                file_path: row.get(5)?,
+                file_size_bytes: file_size_bytes.max(0) as u64,
+                mime_type: row.get(7)?,
+                downloaded_at: row.get(8)?,
+            })
+        })
+        .map_err(|e| format!("Falha ao consultar download por id: {e}"))?;
+
+    if let Some(first) = rows.next() {
+        match first {
+            Ok(item) => Ok(Some(item)),
+            Err(e) => Err(format!("Erro ao ler registro de download: {e}")),
+        }
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn delete_download_record(video_id: &str) -> Result<bool, String> {
+    let conn = init_db()?;
+    let count = conn
+        .execute("DELETE FROM downloads WHERE video_id = ?1", params![video_id])
+        .map_err(|e| format!("Falha ao excluir download do banco: {e}"))?;
+    Ok(count > 0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -477,6 +615,37 @@ mod tests {
         );
 
         let _ = delete_cache_entry("tetplayer_google_session");
+    }
+
+    #[test]
+    fn test_downloads_crud_lifecycle() {
+        let sample = DownloadedTrack {
+            video_id: "test_vid_123".to_string(),
+            title: "Test Offline Title".to_string(),
+            artist: "Test Artist".to_string(),
+            artwork_url: Some("https://example.com/art.jpg".to_string()),
+            duration_seconds: Some(215),
+            file_path: "D:/music/test_vid_123.opus".to_string(),
+            file_size_bytes: 3500000,
+            mime_type: "audio/webm; codecs=opus".to_string(),
+            downloaded_at: 1700000000,
+        };
+
+        let save_res = save_download_record(&sample);
+        assert!(save_res.is_ok());
+
+        let fetched = get_download_by_id("test_vid_123").unwrap();
+        assert!(fetched.is_some());
+        let item = fetched.unwrap();
+        assert_eq!(item.title, "Test Offline Title");
+        assert_eq!(item.file_size_bytes, 3500000);
+
+        let all = get_all_downloads().unwrap();
+        assert!(all.iter().any(|d| d.video_id == "test_vid_123"));
+
+        let deleted = delete_download_record("test_vid_123").unwrap();
+        assert!(deleted);
+        assert!(get_download_by_id("test_vid_123").unwrap().is_none());
     }
 }
 

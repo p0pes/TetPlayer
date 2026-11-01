@@ -102,8 +102,13 @@ export function QueueView() {
                       <MoreVertical className="w-3.5 h-3.5" />
                     </button>
                     <button
+                      type="button"
                       title="Ouvir novamente"
                       aria-label={`Ouvir novamente: ${track.title}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePlayFromQueue(idx);
+                      }}
                       className="p-1 rounded-lg text-[#71778c] hover:text-white hover:bg-[#252b3d] transition-colors cursor-pointer"
                     >
                       <Play className="w-3 h-3 fill-current ml-0.5" />

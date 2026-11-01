@@ -9,8 +9,8 @@ vi.mock("@tauri-apps/api/core", () => ({
 describe("LikesService (Curtir / Descurtir Faixas)", () => {
   beforeEach(() => {
     localStorage.clear();
-    // Reset internal liked IDs
-    (LikesService as any).syncLikedTracks([]);
+    // Reset internal liked IDs via reconcile
+    LikesService.reconcileLikedTracks([]);
   });
 
   const mockTrack: Track = {
@@ -45,6 +45,29 @@ describe("LikesService (Curtir / Descurtir Faixas)", () => {
     expect(LikesService.isLiked("v3")).toBe(false);
   });
 
+  it("reconcilia lista completa de curtidas removendo faixas descurtidas externamente (Item 129)", () => {
+    const initialBatch: Track[] = [
+      { id: "v1", title: "T1", artist: "A1" },
+      { id: "v2", title: "T2", artist: "A2" },
+      { id: "v3", title: "T3", artist: "A3" },
+    ];
+    LikesService.syncLikedTracks(initialBatch);
+    expect(LikesService.isLiked("v1")).toBe(true);
+    expect(LikesService.isLiked("v2")).toBe(true);
+    expect(LikesService.isLiked("v3")).toBe(true);
+
+    // O usuário descurtiu 'v2' externamente; o servidor retorna apenas 'v1' e 'v3'
+    const updatedServerList: Track[] = [
+      { id: "v1", title: "T1", artist: "A1" },
+      { id: "v3", title: "T3", artist: "A3" },
+    ];
+    LikesService.reconcileLikedTracks(updatedServerList);
+
+    expect(LikesService.isLiked("v1")).toBe(true);
+    expect(LikesService.isLiked("v2")).toBe(false); // Removido na reconciliação!
+    expect(LikesService.isLiked("v3")).toBe(true);
+  });
+
   it("notifica assinantes quando o status de curtida muda", async () => {
     const listener = vi.fn();
     const unsub = LikesService.subscribe(listener);
@@ -55,4 +78,3 @@ describe("LikesService (Curtir / Descurtir Faixas)", () => {
     unsub();
   });
 });
-

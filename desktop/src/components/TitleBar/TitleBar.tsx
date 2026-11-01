@@ -10,6 +10,8 @@ import {
   ArrowDownToDot,
   WifiOff,
   Wifi,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { AuthSession, Playlist, Track, ActiveTab, NowPlayingTab, Album } from "../../types";
 import { useNetworkStatus } from "../../services/network";
@@ -25,6 +27,10 @@ interface TitleBarProps {
   isNowPlayingOpen: boolean;
   nowPlayingTab: NowPlayingTab;
   showLyrics: boolean;
+  canGoBack?: boolean;
+  canGoForward?: boolean;
+  onGoBack?: () => void;
+  onGoForward?: () => void;
 }
 
 export const TitleBar = React.memo(function TitleBar({
@@ -36,6 +42,10 @@ export const TitleBar = React.memo(function TitleBar({
   isNowPlayingOpen,
   nowPlayingTab,
   showLyrics,
+  canGoBack = false,
+  canGoForward = false,
+  onGoBack,
+  onGoForward,
 }: TitleBarProps) {
   const [isMaximized, setIsMaximized] = useState(false);
   const { isOnline, showRestoredNotice } = useNetworkStatus();
@@ -156,11 +166,47 @@ export const TitleBar = React.memo(function TitleBar({
         </span>
       </div>
 
-      {/* Centro: Breadcrumbs / Título da Visualização Ativa */}
-      <div data-tauri-drag-region className="flex-1 flex items-center px-4 h-full pointer-events-none min-w-0 overflow-hidden">
+      {/* Centro: Navegação Histórico + Breadcrumbs */}
+      <div data-tauri-drag-region className="flex-1 flex items-center px-3 h-full min-w-0 overflow-hidden gap-3">
+        {/* Setas Voltar / Avançar (Item 4.2 & 119) */}
+        <div data-no-drag data-tauri-drag-region="false" className="flex items-center gap-1 shrink-0 pointer-events-auto">
+          <button
+            type="button"
+            data-no-drag
+            data-tauri-drag-region="false"
+            onClick={onGoBack}
+            disabled={!canGoBack}
+            title="Voltar (Alt+← / Mouse 4)"
+            aria-label="Voltar para a tela anterior"
+            className={`p-1 rounded-md transition-all cursor-pointer ${
+              canGoBack
+                ? "text-[#8c91a4] hover:text-white hover:bg-white/10 active:scale-95"
+                : "text-[#8c91a4]/25 cursor-not-allowed"
+            }`}
+          >
+            <ChevronLeft className="w-4 h-4 pointer-events-none" />
+          </button>
+          <button
+            type="button"
+            data-no-drag
+            data-tauri-drag-region="false"
+            onClick={onGoForward}
+            disabled={!canGoForward}
+            title="Avançar (Alt+→ / Mouse 5)"
+            aria-label="Avançar para a próxima tela"
+            className={`p-1 rounded-md transition-all cursor-pointer ${
+              canGoForward
+                ? "text-[#8c91a4] hover:text-white hover:bg-white/10 active:scale-95"
+                : "text-[#8c91a4]/25 cursor-not-allowed"
+            }`}
+          >
+            <ChevronRight className="w-4 h-4 pointer-events-none" />
+          </button>
+        </div>
+
         <span
           key={breadcrumbText}
-          className="text-xs text-[#8c91a4] truncate animate-breadcrumb-fade inline-block"
+          className="text-xs text-[#8c91a4] truncate animate-breadcrumb-fade inline-block pointer-events-none"
         >
           {breadcrumbText}
         </span>

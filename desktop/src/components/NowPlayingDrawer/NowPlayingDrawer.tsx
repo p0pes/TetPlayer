@@ -3,12 +3,18 @@ import {
   ListMusic,
   Mic2,
   Sliders,
+  Heart,
+  Download,
+  Trash2,
+  Loader2,
 } from "lucide-react";
 import { usePlayer } from "../../context/PlayerContext";
 import { QueueView } from "../QueueView/QueueView";
 import { LyricsView } from "../LyricsView/LyricsView";
 import { SpectrumVisualizer } from "../Visualizer/SpectrumVisualizer";
 import { MotionCover } from "./MotionCover";
+import { useLikedTrack } from "../../services/likes";
+import { useTrackDownload } from "../../services/downloads";
 
 export function NowPlayingDrawer() {
   const {
@@ -21,6 +27,9 @@ export function NowPlayingDrawer() {
     isPlaying,
     isDrawerClosing,
   } = usePlayer();
+
+  const { isLiked, toggleLike } = useLikedTrack(currentTrack);
+  const { isDownloaded, isDownloading, toggleDownload } = useTrackDownload(currentTrack);
 
   const queueBtnRef = useRef<HTMLButtonElement>(null);
   const lyricsBtnRef = useRef<HTMLButtonElement>(null);
@@ -44,7 +53,7 @@ export function NowPlayingDrawer() {
     >
       {/* Header da Gaveta: Tabs (Fila / Letras), Crossfade */}
       <div className="h-14 px-3 sm:px-4 md:px-6 border-b border-[#1f232e] flex items-center justify-between gap-2 sm:gap-4 shrink-0 bg-[#0e1017]/80 backdrop-blur-md z-20">
-        {/* Esquerda: Identificador da faixa atual */}
+        {/* Esquerda: Identificador da faixa atual (Item 120: layout desobstruído) */}
         <div className="flex items-center gap-2 sm:gap-3 w-[28%] min-w-0 max-w-[260px]">
           <span className="text-[10px] font-bold text-[var(--accent-text)] uppercase tracking-wider bg-[var(--accent-subtle)] border border-[var(--accent-border)] px-2 py-0.5 rounded-md hidden xl:inline-block shrink-0">
             Reproduzindo Agora
@@ -208,7 +217,7 @@ export function NowPlayingDrawer() {
             )}
 
             {/* Badges de Qualidade e Crossfade */}
-            <div className="mt-3.5 flex items-center justify-center gap-2">
+            <div className="mt-3 flex items-center justify-center gap-2">
               <span className="text-[10px] font-mono uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-[#c4c8d8]">
                 {currentTrack?.duration || "Streaming HD"}
               </span>
@@ -218,6 +227,64 @@ export function NowPlayingDrawer() {
                 </span>
               )}
             </div>
+
+            {/* Ações da Faixa Atual (Curtir e Download Offline) — Ergonomia Premium (Item 120) */}
+            {currentTrack && (
+              <div className="mt-3.5 flex items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={toggleLike}
+                  title={isLiked ? "Remover dos favoritos (Descurtir)" : "Adicionar às Músicas Curtidas"}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                    isLiked
+                      ? "bg-[var(--accent-subtle)] border-[var(--accent-border)] text-[var(--accent-text)] shadow-sm shadow-[var(--accent-glow)]"
+                      : "bg-[#141722] border-[#232735] text-[#8c91a4] hover:text-white hover:bg-white/5"
+                  }`}
+                >
+                  <Heart
+                    className={`w-3.5 h-3.5 transition-transform ${
+                      isLiked ? "fill-current scale-105" : ""
+                    }`}
+                  />
+                  <span>{isLiked ? "Curtida" : "Curtir"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={toggleDownload}
+                  disabled={isDownloading}
+                  title={
+                    isDownloading
+                      ? "Baixando faixa para reprodução offline..."
+                      : isDownloaded
+                      ? "Disponível offline no disco (clique para remover)"
+                      : "Baixar música para ouvir offline"
+                  }
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                    isDownloaded
+                      ? "bg-emerald-950/70 border-emerald-500/40 text-emerald-300 hover:text-red-400 hover:border-red-500/40 shadow-sm"
+                      : isDownloading
+                      ? "bg-[var(--accent-subtle)] border-[var(--accent-border)] text-[var(--accent-text)] cursor-wait"
+                      : "bg-[#141722] border-[#232735] text-[#8c91a4] hover:text-white hover:bg-white/5"
+                  }`}
+                >
+                  {isDownloading ? (
+                    <Loader2 className="w-3.5 h-3.5 text-[var(--accent)] animate-spin" />
+                  ) : isDownloaded ? (
+                    <Trash2 className="w-3.5 h-3.5" />
+                  ) : (
+                    <Download className="w-3.5 h-3.5" />
+                  )}
+                  <span>
+                    {isDownloading
+                      ? "Baixando..."
+                      : isDownloaded
+                      ? "Baixada"
+                      : "Baixar"}
+                  </span>
+                </button>
+              </div>
+            )}
 
             {/* Visualizador de Espectro Dinâmico */}
             <div className="mt-4 w-full max-w-[280px] mx-auto">

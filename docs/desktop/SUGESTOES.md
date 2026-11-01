@@ -16,7 +16,7 @@
    - [Eixo 5: Curadoria, Biblioteca & Playlists Inteligentes](#eixo-5-curadoria-biblioteca--playlists-inteligentes)
    - [Eixo 6: Ecossistema, Integrações Sociais & Modo Offline](#eixo-6-ecossistema-integrações-sociais--modo-offline)
 4. [Matriz de Priorização (Impacto × Esforço) & Roadmap Visual](#4-matriz-de-priorização-impacto--esforço--roadmap-visual)
-5. [Histórico Consolidado: 58 Funcionalidades e Otimizações Concluídas](#5-histórico-consolidado-58-funcionalidades-e-otimizações-concluídas)
+5. [Histórico Consolidado: 61 Funcionalidades e Otimizações Concluídas](#5-histórico-consolidado-61-funcionalidades-e-otimizações-concluídas)
 
 ---
 
@@ -68,7 +68,7 @@ Para definir o que tornará o TetPlayer **inconfundível e superior** às altern
 ## 3. Catálogo de Sugestões Ativas em Destaque (Organizado por 6 Eixos Estratégicos)
 
 > [!NOTE]
-> Esta seção destaca **exclusivamente as 24 propostas ativas** que ainda precisam ser implementadas, com numeração sequencial saneada e categorizada por eixo técnico. Todas as funcionalidades já concluídas foram promovidas para a [Seção 5 (Histórico Consolidado)](#5-histórico-consolidado-58-funcionalidades-e-otimizações-concluídas).
+> Esta seção destaca **exclusivamente as 21 propostas ativas** que ainda precisam ser implementadas, com numeração sequencial saneada e categorizada por eixo técnico. Todas as funcionalidades já concluídas foram promovidas para a [Seção 5 (Histórico Consolidado)](#5-histórico-consolidado-61-funcionalidades-e-otimizações-concluídas).
 
 ---
 
@@ -188,7 +188,7 @@ Para definir o que tornará o TetPlayer **inconfundível e superior** às altern
 ---
 
 #### 4.2 Histórico de Navegação Voltar / Avançar (`Alt+←` / `Alt+→` e Botões Laterais do Mouse)
-* **Status:** `[Em Aberto]` 💡
+* **Status:** `[Implementado e Validado]` ✅
 * **Impacto:** `[Médio / Ergonomia Desktop]` | **Esforço:** `[Baixo]`
 * **Descrição Conceitual:**
   Manter uma pilha de histórico de rotas internas (`viewStack` em `App.tsx`) e escutar os botões físicos `MouseButton 4 (Back)` e `MouseButton 5 (Forward)`, além de `Alt + Seta Esquerda/Direita` e setas `<` `>` discretas no `TitleBar`, permitindo voltar instantaneamente de um Álbum para a Playlist ou Busca anterior.
@@ -216,7 +216,7 @@ Para definir o que tornará o TetPlayer **inconfundível e superior** às altern
 ### Eixo 5: Curadoria, Biblioteca & Playlists Inteligentes
 
 #### 5.1 Curtir / Descurtir Músicas Sincronizado com o YouTube Music (`like/like` & `like/removelike`)
-* **Status:** `[Em Aberto / Alta Prioridade]` 💡
+* **Status:** `[Implementado e Validado]` ✅
 * **Impacto:** `[Muito Alto]` | **Esforço:** `[Baixo / Médio]`
 * **Descrição Conceitual:**
   - Botão de coração (`Heart`) na `PlayerBar`, no `MiniPlayer`, em cada `TrackRow` (visível no hover ou quando curtida) e no `TrackContextMenu`.
@@ -266,7 +266,7 @@ Para definir o que tornará o TetPlayer **inconfundível e superior** às altern
 ---
 
 #### 6.2 Downloads para Reprodução Offline & Modo Híbrido Local (`.opus` / `.m4a` em `data/music/`)
-* **Status:** `[Em Aberto / Alto Impacto]` 💡
+* **Status:** `[Implementado e Validado]` ✅
 * **Impacto:** `[Muito Alto]` | **Esforço:** `[Alto]`
 * **Arquitetura Técnica:**
   - A pasta dedicada `data/music/` já é criada e gerenciada por [`stats.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/stats.rs)!
@@ -368,10 +368,10 @@ Para definir o que tornará o TetPlayer **inconfundível e superior** às altern
 
 ---
 
-## 5. Histórico Consolidado: 58 Funcionalidades e Otimizações Concluídas
+## 5. Histórico Consolidado: 61 Funcionalidades e Otimizações Concluídas
 
 > [!NOTE]
-> Todos os **58 itens** listados abaixo foram projetados, implementados, testados e validados no código-fonte do TetPlayer Desktop. Eles estão organizados cronologicamente e servem como registro arquitetural definitivo da evolução do projeto.
+> Todos os **61 itens** listados abaixo foram projetados, implementados, testados e validados no código-fonte do TetPlayer Desktop. Eles estão organizados cronologicamente e servem como registro arquitetural definitivo da evolução do projeto.
 
 ### Resumo Rápido por Marcos de Versão
 
@@ -385,7 +385,7 @@ Para definir o que tornará o TetPlayer **inconfundível e superior** às altern
 
 ---
 
-### Detalhamento Completo dos 58 Itens Concluídos
+### Detalhamento Completo dos 61 Itens Concluídos
 
 #### 1. Modularização de `App.tsx` em Componentes e Custom Hooks
 * **Status:** `[Implementado e Validado]` ✅
@@ -699,3 +699,29 @@ Para definir o que tornará o TetPlayer **inconfundível e superior** às altern
 * **Implementação Concluída:**
   - **Barra de Progresso Reta Clássica:** Linha do tempo reta, contínua e elegante na `PlayerBar`, eliminando segmentações visuais na barra e mantendo o tooltip dark glassmorphic no hover com **timestamp exato** e **estrofe correspondente da letra** via busca binária em $O(\log N)$.
   - **Sincronia Acústica do Visualizador de Espectro:** A onda de espectro exibida abaixo da capa do álbum na gaveta (`SpectrumVisualizer`) foi sincronizada diretamente com o áudio da música, integrando dados reais de FFT do Web Audio API (`AudioEngine.getSpectrumData()`) e síntese acústica com batida rítmica (bumbo, caixa e hi-hats), dinâmicas de compasso e modulação vocal via letras sincronizadas.
+
+
+#### 59. Histórico de Navegação Voltar / Avançar (`Alt+←` / `Alt+→`, Mouse 4/5 e Setas no TitleBar) (Item 4.2)
+* **Status:** `[Implementado e Validado]` ✅
+* **Localização:** [`desktop/src/App.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/App.tsx) e [`desktop/src/components/TitleBar/TitleBar.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/TitleBar/TitleBar.tsx).
+* **Implementação Concluída:**
+  - Pilha interna de histórico com gerenciamento de `historyStack` e `historyIndex` memorizando rotas, playlists, álbuns, artistas e termos de busca.
+  - Setas interativas no `TitleBar` com estados de desativação translúcidos e transições suaves.
+  - Atalhos físicos no teclado (`Alt + Seta Esquerda/Direita`) e suporte total aos botões laterais do mouse (botões 3 e 4 do hardware).
+
+#### 60. Curtir / Descurtir Músicas Sincronizado com o YouTube Music (`like_track` & `unlike_track`) (Item 5.1)
+* **Status:** `[Implementado e Validado]` ✅
+* **Localização:** [`desktop/src/services/likes.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/likes.ts), [`desktop/src-tauri/src/ytm.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/ytm.rs), [`desktop/src/components/Player/PlayerBar.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Player/PlayerBar.tsx), [`desktop/src/components/NowPlayingDrawer/NowPlayingDrawer.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/NowPlayingDrawer/NowPlayingDrawer.tsx), [`desktop/src/components/MainView/TrackRow.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/TrackRow.tsx) e [`desktop/src/components/ContextMenu/TrackContextMenu.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/ContextMenu/TrackContextMenu.tsx).
+* **Implementação Concluída:**
+  - Integração nativa com os endpoints autenticados do YouTube Music (`like/like` e `like/removelike`).
+  - Atualização otimista de 0ms na UI sincronizada via serviço global e eventos em tempo real.
+  - Botão de coração acessível em todos os pontos da aplicação (PlayerBar, NowPlayingDrawer, TrackRow e Menu de Contexto).
+
+#### 61. Downloads para Reprodução Offline & Modo Híbrido Local (`data/music/` com SQLite e Blob Stream Instantâneo) (Item 6.2)
+* **Status:** `[Implementado e Validado]` ✅
+* **Localização:** [`desktop/src-tauri/src/stats.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/stats.rs), [`desktop/src-tauri/src/lib.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/lib.rs), [`desktop/src/services/downloads.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/downloads.ts), [`desktop/src/hooks/useYouTubePlayer.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useYouTubePlayer.ts), [`desktop/src/components/Sidebar/Sidebar.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Sidebar/Sidebar.tsx) e [`desktop/src/components/MainView/TrackRow.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/TrackRow.tsx).
+* **Implementação Concluída:**
+  - Tabela `downloads` criada no SQLite gerenciando metadados, tamanhos e caminhos em `data/music/`.
+  - Backend Rust realizando streaming e gravação direta dos arquivos de áudio (`.opus` / `.m4a`) com feedback de progresso e comandos IPC rápidos.
+  - `useYouTubePlayer` com verificação primária offline: se a música estiver no disco, ela toca instantaneamente através de Blob URL em ~5ms sem consumir rede.
+  - Coleção "Músicas Baixadas" na barra lateral e biblioteca, crachá visual de download concluído nas faixas e botões de baixar/remover em todos os menus.

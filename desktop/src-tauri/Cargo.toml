@@ -1,6 +1,6 @@
 [package]
 name = "desktop"
-version = "2.0.2"
+version = "2.1.0"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2024"
@@ -28,7 +28,12 @@ rusqlite = { version = "0.33", features = ["bundled"] }
 base64 = "0.22"
 sha1 = "0.10"
 hex = "0.4"
-windows-sys = { version = "0.59", features = ["Win32_UI_Input_KeyboardAndMouse"] }
+windows-sys = { version = "0.59", features = [
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_Graphics_Dwm",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Foundation"
+] }
 flate2 = "1.0"
 tauri-plugin-global-shortcut = "2.4.1"
 tauri-plugin-single-instance = "2.5.4"

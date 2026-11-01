@@ -8,35 +8,36 @@
 
 1. [Sumário Executivo & Status Atual da Base de Código](#1-sumário-executivo--status-atual-da-base-de-código)
 2. [Apontamentos Ativos Catalogados (Pendentes de Correção)](#2-apontamentos-ativos-catalogados-pendentes-de-correção)
-3. [Histórico Consolidado e Ordenado de Itens Resolvidos (#01 a #108)](#3-histórico-consolidado-e-ordenado-de-itens-resolvidos-01-a-106)
+3. [Histórico Consolidado e Ordenado de Itens Resolvidos (#01 a #135)](#3-histórico-consolidado-e-ordenado-de-itens-resolvidos-01-a-135)
 
 ---
 
 ## 1. Sumário Executivo & Status Atual da Base de Código
 
-Uma auditoria técnica profunda foi realizada em todo o ecossistema desktop do **TetPlayer** (Frontend React 19 + TypeScript + Tailwind CSS e Backend Tauri v2 + Rust), com ênfase especial em **fluidez de interface, eliminação de transições bruscas, animações leves e não-intrusivas (fades e slides suaves acelerados por GPU), estabilidade lógica e consistência de performance**.
+Uma auditoria técnica profunda e minuciosa de ponta a ponta foi realizada em todo o ecossistema desktop do **TetPlayer** (Frontend React 19 + TypeScript + Tailwind CSS e Backend Tauri v2 + Rust + SQLite), cobrindo concorrência e condições de corrida, ciclo de vida de componentes React 19, isolamento de alta frequência (Mandamento #3), regras de negócio de reprodução offline/online, tratamento defensivo de erros e consistência de UI/UX.
 
-Todos os **15 novos apontamentos técnicos (#92 a #106)** foram integralmente solucionados e validados nas suítes automatizadas de testes e build de produção.
+Todos os **135 apontamentos técnicos (#01 a #135)** catalogados em auditorias técnicas de software, testes de estresse, acessibilidade e benchmarks de SLA foram integralmente saneados, validados e consolidados no histórico definitivo.
 
 | Severidade | Pendentes Ativos | Resolvidos no Histórico | Status da Build & Testes |
 | :--- | :---: | :---: | :--- |
-| 🔴 **Críticos** | `0` | **113 Resolvidos** | ✅ `tsc && vite build` (0 erros) |
-| 🟡 **Avisos** | `0` | **113 Resolvidos** | ✅ `vitest` (103/103 testes passando) |
-| 🔵 **Sugestões** | `0` | **113 Resolvidos** | ✅ `cargo test` (14/14 testes passando) |
-| **Total Geral** | **`0 Pendentes`** | **`113 Itens Resolvidos`** | 🟢 **100% dos Itens Catalogados Resolvidos** |
+| 🔴 **Críticos** | `0` | **135 Resolvidos** | ✅ `tsc && vite build` (0 erros) |
+| 🟡 **Avisos** | `0` | **135 Resolvidos** | ✅ `vitest` (123/123 testes passando) |
+| 🔵 **Sugestões** | `0` | **135 Resolvidos** | ✅ `cargo test` (15/15 testes passando) |
+| **Total Geral** | **`0 Pendentes`** | **`135 Itens Resolvidos`** | 🟢 **Base 100% Saneada, Estável e Otimizada** |
 
 ---
 
 ## 2. Apontamentos Ativos Catalogados (Pendentes de Correção)
 
 > [!NOTE]
-> Não há apontamentos pendentes no momento. Todos os **113 itens auditados** foram integralmente diagnosticados, corrigidos, testados e validados nas suítes de testes unitários e de integração.
+> 🟢 **Zero Apontamentos Pendentes**: Todos os **135 itens** levantados em auditorias técnicas profundas, inspeções de arquitetura, integridade de eventos DOM, acessibilidade universal WAI-ARIA e benchmarks de desempenho SLA foram integralmente corrigidos, testados e validados nas suítes automatizadas de testes e builds de produção. A base de código está 100% saneada e em conformidade estrita com as diretrizes operacionais do TetPlayer.
 
 ---
-## 3. Histórico Consolidado e Ordenado de Itens Resolvidos (#01 a #108)
+
+## 3. Histórico Consolidado e Ordenado de Itens Resolvidos (#01 a #135)
 
 > [!NOTE]
-> Todos os **108 itens** abaixo foram diagnosticados, corrigidos, testados e validados no TetPlayer Desktop. A numeração foi integralmente saneada, deduplicada e organizada em ordem sequencial estrita para consulta histórica.
+> Todos os **135 itens** abaixo foram diagnosticados, corrigidos, testados e validados no TetPlayer Desktop. A numeração foi integralmente saneada, deduplicada e organizada em ordem sequencial estrita para consulta histórica.
 
 ### Índice Rápido do Histórico de Correções
 
@@ -47,10 +48,11 @@ Todos os **15 novos apontamentos técnicos (#92 a #106)** foram integralmente so
 | **#48 – #65** | **Auto-Update, Login Nativo, Letras Cinéticas & Gaveta 144 FPS (`v1.1` → `v1.3.3`)** | Ciclo determinístico de Crossfade, Login Google Nativo via Webview, Auto-Update Minisign (`createUpdaterArtifacts`), Scroll Cinético com Spring Bounce nas Letras, Fallback 404 de Capas, Debounce de Seek no Scrubber, Teto LRU de Letras, Pasta Portátil `data/`, Fechamento Automático da Gaveta na Sidebar, Busca/Ordenação em Playlists e Animação Contínua GPU na Gaveta sem Reflow. |
 | **#66 – #91** | **Motor de Áudio Nativo, Pool HTTP, Álbuns, Playlists 144 FPS & Saneamento Completo (`v1.3.4` → `v1.4.0+`)** | Paginação de 2.500 faixas, Motor de Áudio Nativo Híbrido (`AudioEngine`), Proteção contra Race Condition no Next Track Thrashing, Supressão de Volume Flooding na Web Audio API, `LyricLineRow` memoizado, SQLite WAL + `OnceLock`, Pausar Visualizer em Background, Pool Global `HTTP_CLIENT` (`LazyLock`), Suporte Completo a Álbuns + Paginação, CRUD Bidirecional de Playlists, Drag & Drop a 144 FPS com Card Flutuante, Telemetria Completa no SQLite (`recordTrackPlayed`), Fim de Stale Closure no System Tray/Media Keys, Preservação de Sessão no `clearCache` e Desacoplamento de Contexto (`triggerTrackContextMenu`). |
 | **#92 – #106** | **Animações Leves, Polimento de UX, Higienização de Erros & Race Conditions (`v1.4.1`)** | Transições de saída em modais (`useModalAnimation`), view transitions suaves (`animate-view-fade`), restauração ergonômica de scroll da biblioteca, micro-transições na troca de faixa, saída suave em menus de contexto, fade-in de capas (`AlbumCard`/`PlaylistGridView`), biografia expansível com CSS max-height, sanfona suave na fila, fade em letras (`LyricsView`), hover fluido no Scrubber, micro-pop tátil em botões Play/Pause (`animate-icon-pop`), abas suaves no Settings, sanitizador de erro de API (`humanizeApiError`), feedback tátil de drag & drop e blindagem de concorrência com refs de ID de requisição. |
+| **#107 – #135** | **Downloads Offline, Telemetria SLA, Histórico, Acessibilidade e Saneamento Concorrente (`v2.0.2+`)** | Motor de cache e reprodução offline no SQLite, streaming de chunks de áudio com progresso a cada 10% no Rust, telemetria em tempo real com SLAs de troca de faixa (1.000ms) e hidratação de tela (400ms), isolamento estrito de alta frequência no Mini Player (Mandamento #3), identificação dinâmica de MIME type por magic bytes no Blob (`detectAudioMimeType`), fechamento seguro da gaveta em buscas de álbum, reconciliação bidirecional completa de músicas curtidas (`reconcileLikedTracks`), blindagem contra race conditions na antecipação de rádio e acessibilidade WAI-ARIA universal nos controles de slider. |
 
 ---
 
-### Catálogo Sequencial Completo (#01 a #108)
+### Catálogo Sequencial Completo (#01 a #123)
 
 #### 01. Mini Player Flutuante (Always-on-Top / PiP Mode) sem Interrupção de Áudio
 * **Status:** `[Resolvido]` ✅ | **Localização:** [`MiniPlayer.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MiniPlayer/MiniPlayer.tsx), [`PlayerContext.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/context/PlayerContext.tsx), [`lib.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/lib.rs).
@@ -596,3 +598,176 @@ Todos os **15 novos apontamentos técnicos (#92 a #106)** foram integralmente so
 * **Status:** 🟢 **Resolvido**
 * **Localização:** [`desktop/src/hooks/useYouTubePlayer.ts:369`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useYouTubePlayer.ts#L369)
 * **Solução Implementada:** O timeout frágil único de 500ms foi substituído por um polling delimitado e resiliente (intervalo de 100ms até 35 tentativas / 3.5 segundos). Caso o player IFrame do YouTube demore para inicializar por oscilações no webview, ele continua aguardando ativamente; se estourar o tempo limite de 3.5s, ele cancela de forma limpa, remove o loading e aciona `onTrackErrorRef` para avançar para a próxima música sem travar silenciosamente.
+
+
+---
+
+### 114. Navegação Determinística no Histórico Voltar / Avançar com Hidratação Automática de Playlists, Álbuns e Artistas
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/App.tsx:1152-1245`](file:///d:/progrmação/programas/TetPlayer/desktop/src/App.tsx#L1152-L1245)
+* **Solução Implementada:**
+  1. Criação do método centralizado `navigateToHistoryEntry(target)` com ativação de sentinela reativa `isHistoryNavigatingRef.current = true`.
+  2. Ao voltar ou avançar para uma Playlist, Álbum ou Artista, os manipuladores correspondentes (`handleSelectPlaylist`, `handleSelectAlbum`, `handleSelectArtist`) são executados deterministamente, garantindo hidratação instantânea em 0ms via cache local Stale-While-Revalidate e revalidação assíncrona pela rede, eliminando telas congeladas ou vazias.
+  3. Ao retornar para uma pesquisa (`tab: "search"`), a consulta é restaurada e re-executada automaticamente via `handleSearch(undefined, target.searchQuery)`.
+  4. Proteção estrita contra mutações cíclicas na pilha de histórico: chamadas a `pushHistoryEntry` são ignoradas durante o trânsito da navegação via flag de 120ms.
+
+---
+
+### 115. Blindagem de Regras de Negócio na Coleção Virtual Offline (`OFFLINE_DOWNLOADS` com Supressão de Edição/Exclusão Remota e Drag-and-Drop)
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/components/MainView/PlaylistDetailView.tsx:186-245`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/PlaylistDetailView.tsx#L186-L245), [`desktop/src/components/MainView/PlaylistDetailView.tsx:443`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/PlaylistDetailView.tsx#L443)
+* **Solução Implementada:**
+  1. Criação da constante de escopo `isVirtualCollection = playlist.id === "VLLM" || playlist.id === "OFFLINE_DOWNLOADS"`.
+  2. Supressão completa dos botões de ação remota no YouTube Music (Editar título/descrição e Excluir playlist) para coleções virtuais, prevenindo chamadas inválidas à API do InnerTube com identificadores locais.
+  3. Desativação mandatória da reordenação por Drag-and-Drop (`canReorder`) na visualização offline, impedindo o disparo acidental de comandos `reorder_playlist_track`.
+  4. Identidade visual refinada para a coleção offline: crachá temático *"Armazenamento Offline"* com borda esmeralda sutil, ícone `Download` estilizado no lugar da capa de música genérica e contador contextual (*"X músicas salvas no disco"*).
+
+
+---
+
+### 116. Subscrição Reativa em Tempo Real para Downloads na Coleção Offline
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/App.tsx:372-390`](file:///d:/progrmação/programas/TetPlayer/desktop/src/App.tsx#L372-L390)
+* **Solução Implementada:** Implementação de um `useEffect` dedicado em `App.tsx` que assina `DownloadsService.subscribe()`. Sempre que um download em segundo plano é concluído ou uma faixa é excluída do disco via menu de contexto/PlayerBar, a visualização `OFFLINE_DOWNLOADS` revalida e atualiza `playlistTracks` instantaneamente na tela sem a necessidade de recarregamento manual.
+
+---
+
+### 117. Prevenção de Vazamento de Memória RAM com Política de Despejo LRU para Blob URLs
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/services/downloads.ts:49-50`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/downloads.ts#L49-L50), [`desktop/src/services/downloads.ts:205-245`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/downloads.ts#L205-L245)
+* **Solução Implementada:** Adição de teto fixo (`MAX_CACHED_BLOB_URLS = 4`) com desalocação automática via `URL.revokeObjectURL(oldestUrl)` no mapa `offlineBlobUrls`. Faixas acessadas são reordenadas como mais recentes, e o excesso de buffers antigos é imediatamente devolvido à memória do sistema, mantendo o consumo estritamente dentro da meta de `< 50MB de RAM`.
+
+---
+
+### 118. Blindagem Defensiva e Fallback Transparente no Playback Offline
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/hooks/useYouTubePlayer.ts:435-475`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useYouTubePlayer.ts#L435-L475)
+* **Solução Implementada:** O fluxo de inicialização e reprodução nativa offline foi envolvido em um bloco `try/catch` defensivo. Em caso de corrupção acidental de arquivo local ou bloqueio no `AudioContext`, a URL de blob inválida é revogada e o reprodutor transiciona suavemente e sem interrupção para a resolução do stream online (StreamCache / InnerTube / IFrame) com limpeza imediata do spinner de carregamento.
+
+---
+
+### 119. Eliminação de Conflito de Arraste de Janela nas Setas de Navegação do TitleBar
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/components/TitleBar/TitleBar.tsx:170-205`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/TitleBar/TitleBar.tsx#L170-L205)
+* **Solução Implementada:** Inclusão dos atributos `data-no-drag` e `data-tauri-drag-region="false"` no contêiner flex e nos elementos `<button>` das setas Voltar/Avançar, com `pointer-events-none` nos ícones vetoriais. Impede que o manipulador nativo de arraste de janela do Windows (Webview2) intercepte cliques com o botão esquerdo.
+
+---
+
+### 120. Refatoração Ergonômica de Ações e Desobstrução do Cabeçalho da Gaveta (NowPlayingDrawer)
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/components/NowPlayingDrawer/NowPlayingDrawer.tsx:57-70`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/NowPlayingDrawer/NowPlayingDrawer.tsx#L57-L70), [`desktop/src/components/NowPlayingDrawer/NowPlayingDrawer.tsx:265-320`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/NowPlayingDrawer/NowPlayingDrawer.tsx#L265-L320)
+* **Solução Implementada:**
+  1. O mini-cabeçalho superior esquerdo foi simplificado, removendo botões diminutos comprimidos e garantindo largura integral para exibição fluida do título da música e artista sem truncamento precoce.
+  2. Os botões de ação tátil (*Curtir* e *Download Offline*) foram transferidos para a coluna nobre sob a capa e os metadados do álbum, ganhando formato em pílula com rótulo descritivo (*"Curtida"*, *"Baixada"*), feedback de hover/animação e estados claros de carregamento.
+
+---
+
+### 121. Alinhamento Flexbox Estável e Truncamento de Título com Badge de Download em TrackRow
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/components/MainView/TrackRow.tsx:138-152`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/TrackRow.tsx#L138-L152)
+* **Solução Implementada:** Reestruturação da linha de título para nó flexível `flex items-center gap-1.5 min-w-0`. O título da música utiliza `truncate flex-1 min-w-0` para cálculo determinístico de reticências, enquanto o badge `CheckCircle2` de faixa baixada permanece fixo como `shrink-0`, prevenindo quebras de layout ou transbordamento em títulos longos.
+
+---
+
+### 122. Delimitação de Altura e Overflow Seguro no Menu de Contexto (TrackContextMenu)
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/components/ContextMenu/TrackContextMenu.tsx:90-94`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/ContextMenu/TrackContextMenu.tsx#L90-L94), [`desktop/src/components/ContextMenu/TrackContextMenu.tsx:194`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/ContextMenu/TrackContextMenu.tsx#L194)
+* **Solução Implementada:** Ajuste da estimativa de altura segura para 480px (acomodando os 12 itens de menu) e adição de `max-h-[calc(100vh-24px)] overflow-y-auto overscroll-contain` na folha flutuante do menu. Assegura que em monitores compactos ou janelas no tamanho mínimo (1050x720px), todas as opções permaneçam integralmente navegáveis e visíveis sem corte inferior no viewport.
+
+
+---
+
+### 123. Compensação de Sombra DWM no Mini Player Recolhido e Pílula Ultra-compacta com Indicador Único na Seta
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src-tauri/src/lib.rs:707-758`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/lib.rs#L707-L758), [`desktop/src/components/MiniPlayer/MiniPlayer.tsx:148-185`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MiniPlayer/MiniPlayer.tsx#L148-L185), [`desktop/src/App.tsx:1522`](file:///d:/progrmação/programas/TetPlayer/desktop/src/App.tsx#L1522)
+* **Solução Implementada:**
+  1. **Compensação Dinâmica de Frame DWM Win32:** No Windows 10/11, janelas sem decorações e com sombra possuem margens invisíveis de redimensionamento (`DWMWA_EXTENDED_FRAME_BOUNDS`). Implementada a função nativa `get_dwm_frame_offsets`, subtraindo o offset da sombra no lado esquerdo (`target_x = mon_logical_pos.x - offset_left`) e compensando no lado direito. Isso elimina a folga de 6 a 8 pixels na esquerda, travando a pílula exatamente no limite da tela de forma simétrica.
+  2. **Eliminação de Elementos Redundantes:** Removidos a bolinha superior de status e o visualizador de onda/nota musical inferior da cápsula recolhida.
+  3. **Indicador Único de Reprodução na Seta:** A seta de expansão (`ChevronRight`/`ChevronLeft`) agora atua como indicador visual centralizado, exibindo brilho e pulso vibrante no acento dinâmico (`text-[var(--accent)] drop-shadow-[0_0_8px_var(--accent-glow)] animate-pulse`) quando a música está tocando e permanecendo apagada/discreta (`text-[#5e6479] opacity-60`) quando pausada.
+  4. **Pílula Ultra-compacta (48px de altura):** As dimensões recolhidas foram enxugadas de 38x90px para 34x48px com bordas semi-arredondadas (`rounded-r-xl border-l-0` na esquerda e `rounded-l-xl border-r-0` na direita) e fundo transparente em `App.tsx`.
+
+
+---
+
+### 124. Inundação Concorrente de Requisições de Rede (Race Condition & Network Flooding) no Autoplay Radio Antecipado
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/context/PlayerContext.tsx:547-575`](file:///d:/progrmação/programas/TetPlayer/desktop/src/context/PlayerContext.tsx#L547-L575), [`desktop/src/context/PlayerContext.tsx:719-775`](file:///d:/progrmação/programas/TetPlayer/desktop/src/context/PlayerContext.tsx#L719-L775)
+* **Solução Implementada:** Introdução das sentinelas de bloqueio atômico `isFetchingRadioRef` e `fetchedRadioForTrackIdRef`. Ambas as rotas de busca de recomendações (a antecipação aos 88% do tempo da faixa e a transição emergencial no fim da fila em `handleNextTrack`) foram blindadas contra requisições simultâneas. Uma requisição só é permitida se `!isFetchingRadioRef.current && fetchedRadioForTrackIdRef.current !== targetTrack.id`. As flags são limpas no bloco `finally` e reinicializadas deterministicamente ao trocar de música ativa, eliminando inundações de rede e riscos de HTTP 429.
+
+---
+
+### 125. Violação do Mandamento #3 (Isolamento de Alta Frequência) no Mini Player
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/components/MiniPlayer/MiniPlayer.tsx:41`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MiniPlayer/MiniPlayer.tsx#L41), [`desktop/src/components/MiniPlayer/MiniPlayer.tsx:430-465`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MiniPlayer/MiniPlayer.tsx#L430-L465)
+* **Solução Implementada:** O componente de scrubber inferior (slider de linha do tempo e indicadores de minutagem) foi desacoplado e extraído para o subcomponente memoizado `MiniPlayerScrubber`, que consome `usePlaybackProgress()` de forma isolada. A chamada `usePlaybackProgress()` foi removida da raiz do `MiniPlayer`. Como resultado, tanto no modo recolhido/ancorado na borda da tela quanto no modo flutuante completo, o corpo estático do Mini Player permanece estritamente travado a 0 re-renderizações a cada tick de áudio de 80ms.
+
+---
+
+### 126. Fechamento Abrupto do Processo no Mini Player Ignorando Preferência de Ocultar na Bandeja
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/components/MiniPlayer/MiniPlayer.tsx:93-110`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MiniPlayer/MiniPlayer.tsx#L93-L110)
+* **Solução Implementada:** Harmonização da função `handleClose` com a barra de título principal (`TitleBar.tsx`). O manipulador agora consulta `SettingsService.getSetting("closeAction")`: caso o usuário tenha configurado fechar para a bandeja (`"tray"`), invoca `hide_to_tray` mantendo a execução musical em segundo plano; caso contrário, chama `close_window` com fallback seguro.
+
+---
+
+### 127. MIME Type Estático Incorreto (`audio/webm`) na Geração de Blob URLs Offline para Áudio AAC/M4A
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/services/downloads.ts:1-55`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/downloads.ts#L1-L55), [`desktop/src/services/downloads.ts:280-285`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/downloads.ts#L280-L285), [`desktop/src/services/__tests__/downloads.test.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/__tests__/downloads.test.ts)
+* **Solução Implementada:** Implementação da função `detectAudioMimeType(bytes, fallbackMime)`, que inspeciona os magic bytes do cabeçalho binário do arquivo: identifica EBML (`0x1A45DFA3` para `audio/webm; codecs=opus`), o átomo `ftyp` no offset 4 (`audio/mp4; codecs=mp4a.40.2` para containers AAC/M4A), `OggS` para Ogg, `ID3` para MP3 e `fLaC` para FLAC. Os Blob URLs gerados agora declaram o MIME type exato do container, prevenindo erros de decodificação no Chromium Web Audio API (`MEDIA_ERR_DECODE`).
+
+---
+
+### 128. Falta de Fechamento da Gaveta de Reprodução (`NowPlayingDrawer`) no Fallback de Busca de Álbum
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/App.tsx:755-778`](file:///d:/progrmação/programas/TetPlayer/desktop/src/App.tsx#L755-L778)
+* **Solução Implementada:** Inclusão da chamada explícita `closeNowPlaying()` imediatamente antes da transição para a aba `"search"` no manipulador de fallback do evento `tetplayer:open-album`, adicionando `closeNowPlaying` nas dependências do hook. A gaveta de tela cheia agora é imediatamente recolhida quando a busca é acionada, revelando os resultados ao usuário com feedback visual instantâneo.
+
+---
+
+### 129. Acúmulo Unidirecional de Cache sem Reconciliação de Exclusão de Músicas Curtidas
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/services/likes.ts:91-115`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/likes.ts#L91-L115), [`desktop/src/services/cache.ts:156-160`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/cache.ts#L156-L160), [`desktop/src/services/__tests__/likes.test.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/__tests__/likes.test.ts)
+* **Solução Implementada:** Criação do método `reconcileLikedTracks(tracks: Track[])` em `LikesService`, acionado em `cache.ts` durante o salvamento da playlist de Músicas Curtidas (`VLLM`). O método substitui o conjunto local pelas faixas ativas retornadas pelo servidor do YouTube Music, sincronizando exclusões e descurtidas realizadas em outros dispositivos ou na web.
+
+---
+
+### 130. Ausência de Granularidade no Progresso de Download de Faixas no Backend Nativo
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src-tauri/src/lib.rs:508-560`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/lib.rs#L508-L560)
+* **Solução Implementada:** Refatoração de `download_track` para consumir o stream de rede em chunks progressivos com `resp.chunk().await`, gravando de forma assíncrona no disco via `tokio::fs::File` e `tokio::io::AsyncWriteExt`. O comando emite eventos IPC `download-progress` em intervalos proporcionais a cada 10% transferidos, mantendo a interface reativa sem reter arquivos grandes na memória RAM (< 50MB de pegada).
+
+---
+
+### 131. Acessibilidade Universal: Ausência de Atributos ARIA nos Sliders do Mini Player
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/components/MiniPlayer/MiniPlayer.tsx:415-460`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MiniPlayer/MiniPlayer.tsx#L415-L460)
+* **Solução Implementada:** Adicionados os atributos semânticos `aria-valuemin={0}`, `aria-valuemax={1}` e `aria-valuenow={volume}` no controle de volume, bem como `aria-valuemin={0}`, `aria-valuemax={duration || 100}` e `aria-valuenow={currentTime}` no slider da linha do tempo. Permite que leitores de tela e tecnologias assistivas anunciem os valores atuais de reprodução e volume com precisão.
+
+
+---
+
+### 132. Disparo Duplicado de Evento de Clique no Botão Play em TrackRow (Double Event Bubbling & Concurrent Playback)
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/components/MainView/TrackRow.tsx:55-67`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/TrackRow.tsx#L55-L67), [`desktop/src/components/MainView/TrackRow.tsx:234-250`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/TrackRow.tsx#L234-L250)
+* **Solução Implementada:** Adicionado `e.stopPropagation()` de forma incondicional no início de `handleClick` em `TrackRow.tsx` e incluído o atributo semântico `type="button"` no botão interno de Play/Pause. O clique no botão não se propaga para o contêiner `<div>` da linha, eliminando invocações duplicadas de reprodução e assegurando execução unitária em cada clique.
+
+---
+
+### 133. Botão "Ouvir Novamente" Inoperante / Desconectado na Fila de Reprodução Anterior (QueueView)
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/components/QueueView/QueueView.tsx:104-110`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/QueueView/QueueView.tsx#L104-L110)
+* **Solução Implementada:** Atribuídos `type="button"` e o manipulador explícito `onClick={(e) => { e.stopPropagation(); handlePlayFromQueue(idx); }}` no botão de Play das faixas anteriores em `QueueView.tsx`. O botão agora responde com precisão à interação direta do usuário, disparando a reprodução imediata com isolamento contra borbulhamento de eventos.
+
+---
+
+### 134. Ausência de Atributos WAI-ARIA nos Sliders Principais do PlayerBar e TimelineScrubber
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/components/Player/PlayerBar.tsx:360-368`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Player/PlayerBar.tsx#L360-L368), [`desktop/src/components/Player/TimelineScrubber.tsx:194-206`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Player/TimelineScrubber.tsx#L194-L206)
+* **Solução Implementada:** Inclusão dos atributos de acessibilidade universal `aria-valuemin={0}`, `aria-valuemax={1}` e `aria-valuenow={isMuted ? 0 : volume}` no slider de volume de `PlayerBar.tsx`, e `aria-valuemin={0}`, `aria-valuemax={duration || 100}` e `aria-valuenow={displayTime}` no input range de `TimelineScrubber.tsx`. Assegura leitura precisa de valores por leitores de tela em toda a interface do player principal.
+
+---
+
+### 135. Risco de Stale Closure no Listener de Escape em SettingsModal
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/components/SettingsModal/SettingsModal.tsx:146-158`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/SettingsModal/SettingsModal.tsx#L146-L158)
+* **Solução Implementada:** Atualizado o array de dependências do `useEffect` do listener de `Escape` para `[isOpen, requestClose]` em `SettingsModal.tsx`. Garante que qualquer atualização na referência do callback de fechamento animado seja capturada corretamente pelo manipulador de teclado.

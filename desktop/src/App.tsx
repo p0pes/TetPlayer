@@ -47,6 +47,7 @@ import {
 import { SettingsService } from "./services/settings";
 import { PerformanceTelemetry } from "./services/telemetry";
 import { humanizeApiError } from "./utils/errors";
+import { DownloadsService } from "./services/downloads";
 
 export default function App() {
   useEffect(() => {
@@ -118,6 +119,15 @@ interface AppContentProps {
   activeCollectionId: string | null;
 }
 
+
+export interface NavigationHistoryEntry {
+  tab: ActiveTab;
+  playlist: Playlist | null;
+  album: Album | null;
+  artist: { id?: string; name: string } | null;
+  searchQuery?: string;
+}
+
 function AppContent({
   playlistHistory,
   markPlaylistListened,
@@ -142,6 +152,41 @@ function AppContent({
     playlistScrollPosRef,
     isMiniPlayer,
   } = usePlayer();
+
+  // Histórico de Navegação Voltar / Avançar (Item 4.2)
+  const [historyStack, setHistoryStack] = useState<NavigationHistoryEntry[]>([
+    { tab: "library", playlist: null, album: null, artist: null, searchQuery: "" },
+  ]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const isHistoryNavigatingRef = useRef(false);
+  const historyIndexRef = useRef(0);
+  historyIndexRef.current = historyIndex;
+  const historyStackRef = useRef<NavigationHistoryEntry[]>(historyStack);
+  historyStackRef.current = historyStack;
+
+  const pushHistoryEntry = useCallback((entry: NavigationHistoryEntry) => {
+    if (isHistoryNavigatingRef.current) return;
+    setHistoryStack((prev) => {
+      const current = prev[historyIndexRef.current];
+      if (
+        current &&
+        current.tab === entry.tab &&
+        current.playlist?.id === entry.playlist?.id &&
+        current.album?.id === entry.album?.id &&
+        current.artist?.name === entry.artist?.name &&
+        current.searchQuery === entry.searchQuery
+      ) {
+        return prev;
+      }
+      const nextStack = prev.slice(0, historyIndexRef.current + 1);
+      nextStack.push(entry);
+      historyIndexRef.current = nextStack.length - 1;
+      setHistoryIndex(nextStack.length - 1);
+      return nextStack;
+    });
+  }, []);
+
+
 
   // Navegação: 'library', 'search' ou 'stats'
   const [activeTab, setActiveTab] = useState<ActiveTab>("library");
@@ -230,6 +275,27 @@ function AppContent({
   selectedPlaylistRef.current = selectedPlaylist;
   const [playlistTracks, setPlaylistTracks] = useState<Track[]>([]);
   const [isLoadingPlaylistTracks, setIsLoadingPlaylistTracks] = useState(false);
+
+  // Subscrição Reativa para Downloads Offline em Tempo Real (Item 116)
+  useEffect(() => {
+    return DownloadsService.subscribe(async () => {
+      if (selectedPlaylistRef.current?.id === "OFFLINE_DOWNLOADS") {
+        try {
+          const downloads = await DownloadsService.getDownloadedTracks();
+          const offlineTracks: Track[] = downloads.map((d) => ({
+            id: d.video_id,
+            title: d.title,
+            artist: d.artist,
+            artwork_url: d.artwork_url || "",
+            duration_seconds: d.duration_seconds,
+          }));
+          setPlaylistTracks(offlineTracks);
+        } catch (err) {
+          console.warn("[App] Falha ao sincronizar lista reativa de downloads:", err);
+        }
+      }
+    });
+  }, []);
 
   // Álbuns & Biblioteca (com Cache Local Stale-While-Revalidate)
   const [albums, setAlbums] = useState<Album[]>(() => {
@@ -462,6 +528,7 @@ function AppContent({
     activePlaylistRequestIdRef.current = playlist.id;
     playlistScrollPosRef.current = 0;
     if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
+    pushHistoryEntry({ tab: "library", playlist, album: null, artist: null, searchQuery });
     setSelectedPlaylist(playlist);
     setSelectedAlbum(null);
     setAlbumDetail(null);
@@ -469,6 +536,26 @@ function AppContent({
     setArtistDetail(null);
     setActiveTab("library");
     closeNowPlaying();
+
+    if (playlist.id === "OFFLINE_DOWNLOADS") {
+      setIsLoadingPlaylistTracks(true);
+      try {
+        const downloads = await DownloadsService.getDownloadedTracks();
+        const offlineTracks: Track[] = downloads.map((d) => ({
+          id: d.video_id,
+          title: d.title,
+          artist: d.artist,
+          artwork_url: d.artwork_url || "",
+          duration_seconds: d.duration_seconds,
+        }));
+        setPlaylistTracks(offlineTracks);
+      } catch (err) {
+        setErrorMessage("Erro ao carregar faixas offline: " + String(err));
+      } finally {
+        setIsLoadingPlaylistTracks(false);
+      }
+      return;
+    }
 
     // Exibe faixas em cache instantaneamente (0ms) se existirem
     const cachedTracks = LocalCacheService.getCachedPlaylistTracks(playlist.id);
@@ -512,6 +599,7 @@ function AppContent({
     activeAlbumRequestIdRef.current = album.id;
     playlistScrollPosRef.current = 0;
     if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
+    pushHistoryEntry({ tab: "library", playlist: null, album, artist: null, searchQuery });
     setSelectedAlbum(album);
     setSelectedPlaylist(null);
     setSelectedArtist(null);
@@ -665,6 +753,7 @@ function AppContent({
           if (found) {
             handleSelectAlbum(found);
           } else {
+            closeNowPlaying();
             setSearchQuery(albumTitle);
             setActiveTab("search");
             setIsSearching(true);
@@ -686,7 +775,7 @@ function AppContent({
 
     window.addEventListener("tetplayer:open-album", handleOpenAlbumEvent);
     return () => window.removeEventListener("tetplayer:open-album", handleOpenAlbumEvent);
-  }, [albums, handleSelectAlbum, setErrorMessage]);
+  }, [albums, handleSelectAlbum, setErrorMessage, closeNowPlaying]);
 
   // Escuta evento de mudança na autenticação (quando o login via Webview do Google conclui)
   useEffect(() => {
@@ -1011,9 +1100,10 @@ function AppContent({
     };
   }, [handleRemoveTrackFromPlaylist]);
 
-  const handleSearch = useCallback(async (e?: React.FormEvent) => {
+  const handleSearch = useCallback(async (e?: React.FormEvent, customQuery?: string) => {
     if (e) e.preventDefault();
-    if (!searchQuery.trim()) return;
+    const q = (customQuery !== undefined ? customQuery : searchQuery).trim();
+    if (!q) return;
 
     setIsSearching(true);
     setHasSearched(true);
@@ -1021,8 +1111,8 @@ function AppContent({
     setErrorMessage(null);
     try {
       const [tracks, albums] = await Promise.all([
-        invoke<Track[]>("search_tracks", { query: searchQuery }),
-        invoke<Album[]>("search_albums", { query: searchQuery }).catch((err) => {
+        invoke<Track[]>("search_tracks", { query: q }),
+        invoke<Album[]>("search_albums", { query: q }).catch((err) => {
           console.warn("Falha ao buscar álbuns:", err);
           return [] as Album[];
         }),
@@ -1037,6 +1127,7 @@ function AppContent({
   }, [searchQuery, setErrorMessage]);
 
   const handleBackToPlaylists = useCallback(() => {
+    pushHistoryEntry({ tab: "library", playlist: null, album: null, artist: null, searchQuery });
     playlistScrollPosRef.current = 0;
     setSelectedPlaylist(null);
     closeNowPlaying();
@@ -1046,6 +1137,7 @@ function AppContent({
   }, [mainScrollRef, playlistScrollPosRef, closeNowPlaying]);
 
   const handleBackToAlbums = useCallback(() => {
+    pushHistoryEntry({ tab: "library", playlist: null, album: null, artist: null, searchQuery });
     playlistScrollPosRef.current = 0;
     setSelectedAlbum(null);
     setAlbumDetail(null);
@@ -1056,6 +1148,7 @@ function AppContent({
   }, [mainScrollRef, playlistScrollPosRef, closeNowPlaying]);
 
   const handleBackFromArtist = useCallback(() => {
+    pushHistoryEntry({ tab: "library", playlist: null, album: null, artist: null, searchQuery });
     setSelectedArtist(null);
     setArtistDetail(null);
     closeNowPlaying();
@@ -1065,6 +1158,7 @@ function AppContent({
   }, [mainScrollRef, closeNowPlaying]);
 
   const handleSidebarTabChange = useCallback((tab: ActiveTab) => {
+    pushHistoryEntry({ tab, playlist: null, album: null, artist: null, searchQuery });
     playlistScrollPosRef.current = 0;
     setActiveTab(tab);
     setSelectedArtist(null);
@@ -1076,6 +1170,125 @@ function AppContent({
     }
     closeNowPlaying();
   }, [playlistScrollPosRef, closeNowPlaying]);
+
+  // Navegação Determinística do Histórico (Item 114 - Resolução de Desync)
+  const navigateToHistoryEntry = useCallback(
+    (target: NavigationHistoryEntry) => {
+      isHistoryNavigatingRef.current = true;
+      closeNowPlaying();
+
+      if (target.tab === "library") {
+        setActiveTab("library");
+        if (target.artist) {
+          handleSelectArtist(target.artist);
+        } else if (target.playlist) {
+          handleSelectPlaylist(target.playlist);
+        } else if (target.album) {
+          handleSelectAlbum(target.album);
+        } else {
+          setSelectedPlaylist(null);
+          setSelectedAlbum(null);
+          setAlbumDetail(null);
+          setSelectedArtist(null);
+          setArtistDetail(null);
+          playlistScrollPosRef.current = 0;
+          requestAnimationFrame(() => {
+            if (mainScrollRef.current) mainScrollRef.current.scrollTop = libraryScrollPosRef.current;
+          });
+        }
+      } else if (target.tab === "search") {
+        setActiveTab("search");
+        setSelectedPlaylist(null);
+        setSelectedAlbum(null);
+        setAlbumDetail(null);
+        setSelectedArtist(null);
+        setArtistDetail(null);
+        if (target.searchQuery !== undefined) {
+          setSearchQuery(target.searchQuery);
+          if (target.searchQuery.trim().length > 0) {
+            handleSearch(undefined, target.searchQuery);
+          }
+        }
+      } else if (target.tab === "stats") {
+        setActiveTab("stats");
+        setSelectedPlaylist(null);
+        setSelectedAlbum(null);
+        setAlbumDetail(null);
+        setSelectedArtist(null);
+        setArtistDetail(null);
+      }
+
+      setTimeout(() => {
+        isHistoryNavigatingRef.current = false;
+      }, 120);
+    },
+    [
+      closeNowPlaying,
+      handleSelectArtist,
+      handleSelectPlaylist,
+      handleSelectAlbum,
+      handleSearch,
+      mainScrollRef,
+      playlistScrollPosRef,
+    ]
+  );
+
+  const handleGoBack = useCallback(() => {
+    if (historyIndexRef.current <= 0) return;
+    const targetIdx = historyIndexRef.current - 1;
+    const target = historyStackRef.current[targetIdx];
+    if (!target) return;
+
+    historyIndexRef.current = targetIdx;
+    setHistoryIndex(targetIdx);
+    navigateToHistoryEntry(target);
+  }, [navigateToHistoryEntry]);
+
+  const handleGoForward = useCallback(() => {
+    if (historyIndexRef.current >= historyStackRef.current.length - 1) return;
+    const targetIdx = historyIndexRef.current + 1;
+    const target = historyStackRef.current[targetIdx];
+    if (!target) return;
+
+    historyIndexRef.current = targetIdx;
+    setHistoryIndex(targetIdx);
+    navigateToHistoryEntry(target);
+  }, [navigateToHistoryEntry]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isInput =
+        target &&
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+      if (isInput) return;
+
+      if (e.altKey && e.key === "ArrowLeft") {
+        e.preventDefault();
+        handleGoBack();
+      } else if (e.altKey && e.key === "ArrowRight") {
+        e.preventDefault();
+        handleGoForward();
+      }
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      if (e.button === 3) {
+        e.preventDefault();
+        handleGoBack();
+      } else if (e.button === 4) {
+        e.preventDefault();
+        handleGoForward();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [handleGoBack, handleGoForward]);
 
   // Reprodução de Álbuns
   const handlePlayAlbum = useCallback(
@@ -1307,7 +1520,7 @@ function AppContent({
   return (
     <div
       className={`w-screen h-screen select-none overflow-hidden relative ${
-        isMiniPlayer ? "bg-[#0c0e17]" : "bg-[#0b0c10]"
+        isMiniPlayer ? "bg-transparent" : "bg-[#0b0c10]"
       }`}
     >
       {/* Modo Mini Player Flutuante (Sugestão 2.1) */}
@@ -1340,6 +1553,10 @@ function AppContent({
           isNowPlayingOpen={isNowPlayingOpen}
           nowPlayingTab={nowPlayingTab}
           showLyrics={showLyrics}
+          canGoBack={historyIndex > 0}
+          canGoForward={historyIndex < historyStack.length - 1}
+          onGoBack={handleGoBack}
+          onGoForward={handleGoForward}
         />
 
         {/* Corpo Principal (Sidebar + Conteúdo Central) */}

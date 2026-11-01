@@ -468,6 +468,209 @@ fn open_app_storage_dir() -> Result<(), String> {
     Ok(())
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DownloadProgressPayload {
+    pub video_id: String,
+    pub percent: u8,
+    pub downloaded_bytes: u64,
+    pub total_bytes: u64,
+    pub status: String,
+}
+
+#[tauri::command]
+async fn download_track(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    track: Track,
+) -> Result<stats::DownloadedTrack, String> {
+    let session = state.session.lock().unwrap().clone();
+    let stream_info = fetch_stream_info(&session, &track.id)
+        .await?
+        .ok_or_else(|| "Não foi possível obter fluxo de áudio direto para download offline desta faixa.".to_string())?;
+
+    let stream_url = stream_info.stream_url;
+    let mime_type = stream_info
+        .mime_type
+        .unwrap_or_else(|| "audio/webm; codecs=opus".to_string());
+
+    let ext = if mime_type.contains("mp4") || mime_type.contains("m4a") || mime_type.contains("aac") {
+        "m4a"
+    } else {
+        "opus"
+    };
+
+    let storage_dir = stats::get_app_storage_dir();
+    let music_dir = storage_dir.join("music");
+    let _ = std::fs::create_dir_all(&music_dir);
+    let file_name = format!("{}.{ext}", track.id);
+    let dest_path = music_dir.join(&file_name);
+
+    let mut resp = ytm::HTTP_CLIENT
+        .get(&stream_url)
+        .send()
+        .await
+        .map_err(|e| format!("Falha ao conectar no stream de download: {e}"))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("Servidor de áudio retornou status {}", resp.status()));
+    }
+
+    let total_bytes = resp.content_length().unwrap_or(0);
+    let mut file = tokio::fs::File::create(&dest_path)
+        .await
+        .map_err(|e| format!("Falha ao criar arquivo de áudio offline: {e}"))?;
+
+    let mut downloaded_bytes: u64 = 0;
+    let mut last_emitted_percent: u8 = 0;
+
+    let _ = app.emit(
+        "download-progress",
+        DownloadProgressPayload {
+            video_id: track.id.clone(),
+            percent: 0,
+            downloaded_bytes: 0,
+            total_bytes,
+            status: "downloading".to_string(),
+        },
+    );
+
+    use tokio::io::AsyncWriteExt;
+    while let Some(chunk) = resp
+        .chunk()
+        .await
+        .map_err(|e| format!("Falha ao receber pedaço do áudio: {e}"))?
+    {
+        file.write_all(&chunk)
+            .await
+            .map_err(|e| format!("Falha ao gravar dados no disco: {e}"))?;
+
+        downloaded_bytes += chunk.len() as u64;
+
+        if total_bytes > 0 {
+            let percent = ((downloaded_bytes as f64 / total_bytes as f64) * 100.0).clamp(0.0, 100.0) as u8;
+            if percent >= last_emitted_percent + 10 && percent < 100 {
+                last_emitted_percent = percent;
+                let _ = app.emit(
+                    "download-progress",
+                    DownloadProgressPayload {
+                        video_id: track.id.clone(),
+                        percent,
+                        downloaded_bytes,
+                        total_bytes,
+                        status: "downloading".to_string(),
+                    },
+                );
+            }
+        }
+    }
+
+    file.flush()
+        .await
+        .map_err(|e| format!("Falha ao sincronizar arquivo com disco: {e}"))?;
+
+    let file_size_bytes = downloaded_bytes;
+
+    let record = stats::DownloadedTrack {
+        video_id: track.id.clone(),
+        title: track.title,
+        artist: track.artist,
+        artwork_url: track.artwork_url,
+        duration_seconds: track.duration_seconds,
+        file_path: dest_path.to_string_lossy().to_string(),
+        file_size_bytes,
+        mime_type,
+        downloaded_at: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64,
+    };
+
+    stats::save_download_record(&record)?;
+
+    let _ = app.emit(
+        "download-progress",
+        DownloadProgressPayload {
+            video_id: track.id,
+            percent: 100,
+            downloaded_bytes: file_size_bytes,
+            total_bytes: if total_bytes > 0 { total_bytes } else { file_size_bytes },
+            status: "completed".to_string(),
+        },
+    );
+
+    Ok(record)
+}
+
+#[tauri::command]
+fn read_offline_track(video_id: String) -> Result<tauri::ipc::Response, String> {
+    let storage_dir = stats::get_app_storage_dir();
+    let music_dir = storage_dir.join("music");
+
+    let candidates = [
+        music_dir.join(format!("{video_id}.opus")),
+        music_dir.join(format!("{video_id}.m4a")),
+        music_dir.join(format!("{video_id}.webm")),
+    ];
+
+    for path in &candidates {
+        if path.exists() {
+            let data = std::fs::read(path).map_err(|e| format!("Falha ao ler faixa offline: {e}"))?;
+            return Ok(tauri::ipc::Response::new(data));
+        }
+    }
+
+    if let Ok(Some(record)) = stats::get_download_by_id(&video_id) {
+        let path = std::path::PathBuf::from(&record.file_path);
+        if path.exists() {
+            let data = std::fs::read(path).map_err(|e| format!("Falha ao ler faixa offline: {e}"))?;
+            return Ok(tauri::ipc::Response::new(data));
+        }
+    }
+
+    Err(format!("Arquivo offline para a faixa '{video_id}' não encontrado em disco."))
+}
+
+#[tauri::command]
+fn is_track_downloaded(video_id: String) -> Result<bool, String> {
+    if let Ok(Some(record)) = stats::get_download_by_id(&video_id) {
+        let p = std::path::Path::new(&record.file_path);
+        if p.exists() {
+            return Ok(true);
+        }
+    }
+    let storage_dir = stats::get_app_storage_dir();
+    let music_dir = storage_dir.join("music");
+    if music_dir.join(format!("{video_id}.opus")).exists()
+        || music_dir.join(format!("{video_id}.m4a")).exists()
+        || music_dir.join(format!("{video_id}.webm")).exists()
+    {
+        return Ok(true);
+    }
+    Ok(false)
+}
+
+#[tauri::command]
+fn get_downloaded_tracks() -> Result<Vec<stats::DownloadedTrack>, String> {
+    stats::get_all_downloads()
+}
+
+#[tauri::command]
+fn delete_downloaded_track(video_id: String) -> Result<bool, String> {
+    if let Ok(Some(record)) = stats::get_download_by_id(&video_id) {
+        let p = std::path::Path::new(&record.file_path);
+        if p.exists() {
+            let _ = std::fs::remove_file(p);
+        }
+    }
+    let storage_dir = stats::get_app_storage_dir();
+    let music_dir = storage_dir.join("music");
+    let _ = std::fs::remove_file(music_dir.join(format!("{video_id}.opus")));
+    let _ = std::fs::remove_file(music_dir.join(format!("{video_id}.m4a")));
+    let _ = std::fs::remove_file(music_dir.join(format!("{video_id}.webm")));
+
+    stats::delete_download_record(&video_id)
+}
+
 // Window commands
 #[tauri::command]
 fn show_main_window(window: tauri::Window) {
@@ -546,6 +749,40 @@ fn set_mini_player_mode(window: tauri::Window, enabled: bool) -> Result<(), Stri
     Ok(())
 }
 
+#[cfg(target_os = "windows")]
+fn get_dwm_frame_offsets(window: &tauri::Window, scale_factor: f64) -> (f64, f64) {
+    use windows_sys::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_EXTENDED_FRAME_BOUNDS};
+    use windows_sys::Win32::UI::WindowsAndMessaging::GetWindowRect;
+    use windows_sys::Win32::Foundation::RECT;
+
+    if let Ok(hwnd) = window.hwnd() {
+        let hwnd_raw = hwnd.0 as windows_sys::Win32::Foundation::HWND;
+        let mut win_rect = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+        let mut frame_rect = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+        unsafe {
+            if GetWindowRect(hwnd_raw, &mut win_rect) != 0 {
+                let hr = DwmGetWindowAttribute(
+                    hwnd_raw,
+                    DWMWA_EXTENDED_FRAME_BOUNDS as u32,
+                    &mut frame_rect as *mut _ as *mut _,
+                    std::mem::size_of::<RECT>() as u32,
+                );
+                if hr == 0 {
+                    let offset_left = (frame_rect.left - win_rect.left) as f64 / scale_factor;
+                    let offset_right = (win_rect.right - frame_rect.right) as f64 / scale_factor;
+                    return (offset_left.max(0.0), offset_right.max(0.0));
+                }
+            }
+        }
+    }
+    (0.0, 0.0)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn get_dwm_frame_offsets(_window: &tauri::Window, _scale_factor: f64) -> (f64, f64) {
+    (0.0, 0.0)
+}
+
 #[tauri::command]
 fn dock_mini_player(window: tauri::Window, side: String) -> Result<String, String> {
     let _ = window.unmaximize();
@@ -569,13 +806,15 @@ fn dock_mini_player(window: tauri::Window, side: String) -> Result<String, Strin
         .unwrap_or(*mon_pos)
         .to_logical::<f64>(scale_factor);
 
-    let docked_w = 38.0;
-    let docked_h = 90.0;
+    let docked_w = 34.0;
+    let docked_h = 48.0;
+
+    let (offset_left, offset_right) = get_dwm_frame_offsets(&window, scale_factor);
 
     let target_x = if side == "left" {
-        mon_logical_pos.x
+        mon_logical_pos.x - offset_left
     } else {
-        mon_logical_pos.x + mon_logical_size.width - docked_w
+        mon_logical_pos.x + mon_logical_size.width - docked_w + offset_right
     };
 
     let min_y = mon_logical_pos.y;
@@ -583,8 +822,8 @@ fn dock_mini_player(window: tauri::Window, side: String) -> Result<String, Strin
     let target_y = win_pos.y.clamp(min_y, max_y.max(min_y));
 
     let _ = window.set_min_size(Some(tauri::Size::Logical(tauri::LogicalSize {
-        width: 30.0,
-        height: 60.0,
+        width: 24.0,
+        height: 36.0,
     })));
     let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
         width: docked_w,
@@ -595,6 +834,7 @@ fn dock_mini_player(window: tauri::Window, side: String) -> Result<String, Strin
         y: target_y,
     }));
 
+    let _ = window.emit("mini-player-docked", &side);
     Ok(side)
 }
 
@@ -751,14 +991,16 @@ fn move_docked_tab(
     let mon_logical_pos = mon_pos.to_logical::<f64>(scale_factor);
     let mon_logical_size = mon_size.to_logical::<f64>(scale_factor);
 
-    let docked_w = 38.0;
-    let docked_h = 90.0;
+    let docked_w = 34.0;
+    let docked_h = 48.0;
 
-    // X é ESTRITAMENTE travado na borda esquerda ou direita
+    let (offset_left, offset_right) = get_dwm_frame_offsets(&window, scale_factor);
+
+    // X é ESTRITAMENTE travado na borda esquerda ou direita sem folga
     let target_x = if side == "left" {
-        mon_logical_pos.x
+        mon_logical_pos.x - offset_left
     } else {
-        mon_logical_pos.x + mon_logical_size.width - docked_w
+        mon_logical_pos.x + mon_logical_size.width - docked_w + offset_right
     };
 
     let min_y = mon_logical_pos.y;
@@ -967,7 +1209,12 @@ pub fn run() {
             start_drag_and_snap,
             move_docked_tab,
             get_app_storage_info,
-            open_app_storage_dir
+            open_app_storage_dir,
+            download_track,
+            read_offline_track,
+            is_track_downloaded,
+            get_downloaded_tracks,
+            delete_downloaded_track
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

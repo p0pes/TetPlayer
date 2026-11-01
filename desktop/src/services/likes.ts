@@ -88,6 +88,27 @@ export const LikesService = {
     }
   },
 
+  reconcileLikedTracks(tracks: Track[]): void {
+    if (!tracks || !Array.isArray(tracks)) return;
+    const freshIds = new Set(tracks.filter((t) => t && t.id).map((t) => t.id));
+    let changed = false;
+    if (freshIds.size !== currentLikedIds.size) {
+      changed = true;
+    } else {
+      for (const id of freshIds) {
+        if (!currentLikedIds.has(id)) {
+          changed = true;
+          break;
+        }
+      }
+    }
+    if (changed) {
+      currentLikedIds = freshIds;
+      saveLikedIds(currentLikedIds);
+      notifyListeners();
+    }
+  },
+
   syncLikedTracks(tracks: Track[]): void {
     if (!tracks || !Array.isArray(tracks)) return;
     let changed = false;

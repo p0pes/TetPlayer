@@ -12,6 +12,7 @@ import {
   Trash2,
   ChevronDown,
   Check,
+  Download,
 } from "lucide-react";
 import { Playlist, Track } from "../../types";
 import { VirtualizedTrackList } from "./VirtualizedTrackList";
@@ -182,6 +183,8 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
     return sorted;
   }, [tracks, searchFilter, sortBy]);
 
+  const isVirtualCollection = playlist.id === "VLLM" || playlist.id === "OFFLINE_DOWNLOADS";
+
   return (
     <div className="space-y-6">
       {/* Botão Voltar */}
@@ -204,6 +207,10 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
               onError={() => setHasImageError(true)}
               className="w-full h-full object-cover"
             />
+          ) : playlist.id === "OFFLINE_DOWNLOADS" ? (
+            <div className="w-full h-full bg-emerald-950/60 border border-emerald-500/30 flex items-center justify-center">
+              <Download className="w-14 h-14 text-emerald-400 drop-shadow-[0_0_12px_rgba(52,211,153,0.4)]" />
+            </div>
           ) : (
             <Music className="w-14 h-14 text-white/50" />
           )}
@@ -211,12 +218,16 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
 
         <div className="flex-1 space-y-2 text-center sm:text-left">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-[var(--accent-text)] uppercase tracking-wider bg-[var(--accent-subtle)] px-2.5 py-1 rounded-md border border-[var(--accent-border)]">
-              Playlist
+            <span className={`text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md border ${
+              playlist.id === "OFFLINE_DOWNLOADS"
+                ? "bg-emerald-950/70 border-emerald-500/40 text-emerald-300"
+                : "bg-[var(--accent-subtle)] border-[var(--accent-border)] text-[var(--accent-text)]"
+            }`}>
+              {playlist.id === "OFFLINE_DOWNLOADS" ? "Armazenamento Offline" : "Playlist"}
             </span>
 
-            {/* Ações da Playlist (Editar e Excluir) se não for VLLM */}
-            {playlist.id !== "VLLM" && (
+            {/* Ações da Playlist (Editar e Excluir) apenas se não for coleção virtual */}
+            {!isVirtualCollection && (
               <div className="flex items-center gap-1.5">
                 {onEditPlaylist && (
                   <button
@@ -258,7 +269,9 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
             </p>
           )}
           <p className="text-xs text-[#71778c]">
-            {tracks.length} {tracks.length === 1 ? "música carregada" : "músicas carregadas"}
+            {playlist.id === "OFFLINE_DOWNLOADS"
+              ? `${tracks.length} ${tracks.length === 1 ? "música salva no disco" : "músicas salvas no disco"}`
+              : `${tracks.length} ${tracks.length === 1 ? "música carregada" : "músicas carregadas"}`}
           </p>
 
           <div className="pt-2">
@@ -430,7 +443,7 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
             loadingTrackId={loadingTrackId}
             playlistId={playlist.id}
             canReorder={
-              playlist.id !== "VLLM" &&
+              !isVirtualCollection &&
               sortBy === "original" &&
               !searchFilter.trim() &&
               !!onReorderTrack

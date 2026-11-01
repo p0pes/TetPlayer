@@ -201,6 +201,9 @@ export const TimelineScrubber = memo(function TimelineScrubber({
           onPointerCancel={handlePointerUp}
           disabled={disabled}
           aria-label="Posição da música na linha do tempo"
+          aria-valuemin={0}
+          aria-valuemax={duration || 100}
+          aria-valuenow={displayTime}
           data-testid="scrubber-range-input"
           className="w-full h-1 hover:h-1.5 bg-[#232733] hover:bg-[#2e3344] rounded-full accent-[var(--accent)] cursor-pointer disabled:cursor-not-allowed transition-all duration-150 ease-out"
         />

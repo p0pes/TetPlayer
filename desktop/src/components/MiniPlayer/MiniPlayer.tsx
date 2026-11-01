@@ -1,5 +1,6 @@
 import React, { useState, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import {
   Play,
   Pause,
@@ -21,6 +22,7 @@ import { formatTime } from "../../hooks/useLyrics";
 import { SpectrumVisualizer } from "../Visualizer/SpectrumVisualizer";
 import { upgradeArtworkQuality, handleArtworkError } from "../../utils/artwork";
 import { useLikedTrack } from "../../services/likes";
+import { SettingsService } from "../../services/settings";
 
 export function MiniPlayer() {
   const {
@@ -36,12 +38,23 @@ export function MiniPlayer() {
     toggleMute,
     toggleMiniPlayer,
   } = usePlayer();
-
-  const { currentTime, duration } = usePlaybackProgress();
   const { isLiked, toggleLike } = useLikedTrack(currentTrack);
 
   // Estado de ancoragem / docking na borda ('left' | 'right' | null)
   const [isDocked, setIsDocked] = useState<"left" | "right" | null>(null);
+
+  React.useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen<string>("mini-player-docked", (event) => {
+      if (event.payload === "left" || event.payload === "right") {
+        setIsDocked(event.payload);
+      }
+    }).then((fn) => { unlisten = fn; }).catch(console.error);
+
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, []);
 
   // Controle de arrasto vertical do tab recolhido estilo PiP Android
   const isDraggingTabRef = useRef(false);
@@ -77,9 +90,23 @@ export function MiniPlayer() {
     invoke("minimize_window").catch(console.error);
   }
 
-  function handleClose(e?: React.MouseEvent) {
+  async function handleClose(e?: React.MouseEvent) {
     if (e) e.stopPropagation();
-    invoke("close_window").catch(console.error);
+    try {
+      const closeAction = SettingsService.getSetting("closeAction");
+      if (closeAction === "tray") {
+        await invoke("hide_to_tray");
+      } else {
+        await invoke("close_window");
+      }
+    } catch (err) {
+      console.error("Erro ao fechar/ocultar Mini Player:", err);
+      try {
+        await invoke("close_window");
+      } catch {
+        // ignore
+      }
+    }
   }
 
   async function handleManualDock() {
@@ -144,8 +171,11 @@ export function MiniPlayer() {
     // Se arrastou verticalmente, NÃO expande! Fica ancorado na nova posição vertical
   }
 
-  // Visualização recolhida / ancorada na borda da tela
-  if (isDocked) {
+  // Visualização recolhida / ancorada na borda da tela (Ultra-compacta com indicador único na setinha)
+  const isCompactMode = Boolean(isDocked || (typeof window !== "undefined" && window.innerWidth < 150));
+  const activeDockSide = isDocked || "right";
+
+  if (isCompactMode) {
     return (
       <div
         onPointerDown={handleTabPointerDown}
@@ -155,45 +185,33 @@ export function MiniPlayer() {
           isDraggingTabRef.current = false;
         }}
         title="TetPlayer Mini - Clique para expandir ou arraste para cima/baixo"
-        className={`w-full h-full bg-[#0c0e17] hover:bg-[#151928] border border-[#2b3042] hover:border-[var(--accent)] flex flex-col items-center justify-between py-2.5 shadow-2xl cursor-pointer group transition-colors select-none relative ${
-          isDocked === "left"
-            ? "border-l-0"
-            : "border-r-0"
+        className={`w-full h-full bg-[#0c0e17] hover:bg-[#151928] border border-[#2b3042] flex items-center justify-center overflow-hidden cursor-pointer group transition-colors duration-150 select-none relative ${
+          activeDockSide === "left"
+            ? "border-l-0 rounded-r-xl"
+            : "border-r-0 rounded-l-xl"
         }`}
       >
-        {/* Glow Aurora de fundo sutil */}
+        {/* Glow Aurora de fundo sutil acompanhando o formato da cápsula */}
         <div
-          className="absolute inset-0 opacity-30 pointer-events-none"
+          className="absolute inset-0 opacity-25 pointer-events-none rounded-[inherit]"
           style={{
             background:
               "radial-gradient(circle at center, var(--aurora-1-glow) 0%, transparent 70%)",
           }}
         />
 
-        {/* Indicador de reprodução (topo) */}
-        <div className="flex items-center justify-center z-10 pt-0.5 pointer-events-none">
-          {isPlaying ? (
-            <div className="w-2 h-2 rounded-full bg-[var(--accent)] animate-pulse shadow-[0_0_8px_var(--accent-glow)]" />
-          ) : (
-            <div className="w-1.5 h-1.5 rounded-full bg-[#5e6479]" />
-          )}
-        </div>
-
-        {/* Setinha sutil (centro) apontando para dentro da tela */}
-        <div className="flex items-center justify-center text-[#8c91a4] group-hover:text-white transition-colors z-10 pointer-events-none">
-          {isDocked === "left" ? (
+        {/* Setinha com indicador integrado de reprodução (brilhando com glow se tocando, apagada e discreta se pausada) */}
+        <div
+          className={`flex items-center justify-center z-10 pointer-events-none transition-colors duration-200 ${
+            isPlaying
+              ? "text-[var(--accent)] drop-shadow-[0_0_8px_var(--accent-glow)] animate-pulse"
+              : "text-[#5e6479] opacity-60 group-hover:opacity-100 group-hover:text-white"
+          }`}
+        >
+          {activeDockSide === "left" ? (
             <ChevronRight className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" />
           ) : (
             <ChevronLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
-          )}
-        </div>
-
-        {/* Mini barra de espectro de áudio / nota musical (base) */}
-        <div className="flex items-center justify-center text-[#71778c] group-hover:text-[var(--accent-text)] transition-colors z-10 pb-0.5 pointer-events-none">
-          {isPlaying ? (
-            <SpectrumVisualizer isPlaying={isPlaying} track={currentTrack} variant="mini" barCount={3} />
-          ) : (
-            <Music className="w-3.5 h-3.5" />
           )}
         </div>
       </div>
@@ -396,27 +414,50 @@ export function MiniPlayer() {
               value={isMuted ? 0 : volume}
               onChange={handleVolumeChange}
               aria-label="Volume no Mini Player"
+              aria-valuemin={0}
+              aria-valuemax={1}
+              aria-valuenow={isMuted ? 0 : volume}
               className="w-12 h-1 bg-[#232733] rounded-full accent-[var(--accent)] cursor-pointer opacity-70 hover:opacity-100 transition-opacity"
             />
           </div>
         </div>
       </div>
 
-      {/* Mini Scrubber na base com tempo decorrido */}
-      <div className="px-3 pb-1.5 flex items-center gap-2 text-[9px] text-[#71778c] font-mono z-10">
-        <span>{formatTime(currentTime)}</span>
-        <input
-          type="range"
-          min={0}
-          max={duration || 100}
-          value={currentTime}
-          onChange={(e) => handleSeekTo(parseFloat(e.target.value))}
-          disabled={!currentTrack}
-          aria-label="Linha do tempo"
-          className="flex-1 h-1 bg-[#232733] rounded-full accent-[var(--accent)] cursor-pointer"
-        />
-        <span>{formatTime(duration)}</span>
-      </div>
+      {/* Mini Scrubber isolado para evitar re-render de 80ms no container (Mandamento #3) */}
+      <MiniPlayerScrubber disabled={!currentTrack} onSeek={handleSeekTo} />
     </div>
   );
 }
+
+
+interface MiniPlayerScrubberProps {
+  disabled: boolean;
+  onSeek: (seconds: number) => void;
+}
+
+const MiniPlayerScrubber = React.memo(function MiniPlayerScrubber({
+  disabled,
+  onSeek,
+}: MiniPlayerScrubberProps) {
+  const { currentTime, duration } = usePlaybackProgress();
+
+  return (
+    <div className="px-3 pb-1.5 flex items-center gap-2 text-[9px] text-[#71778c] font-mono z-10">
+      <span>{formatTime(currentTime)}</span>
+      <input
+        type="range"
+        min={0}
+        max={duration || 100}
+        value={currentTime}
+        onChange={(e) => onSeek(parseFloat(e.target.value))}
+        disabled={disabled}
+        aria-label="Linha do tempo"
+        aria-valuemin={0}
+        aria-valuemax={duration || 100}
+        aria-valuenow={currentTime}
+        className="flex-1 h-1 bg-[#232733] rounded-full accent-[var(--accent)] cursor-pointer"
+      />
+      <span>{formatTime(duration)}</span>
+    </div>
+  );
+});

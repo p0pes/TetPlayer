@@ -1,9 +1,10 @@
 import React from "react";
-import { Music, Play, Pause, Loader2, MoreVertical, GripVertical, Heart } from "lucide-react";
+import { Music, Play, Pause, Loader2, MoreVertical, GripVertical, Heart, CheckCircle2 } from "lucide-react";
 import { Track } from "../../types";
 import { upgradeArtworkQuality, handleArtworkError } from "../../utils/artwork";
 import { triggerTrackContextMenu } from "../../context/PlayerContext";
 import { useLikedTrack } from "../../services/likes";
+import { useTrackDownload } from "../../services/downloads";
 
 interface TrackRowProps {
   track: Track;
@@ -39,6 +40,7 @@ export const TrackRow = React.memo(function TrackRow({
   onContextMenu,
 }: TrackRowProps) {
   const { isLiked, toggleLike } = useLikedTrack(track);
+  const { isDownloaded } = useTrackDownload(track);
 
   function handleContextMenu(e: React.MouseEvent) {
     e.preventDefault();
@@ -51,13 +53,12 @@ export const TrackRow = React.memo(function TrackRow({
   }
 
   function handleClick(e: React.MouseEvent) {
+    e.stopPropagation();
     if (shouldSuppressClick?.()) {
       e.preventDefault();
-      e.stopPropagation();
       return;
     }
     if (isCurrent && onTogglePlayPause) {
-      e.stopPropagation();
       onTogglePlayPause();
     } else {
       onPlay();
@@ -134,9 +135,23 @@ export const TrackRow = React.memo(function TrackRow({
 
         {/* Info */}
         <div className="min-w-0 flex-1">
-          <p className={`text-sm font-semibold truncate ${isCurrent ? "text-[var(--accent-text)]" : "text-white"}`}>
-            {track.title}
-          </p>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span
+              className={`text-sm font-semibold truncate flex-1 min-w-0 ${
+                isCurrent ? "text-[var(--accent-text)]" : "text-white"
+              }`}
+            >
+              {track.title}
+            </span>
+            {isDownloaded && (
+              <span
+                title="Disponível offline no disco"
+                className="shrink-0 text-emerald-400 inline-flex items-center"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+              </span>
+            )}
+          </div>
           <p className="text-xs text-[#8c91a4] truncate">
             <span
               onClick={(e) => {
@@ -216,6 +231,7 @@ export const TrackRow = React.memo(function TrackRow({
 
         {/* Play/Pause Button */}
         <button
+          type="button"
           onClick={handleClick}
           aria-label={isCurrent && isPlaying ? `Pausar ${track.title}` : `Tocar ${track.title}`}
           className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${isCurrent && isPlaying

@@ -155,7 +155,7 @@ export const LocalCacheService = {
   // Salvar faixas de uma playlist no cache local com política de evicção LRU e espelhamento no SQLite
   saveCachedPlaylistTracks(playlistId: string, tracks: Track[]): void {
     if (playlistId === "VLLM") {
-      LikesService.syncLikedTracks(tracks);
+      LikesService.reconcileLikedTracks(tracks);
     }
     const cacheKey = `${PLAYLIST_TRACKS_CACHE_PREFIX}${playlistId}`;
     const serialized = JSON.stringify(tracks);

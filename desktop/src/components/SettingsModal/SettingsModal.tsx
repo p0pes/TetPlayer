@@ -155,7 +155,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, requestClose]);
 
   const updateSetting = useCallback(
     <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {

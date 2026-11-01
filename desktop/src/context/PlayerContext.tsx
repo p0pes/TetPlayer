@@ -547,6 +547,9 @@ export function PlayerProvider({
     } else if (isAutoplayRadioRef.current && currentTrackRef.current) {
       // Autoplay Infinito: busca recomendações da rádio do YouTube Music
       const lastTrack = currentTrackRef.current;
+      if (isFetchingRadioRef.current || fetchedRadioForTrackIdRef.current === lastTrack.id) return;
+      isFetchingRadioRef.current = true;
+      fetchedRadioForTrackIdRef.current = lastTrack.id;
       invoke<Track[]>("get_radio_tracks", { videoId: lastTrack.id })
         .then((radioTracks) => {
           if (radioTracks && radioTracks.length > 0) {
@@ -565,6 +568,9 @@ export function PlayerProvider({
         })
         .catch((err) => {
           console.warn("Falha ao buscar rádio automática:", err);
+        })
+        .finally(() => {
+          isFetchingRadioRef.current = false;
         });
     }
   }
@@ -713,9 +719,13 @@ export function PlayerProvider({
 
   // Pipeline de pré-carregamento inteligente da próxima faixa (Gapless Playback & Instant Skip)
   const prefetchedTrackIdRef = useRef<string | null>(null);
+  const isFetchingRadioRef = useRef(false);
+  const fetchedRadioForTrackIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     prefetchedTrackIdRef.current = null;
+    isFetchingRadioRef.current = false;
+    fetchedRadioForTrackIdRef.current = null;
   }, [currentTrack?.id]);
 
   // 1. Pré-carregamento IMEDIATO da próxima faixa assim que a fila ou a faixa muda (latência zero no pulo manual)
@@ -740,7 +750,16 @@ export function PlayerProvider({
 
     // Se rádio contínua estiver ativa e a fila estiver no fim, antecipa a busca
     if (currentTime / duration >= 0.88 || duration - currentTime <= 20) {
-      if (isAutoplayRadioRef.current && currentTrackRef.current && upcomingTracks.length <= 1 && nextTrack) {
+      if (
+        isAutoplayRadioRef.current &&
+        currentTrackRef.current &&
+        upcomingTracks.length <= 1 &&
+        nextTrack?.id &&
+        !isFetchingRadioRef.current &&
+        fetchedRadioForTrackIdRef.current !== nextTrack.id
+      ) {
+        isFetchingRadioRef.current = true;
+        fetchedRadioForTrackIdRef.current = nextTrack.id;
         invoke<Track[]>("get_radio_tracks", { videoId: nextTrack.id })
           .then((radioTracks) => {
             if (radioTracks && radioTracks.length > 0) {
@@ -750,7 +769,10 @@ export function PlayerProvider({
               });
             }
           })
-          .catch(() => { });
+          .catch(() => { })
+          .finally(() => {
+            isFetchingRadioRef.current = false;
+          });
       }
     }
   }, [currentTime, duration, upcomingTracks]);

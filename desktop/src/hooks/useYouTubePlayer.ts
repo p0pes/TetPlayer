@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { SettingsService } from "../services/settings";
 import { nativeAudioEngine } from "../services/audioEngine";
 import { fetchStreamInfoCached, getCachedStreamInfo } from "../services/streamCache";
+import { DownloadsService } from "../services/downloads";
+import { PerformanceTelemetry } from "../services/telemetry";
 
 interface UseYouTubePlayerProps {
   crossfadeSeconds: number;
@@ -314,6 +316,9 @@ export function useYouTubePlayer({
             ytPlayerRef.current.setPlaybackRate(1.0);
             const dur = ytPlayerRef.current.getDuration();
             if (dur) setDuration(dur);
+            if (currentVideoIdRef.current) {
+              PerformanceTelemetry.endTrackTransition(currentVideoIdRef.current);
+            }
           } else if (event.data === 2) { // PAUSED
             // Ignora eventos transitórios de pausa disparados pelo IFrame ao trocar de faixa ou durante seek
             if ((isSeekingRef.current || isTransitioningTrackRef.current) && isPlayingRef.current) {
@@ -413,6 +418,7 @@ export function useYouTubePlayer({
   async function loadAndPlayVideo(videoId: string, seekSec = 0, isManual = false) {
     const requestId = ++loadRequestIdRef.current;
     setLoadingTrackId(videoId);
+    PerformanceTelemetry.startTrackTransition(videoId, currentVideoIdRef.current);
     currentVideoIdRef.current = videoId;
 
     // Reseta imediatamente o progresso no milissegundo do clique (elimina a barra congelada no tempo anterior)
@@ -429,6 +435,49 @@ export function useYouTubePlayer({
     if (rapidSkipTimerRef.current !== null) {
       window.clearTimeout(rapidSkipTimerRef.current);
       rapidSkipTimerRef.current = null;
+    }
+
+    // 0. Modo Offline / Híbrido Local (Item 6.2 & 118): Se a faixa está baixada em disco, toca instantaneamente com fallback defensivo
+    if (DownloadsService.isDownloaded(videoId)) {
+      try {
+        const offlineUrl = await DownloadsService.getOfflineAudioUrl(videoId);
+        if (offlineUrl && requestId === loadRequestIdRef.current && currentVideoIdRef.current === videoId) {
+          activeEngineRef.current = "native";
+          if (ytPlayerRef.current) {
+            try {
+              ytPlayerRef.current.pauseVideo();
+              ytPlayerRef.current.mute();
+            } catch {
+              // ignore
+            }
+          }
+
+          nativeAudioEngine.setNormalizeVolume(SettingsService.getSetting("normalizeVolume"));
+          nativeAudioEngine.load(offlineUrl, videoId, null);
+          if (seekSec > 0) {
+            nativeAudioEngine.seek(seekSec);
+          }
+          const userVol = isMutedRef.current ? 0 : volumeRef.current;
+          const initialVol = (isManual || crossfadeSecondsRef.current <= 0) ? userVol : 0;
+          nativeAudioEngine.setVolume(initialVol);
+
+          await nativeAudioEngine.play();
+          if (requestId !== loadRequestIdRef.current || currentVideoIdRef.current !== videoId) {
+            nativeAudioEngine.stop();
+            return;
+          }
+          activeLoadedVideoIdRef.current = videoId;
+          PerformanceTelemetry.endTrackTransition(videoId);
+          clearTransitionGuard();
+          isPlayingRef.current = true;
+          setIsPlaying(true);
+          setLoadingTrackId(null);
+          return;
+        }
+      } catch (err) {
+        console.warn(`[useYouTubePlayer] Falha ao reproduzir áudio offline para ${videoId}, caindo em fallback online:`, err);
+        DownloadsService.revokeOfflineAudioUrl?.(videoId);
+      }
     }
 
     // 1. Resolução Síncrona Imediata (0ms) se o stream nativo já estiver em cache
@@ -462,6 +511,7 @@ export function useYouTubePlayer({
         return;
       }
       activeLoadedVideoIdRef.current = videoId;
+      PerformanceTelemetry.endTrackTransition(videoId);
       clearTransitionGuard();
       isPlayingRef.current = true;
       setIsPlaying(true);
