@@ -245,7 +245,8 @@ export const Sidebar = React.memo(function Sidebar({
 
   // Constrói itens unificados de Playlists + Álbuns
   const allCollectionItems = useMemo<SidebarCollectionItem[]>(() => {
-    const playlistItems: SidebarCollectionItem[] = playlists.map((pl) => ({
+    const playlistList = Array.isArray(playlists) ? playlists : [];
+    const playlistItems: SidebarCollectionItem[] = playlistList.filter((pl) => pl && pl.id).map((pl) => ({
       kind: "playlist",
       id: pl.id,
       title: pl.title,
@@ -261,7 +262,8 @@ export const Sidebar = React.memo(function Sidebar({
       playlist: pl,
     }));
 
-    const albumItems: SidebarCollectionItem[] = albums.map((al) => ({
+    const albumList = Array.isArray(albums) ? albums : [];
+    const albumItems: SidebarCollectionItem[] = albumList.filter((al) => al && al.id).map((al) => ({
       kind: "album",
       id: al.id,
       title: al.title,

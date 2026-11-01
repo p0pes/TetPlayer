@@ -295,13 +295,15 @@ function AppContent({
   }, []);
 
   const displayedPlaylists = useMemo(() => {
-    if (isOnline) return playlists;
-    return playlists.filter((pl) => DownloadsService.isPlaylistDownloaded(pl.id));
+    const list = Array.isArray(playlists) ? playlists : [];
+    if (isOnline) return list;
+    return list.filter((pl) => pl && pl.id && DownloadsService.isPlaylistDownloaded(pl.id));
   }, [playlists, isOnline, downloadVersion]);
 
   const displayedAlbums = useMemo(() => {
-    if (isOnline) return albums;
-    return albums.filter((al) => DownloadsService.isPlaylistDownloaded(al.id));
+    const list = Array.isArray(albums) ? albums : [];
+    if (isOnline) return list;
+    return list.filter((al) => al && al.id && DownloadsService.isPlaylistDownloaded(al.id));
   }, [albums, isOnline, downloadVersion]);
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
   const selectedAlbumRef = useRef<Album | null>(null);

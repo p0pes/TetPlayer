@@ -344,7 +344,7 @@ export const DownloadsService = {
 
   isPlaylistDownloaded(collectionId?: string | null): boolean {
     if (!collectionId) return false;
-    return downloadedCollectionIds.has(collectionId);
+    return Boolean(downloadedCollectionIds?.has?.(collectionId));
   },
 
   isPlaylistDownloading(playlistId?: string | null): boolean {

@@ -118,7 +118,8 @@ export const LocalCacheService = {
     try {
       const data = localStorage.getItem(PLAYLISTS_CACHE_KEY);
       if (!data) return null;
-      return JSON.parse(data) as Playlist[];
+      const parsed = JSON.parse(data);
+      return Array.isArray(parsed) ? (parsed as Playlist[]) : null;
     } catch {
       return null;
     }
@@ -187,7 +188,8 @@ export const LocalCacheService = {
     try {
       const data = localStorage.getItem(ALBUMS_CACHE_KEY);
       if (!data) return null;
-      return JSON.parse(data) as Album[];
+      const parsed = JSON.parse(data);
+      return Array.isArray(parsed) ? (parsed as Album[]) : null;
     } catch {
       return null;
     }
