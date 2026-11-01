@@ -52,6 +52,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useState, useEffect, useCallback } from "react";
 import { Track } from "../types";
+import { LocalCacheService } from "./cache";
 
 export interface DownloadedTrack {
   video_id: string;
@@ -105,6 +106,34 @@ function loadInitialDownloadedIds(): Set<string> {
 let downloadedIds: Set<string> = loadInitialDownloadedIds();
 const activeProgress = new Map<string, number>();
 const activePlaylistBatches = new Map<string, PlaylistDownloadBatch>();
+
+const DOWNLOADED_COLLECTIONS_KEY = "tetplayer_downloaded_collection_ids";
+
+function loadInitialDownloadedCollectionIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DOWNLOADED_COLLECTIONS_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        return new Set(arr);
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return new Set();
+}
+
+let downloadedCollectionIds: Set<string> = loadInitialDownloadedCollectionIds();
+
+function saveDownloadedCollectionIds(ids: Set<string>) {
+  try {
+    localStorage.setItem(DOWNLOADED_COLLECTIONS_KEY, JSON.stringify(Array.from(ids)));
+  } catch {
+    // ignore
+  }
+}
+
 const MAX_CACHED_BLOB_URLS = 4;
 const offlineBlobUrls = new Map<string, string>();
 
@@ -313,6 +342,11 @@ export const DownloadsService = {
     }
   },
 
+  isPlaylistDownloaded(collectionId?: string | null): boolean {
+    if (!collectionId) return false;
+    return downloadedCollectionIds.has(collectionId);
+  },
+
   isPlaylistDownloading(playlistId?: string | null): boolean {
     if (!playlistId) return false;
     return activePlaylistBatches.has(playlistId);
@@ -397,6 +431,16 @@ export const DownloadsService = {
       }
     } finally {
       activePlaylistBatches.delete(playlistId);
+      const allDownloaded = tracks.length > 0 && tracks.every((t) => t?.id && downloadedIds.has(t.id));
+      if (allDownloaded || batch.completed > 0) {
+        downloadedCollectionIds.add(playlistId);
+        saveDownloadedCollectionIds(downloadedCollectionIds);
+        try {
+          LocalCacheService.saveCachedPlaylistTracks(playlistId, tracks);
+        } catch {
+          // ignore
+        }
+      }
       notify();
     }
 
@@ -412,8 +456,15 @@ export const DownloadsService = {
     }
   },
 
-  async removePlaylistDownloads(tracks: Track[]): Promise<number> {
-    if (!tracks || tracks.length === 0) return 0;
+  async removePlaylistDownloads(tracks: Track[], playlistId?: string): Promise<number> {
+    if (playlistId) {
+      downloadedCollectionIds.delete(playlistId);
+      saveDownloadedCollectionIds(downloadedCollectionIds);
+    }
+    if (!tracks || tracks.length === 0) {
+      notify();
+      return 0;
+    }
     let removed = 0;
     for (const track of tracks) {
       if (track?.id && downloadedIds.has(track.id)) {
@@ -503,8 +554,8 @@ export function usePlaylistDownload(playlistId?: string | null, tracks: Track[] 
 
   const removeDownloads = useCallback(async () => {
     if (!tracks || tracks.length === 0) return;
-    await DownloadsService.removePlaylistDownloads(tracks);
-  }, [tracks]);
+    await DownloadsService.removePlaylistDownloads(tracks, playlistId || undefined);
+  }, [tracks, playlistId]);
 
   return {
     ...stats,

@@ -181,11 +181,11 @@ describe("PlaylistDetailView (Busca e Ordenação - Item 2.2)", () => {
       expect(downloadBtn).toBeInTheDocument();
     });
 
-    it("deve exibir botão 'Limpar Todos os Downloads' quando na coleção OFFLINE_DOWNLOADS", () => {
+    it("deve exibir botão de download da playlist e respeitar lista vazia", () => {
       render(
         <PlaylistDetailView
-          playlist={{ id: "OFFLINE_DOWNLOADS", title: "Músicas Baixadas" }}
-          tracks={mockTracks}
+          playlist={mockPlaylist}
+          tracks={[]}
           isLoadingTracks={false}
           currentTrack={null}
           isPlaying={false}
@@ -197,8 +197,7 @@ describe("PlaylistDetailView (Busca e Ordenação - Item 2.2)", () => {
         />
       );
 
-      const clearBtn = screen.getByRole("button", { name: /limpar todos os downloads/i });
-      expect(clearBtn).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /baixar playlist/i })).not.toBeInTheDocument();
     });
   });
 

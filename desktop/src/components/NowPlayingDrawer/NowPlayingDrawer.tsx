@@ -4,9 +4,6 @@ import {
   Mic2,
   Sliders,
   Heart,
-  Download,
-  Trash2,
-  Loader2,
 } from "lucide-react";
 import { usePlayer } from "../../context/PlayerContext";
 import { QueueView } from "../QueueView/QueueView";
@@ -14,7 +11,6 @@ import { LyricsView } from "../LyricsView/LyricsView";
 import { SpectrumVisualizer } from "../Visualizer/SpectrumVisualizer";
 import { MotionCover } from "./MotionCover";
 import { useLikedTrack } from "../../services/likes";
-import { useTrackDownload } from "../../services/downloads";
 
 export function NowPlayingDrawer() {
   const {
@@ -29,7 +25,6 @@ export function NowPlayingDrawer() {
   } = usePlayer();
 
   const { isLiked, toggleLike } = useLikedTrack(currentTrack);
-  const { isDownloaded, isDownloading, toggleDownload } = useTrackDownload(currentTrack);
 
   const queueBtnRef = useRef<HTMLButtonElement>(null);
   const lyricsBtnRef = useRef<HTMLButtonElement>(null);
@@ -247,41 +242,6 @@ export function NowPlayingDrawer() {
                     }`}
                   />
                   <span>{isLiked ? "Curtida" : "Curtir"}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={toggleDownload}
-                  disabled={isDownloading}
-                  title={
-                    isDownloading
-                      ? "Baixando faixa para reprodução offline..."
-                      : isDownloaded
-                      ? "Disponível offline no disco (clique para remover)"
-                      : "Baixar música para ouvir offline"
-                  }
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                    isDownloaded
-                      ? "bg-emerald-950/70 border-emerald-500/40 text-emerald-300 hover:text-red-400 hover:border-red-500/40 shadow-sm"
-                      : isDownloading
-                      ? "bg-[var(--accent-subtle)] border-[var(--accent-border)] text-[var(--accent-text)] cursor-wait"
-                      : "bg-[#141722] border-[#232735] text-[#8c91a4] hover:text-white hover:bg-white/5"
-                  }`}
-                >
-                  {isDownloading ? (
-                    <Loader2 className="w-3.5 h-3.5 text-[var(--accent)] animate-spin" />
-                  ) : isDownloaded ? (
-                    <Trash2 className="w-3.5 h-3.5" />
-                  ) : (
-                    <Download className="w-3.5 h-3.5" />
-                  )}
-                  <span>
-                    {isDownloading
-                      ? "Baixando..."
-                      : isDownloaded
-                      ? "Baixada"
-                      : "Baixar"}
-                  </span>
                 </button>
               </div>
             )}

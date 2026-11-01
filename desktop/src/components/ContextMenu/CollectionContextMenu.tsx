@@ -275,7 +275,7 @@ export function CollectionContextMenu({
         </button>
 
         {/* Opção Download Offline da Coleção */}
-        {itemId !== "OFFLINE_DOWNLOADS" && (
+        {(
           <button
             type="button"
             role="menuitem"

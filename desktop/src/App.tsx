@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -15,6 +15,7 @@ import {
   X,
   Plus,
   RefreshCw,
+  WifiOff,
 } from "lucide-react";
 import { Playlist, Track, AuthSession, ActiveTab, Album, AlbumDetail, ArtistDetail } from "./types";
 import { LocalCacheService } from "./services/cache";
@@ -48,6 +49,7 @@ import { SettingsService } from "./services/settings";
 import { PerformanceTelemetry } from "./services/telemetry";
 import { humanizeApiError } from "./utils/errors";
 import { DownloadsService } from "./services/downloads";
+import { useNetworkStatus } from "./services/network";
 
 export default function App() {
   useEffect(() => {
@@ -272,36 +274,35 @@ function AppContent({
   const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false);
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
   const selectedPlaylistRef = useRef<Playlist | null>(null);
+  const { isOnline } = useNetworkStatus();
+
+
   selectedPlaylistRef.current = selectedPlaylist;
   const [playlistTracks, setPlaylistTracks] = useState<Track[]>([]);
   const [isLoadingPlaylistTracks, setIsLoadingPlaylistTracks] = useState(false);
-
-  // Subscrição Reativa para Downloads Offline em Tempo Real (Item 116)
-  useEffect(() => {
-    return DownloadsService.subscribe(async () => {
-      if (selectedPlaylistRef.current?.id === "OFFLINE_DOWNLOADS") {
-        try {
-          const downloads = await DownloadsService.getDownloadedTracks();
-          const offlineTracks: Track[] = downloads.map((d) => ({
-            id: d.video_id,
-            title: d.title,
-            artist: d.artist,
-            artwork_url: d.artwork_url || "",
-            duration_seconds: d.duration_seconds,
-          }));
-          setPlaylistTracks(offlineTracks);
-        } catch (err) {
-          console.warn("[App] Falha ao sincronizar lista reativa de downloads:", err);
-        }
-      }
-    });
-  }, []);
 
   // Álbuns & Biblioteca (com Cache Local Stale-While-Revalidate)
   const [albums, setAlbums] = useState<Album[]>(() => {
     return LocalCacheService.getCachedAlbums() || [];
   });
   const [isLoadingAlbums, setIsLoadingAlbums] = useState(false);
+  const [downloadVersion, setDownloadVersion] = useState(0);
+
+  useEffect(() => {
+    return DownloadsService.subscribe(() => {
+      setDownloadVersion((v) => v + 1);
+    });
+  }, []);
+
+  const displayedPlaylists = useMemo(() => {
+    if (isOnline) return playlists;
+    return playlists.filter((pl) => DownloadsService.isPlaylistDownloaded(pl.id));
+  }, [playlists, isOnline, downloadVersion]);
+
+  const displayedAlbums = useMemo(() => {
+    if (isOnline) return albums;
+    return albums.filter((al) => DownloadsService.isPlaylistDownloaded(al.id));
+  }, [albums, isOnline, downloadVersion]);
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
   const selectedAlbumRef = useRef<Album | null>(null);
   selectedAlbumRef.current = selectedAlbum;
@@ -536,26 +537,6 @@ function AppContent({
     setArtistDetail(null);
     setActiveTab("library");
     closeNowPlaying();
-
-    if (playlist.id === "OFFLINE_DOWNLOADS") {
-      setIsLoadingPlaylistTracks(true);
-      try {
-        const downloads = await DownloadsService.getDownloadedTracks();
-        const offlineTracks: Track[] = downloads.map((d) => ({
-          id: d.video_id,
-          title: d.title,
-          artist: d.artist,
-          artwork_url: d.artwork_url || "",
-          duration_seconds: d.duration_seconds,
-        }));
-        setPlaylistTracks(offlineTracks);
-      } catch (err) {
-        setErrorMessage("Erro ao carregar faixas offline: " + String(err));
-      } finally {
-        setIsLoadingPlaylistTracks(false);
-      }
-      return;
-    }
 
     // Exibe faixas em cache instantaneamente (0ms) se existirem
     const cachedTracks = LocalCacheService.getCachedPlaylistTracks(playlist.id);
@@ -1618,13 +1599,13 @@ function AppContent({
           <Sidebar
             activeTab={activeTab}
             setActiveTab={handleSidebarTabChange}
-            playlists={playlists}
+            playlists={displayedPlaylists}
             isLoadingPlaylists={isLoadingPlaylists}
             onRefreshPlaylists={loadPlaylists}
             onCreatePlaylist={() => setIsCreatePlaylistOpen(true)}
             selectedPlaylist={selectedPlaylist}
             onSelectPlaylist={handleSelectPlaylist}
-            albums={albums}
+            albums={displayedAlbums}
             isLoadingAlbums={isLoadingAlbums}
             onRefreshAlbums={loadAlbums}
             selectedAlbum={selectedAlbum}
@@ -1676,6 +1657,23 @@ function AppContent({
                 >
                   Fechar
                 </button>
+              </div>
+            )}
+
+            {/* Banner Informativo de Modo Offline */}
+            {!isOnline && (
+              <div
+                role="status"
+                aria-live="polite"
+                className="bg-amber-950/50 border-b border-amber-500/30 px-4 py-2 flex items-center justify-between text-xs text-amber-200 z-30 shrink-0"
+              >
+                <div className="flex items-center gap-2">
+                  <WifiOff className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span className="font-semibold">Modo offline (sem conexão com a internet)</span>
+                  <span className="text-amber-300/70 hidden sm:inline">
+                    • Exibindo apenas playlists e álbuns baixados no disco
+                  </span>
+                </div>
               </div>
             )}
 
@@ -1817,7 +1815,7 @@ function AppContent({
                                   : "bg-white/5 text-[#8c91a4]"
                               }`}
                             >
-                              {playlists.length + albums.length}
+                              {displayedPlaylists.length + displayedAlbums.length}
                             </span>
                           </button>
 
@@ -1839,7 +1837,7 @@ function AppContent({
                                   : "bg-white/5 text-[#8c91a4]"
                               }`}
                             >
-                              {playlists.length}
+                              {displayedPlaylists.length}
                             </span>
                           </button>
 
@@ -1861,7 +1859,7 @@ function AppContent({
                                   : "bg-white/5 text-[#8c91a4]"
                               }`}
                             >
-                              {albums.length}
+                              {displayedAlbums.length}
                             </span>
                           </button>
                         </div>
@@ -2053,9 +2051,9 @@ function AppContent({
 
                       {librarySection === "all" ? (
                         <LibraryOverview
-                          playlists={playlists}
+                          playlists={displayedPlaylists}
                           isLoadingPlaylists={isLoadingPlaylists}
-                          albums={albums}
+                          albums={displayedAlbums}
                           isLoadingAlbums={isLoadingAlbums}
                           onRefreshAlbums={loadAlbums}
                           pinnedIds={pinnedPlaylistIds}
@@ -2076,7 +2074,7 @@ function AppContent({
                         />
                       ) : librarySection === "playlists" ? (
                         <PlaylistGridView
-                          playlists={playlists}
+                          playlists={displayedPlaylists}
                           isLoadingPlaylists={isLoadingPlaylists}
                           pinnedPlaylistIds={pinnedPlaylistIds}
                           onSelectPlaylist={handleSelectPlaylist}
@@ -2094,7 +2092,7 @@ function AppContent({
                         />
                       ) : (
                         <AlbumGridView
-                          albums={albums}
+                          albums={displayedAlbums}
                           isLoading={isLoadingAlbums}
                           onRefresh={loadAlbums}
                           onSelectAlbum={handleSelectAlbum}

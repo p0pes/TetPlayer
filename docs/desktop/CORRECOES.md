@@ -8,7 +8,7 @@
 
 1. [Sumário Executivo & Status Atual da Base de Código](#1-sumário-executivo--status-atual-da-base-de-código)
 2. [Apontamentos Ativos Catalogados (Pendentes de Correção)](#2-apontamentos-ativos-catalogados-pendentes-de-correção)
-3. [Histórico Consolidado e Ordenado de Itens Resolvidos (#01 a #136)](#3-histórico-consolidado-e-ordenado-de-itens-resolvidos-01-a-135)
+3. [Histórico Consolidado e Ordenado de Itens Resolvidos (#01 a #137)](#3-histórico-consolidado-e-ordenado-de-itens-resolvidos-01-a-135)
 
 ---
 
@@ -16,28 +16,28 @@
 
 Uma auditoria técnica profunda e minuciosa de ponta a ponta foi realizada em todo o ecossistema desktop do **TetPlayer** (Frontend React 19 + TypeScript + Tailwind CSS e Backend Tauri v2 + Rust + SQLite), cobrindo concorrência e condições de corrida, ciclo de vida de componentes React 19, isolamento de alta frequência (Mandamento #3), regras de negócio de reprodução offline/online, tratamento defensivo de erros e consistência de UI/UX.
 
-Todos os **136 apontamentos técnicos (#01 a #136)** catalogados em auditorias técnicas de software, testes de estresse, acessibilidade e benchmarks de SLA foram integralmente saneados, validados e consolidados no histórico definitivo.
+Todos os **137 apontamentos técnicos (#01 a #137)** catalogados em auditorias técnicas de software, testes de estresse, acessibilidade e benchmarks de SLA foram integralmente saneados, validados e consolidados no histórico definitivo.
 
 | Severidade | Pendentes Ativos | Resolvidos no Histórico | Status da Build & Testes |
 | :--- | :---: | :---: | :--- |
-| 🔴 **Críticos** | `0` | **136 Resolvidos** | ✅ `tsc && vite build` (0 erros) |
-| 🟡 **Avisos** | `0` | **136 Resolvidos** | ✅ `vitest` (128/128 testes passando) |
-| 🔵 **Sugestões** | `0` | **136 Resolvidos** | ✅ `cargo test` (15/15 testes passando) |
-| **Total Geral** | **`0 Pendentes`** | **`136 Itens Resolvidos`** | 🟢 **Base 100% Saneada, Estável e Otimizada** |
+| 🔴 **Críticos** | `0` | **137 Resolvidos** | ✅ `tsc && vite build` (0 erros) |
+| 🟡 **Avisos** | `0` | **137 Resolvidos** | ✅ `vitest` (131/131 testes passando) |
+| 🔵 **Sugestões** | `0` | **137 Resolvidos** | ✅ `cargo test` (15/15 testes passando) |
+| **Total Geral** | **`0 Pendentes`** | **`137 Itens Resolvidos`** | 🟢 **Base 100% Saneada, Estável e Otimizada** |
 
 ---
 
 ## 2. Apontamentos Ativos Catalogados (Pendentes de Correção)
 
 > [!NOTE]
-> 🟢 **Zero Apontamentos Pendentes**: Todos os **136 itens** levantados em auditorias técnicas profundas, inspeções de arquitetura, integridade de eventos DOM, acessibilidade universal WAI-ARIA e benchmarks de desempenho SLA foram integralmente corrigidos, testados e validados nas suítes automatizadas de testes e builds de produção. A base de código está 100% saneada e em conformidade estrita com as diretrizes operacionais do TetPlayer.
+> 🟢 **Zero Apontamentos Pendentes**: Todos os **137 itens** levantados em auditorias técnicas profundas, inspeções de arquitetura, integridade de eventos DOM, acessibilidade universal WAI-ARIA e benchmarks de desempenho SLA foram integralmente corrigidos, testados e validados nas suítes automatizadas de testes e builds de produção. A base de código está 100% saneada e em conformidade estrita com as diretrizes operacionais do TetPlayer.
 
 ---
 
 ## 3. Histórico Consolidado e Ordenado de Itens Resolvidos (#01 a #135)
 
 > [!NOTE]
-> Todos os **136 itens** abaixo foram diagnosticados, corrigidos, testados e validados no TetPlayer Desktop. A numeração foi integralmente saneada, deduplicada e organizada em ordem sequencial estrita para consulta histórica.
+> Todos os **137 itens** abaixo foram diagnosticados, corrigidos, testados e validados no TetPlayer Desktop. A numeração foi integralmente saneada, deduplicada e organizada em ordem sequencial estrita para consulta histórica.
 
 ### Índice Rápido do Histórico de Correções
 
@@ -782,3 +782,16 @@ Todos os **136 apontamentos técnicos (#01 a #136)** catalogados em auditorias t
   2. Opção de limpeza "Limpar Todos os Downloads" na tela de Armazenamento Offline (`OFFLINE_DOWNLOADS`);
   3. Opção de download direto pelo menu de contexto de coleções (`CollectionContextMenu` em playlists e álbuns na sidebar, biblioteca ou busca);
   4. Suíte de testes unitários automatizados validando o ciclo de vida do lote, cancelamento, recálculo de estatísticas e renderização em `downloads.test.ts` e `PlaylistDetailView.test.tsx`.
+
+---
+
+### 137. Refinamento do Modo Offline e Ergonomia de Downloads (Foco Exclusivo em Playlists & Filtragem de Biblioteca)
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/components/Player/PlayerBar.tsx:150-185`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Player/PlayerBar.tsx#L150-L185), [`desktop/src/components/NowPlayingDrawer/NowPlayingDrawer.tsx:230-260`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/NowPlayingDrawer/NowPlayingDrawer.tsx#L230-L260), [`desktop/src/components/ContextMenu/TrackContextMenu.tsx:220-250`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/ContextMenu/TrackContextMenu.tsx#L220-L250), [`desktop/src/components/Sidebar/Sidebar.tsx:240-285`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Sidebar/Sidebar.tsx#L240-L285), [`desktop/src/App.tsx:274-325`](file:///d:/progrmação/programas/TetPlayer/desktop/src/App.tsx#L274-L325), [`desktop/src/services/downloads.ts:68-125`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/downloads.ts#L68-L125)
+* **Solução Implementada:** 
+  1. **Remoção de downloads individuais:** Eliminados os botões de download de faixas avulsas de `PlayerBar.tsx`, `NowPlayingDrawer.tsx` e `TrackContextMenu.tsx`, estabelecendo a regra de que downloads operam exclusivamente a nível de playlists e álbuns;
+  2. **Eliminação de pasta virtual artificial:** Removida a pseudo-playlist "Músicas Baixadas" da barra lateral (`Sidebar.tsx`), preservando o acervo nativo onde o usuário já o conhece;
+  3. **Persistência de coleções offline:** Adicionado o rastreamento `downloadedCollectionIds` no `DownloadsService` com espelhamento no cache local e SQLite;
+  4. **Filtragem dinâmica da Biblioteca em Modo Offline:** Integrado o hook `useNetworkStatus()`. Quando sem conexão com a internet (`!isOnline`), a Biblioteca (`Sidebar`, `LibraryOverview`, `PlaylistGridView` e `AlbumGridView`) filtra e exibe **estritamente as playlists e álbuns baixados** no disco;
+  5. **Banner informativo e intuitivo:** Exibição do aviso visual semântico `Modo offline (sem conexão com a internet) • Exibindo apenas playlists e álbuns baixados no disco` com ícone `WifiOff`;
+  6. **Prioridade local mesmo online:** Garantido que, se a faixa pertencer a uma playlist baixada, a reprodução ocorre 100% a partir dos arquivos salvos em disco com latência zero (`nativeAudioEngine`), prevenindo eventuais oscilações de rede.

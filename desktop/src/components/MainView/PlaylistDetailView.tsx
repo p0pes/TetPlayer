@@ -195,7 +195,7 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
     return sorted;
   }, [tracks, searchFilter, sortBy]);
 
-  const isVirtualCollection = playlist.id === "VLLM" || playlist.id === "OFFLINE_DOWNLOADS";
+  const isVirtualCollection = playlist.id === "VLLM";
 
   return (
     <div className="space-y-6">
@@ -218,12 +218,7 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
               referrerPolicy="no-referrer"
               onError={() => setHasImageError(true)}
               className="w-full h-full object-cover"
-            />
-          ) : playlist.id === "OFFLINE_DOWNLOADS" ? (
-            <div className="w-full h-full bg-emerald-950/60 border border-emerald-500/30 flex items-center justify-center">
-              <Download className="w-14 h-14 text-emerald-400 drop-shadow-[0_0_12px_rgba(52,211,153,0.4)]" />
-            </div>
-          ) : (
+            /> ) : (
             <Music className="w-14 h-14 text-white/50" />
           )}
         </div>
@@ -299,7 +294,7 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
             </button>
 
             {/* Ações de Download Offline da Playlist Inteira */}
-            {playlist.id !== "OFFLINE_DOWNLOADS" && tracks.length > 0 && (
+            {tracks.length > 0 && (
               isPlaylistDownloading ? (
                 <div className="flex items-center gap-2 bg-[#171b28] border border-[var(--accent)]/50 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-md">
                   <Loader2 className="w-4 h-4 text-[var(--accent)] animate-spin" />
@@ -355,20 +350,7 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
                 </button>
               )
             )}
-
-            {/* Opção para limpar todos os downloads na tela Músicas Baixadas */}
-            {playlist.id === "OFFLINE_DOWNLOADS" && tracks.length > 0 && (
-              <button
-                type="button"
-                onClick={handleRemovePlaylistDownloads}
-                className="flex items-center gap-2 bg-[#181c28] hover:bg-red-950/40 border border-[#272d40] hover:border-red-500/40 text-[#8c91a4] hover:text-red-400 text-xs font-semibold px-4 py-2.5 rounded-xl transition-all cursor-pointer group"
-                title="Remover todas as músicas salvas no disco offline"
-              >
-                <Trash2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                <span>Limpar Todos os Downloads</span>
-              </button>
-            )}
-          </div>
+</div>
         </div>
       </div>
 

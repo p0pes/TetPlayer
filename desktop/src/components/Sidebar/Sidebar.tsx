@@ -10,7 +10,6 @@ import {
   Flame,
   Settings,
   Pin,
-  Download,
   GripVertical,
   Plus,
   Play,
@@ -153,8 +152,6 @@ const SidebarItemThumbnail = React.memo(function SidebarItemThumbnail({
           />
         ) : isLikedAuto ? (
           <Flame className="w-3.5 h-3.5 text-orange-400 shrink-0" />
-        ) : item.id === "OFFLINE_DOWNLOADS" ? (
-          <Download className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
         ) : isAlbum ? (
           <Disc3 className="w-3.5 h-3.5 shrink-0" />
         ) : (
@@ -248,21 +245,6 @@ export const Sidebar = React.memo(function Sidebar({
 
   // Constrói itens unificados de Playlists + Álbuns
   const allCollectionItems = useMemo<SidebarCollectionItem[]>(() => {
-    const offlineItem: SidebarCollectionItem = {
-      kind: "playlist",
-      id: "OFFLINE_DOWNLOADS",
-      title: "Músicas Baixadas",
-      subtitle: "Offline no disco",
-      artworkUrl: null,
-      playlist: {
-        id: "OFFLINE_DOWNLOADS",
-        title: "Músicas Baixadas",
-        subtitle: "Armazenamento local",
-        artwork_url: "",
-        track_count: "Offline",
-      },
-    };
-
     const playlistItems: SidebarCollectionItem[] = playlists.map((pl) => ({
       kind: "playlist",
       id: pl.id,
@@ -288,7 +270,7 @@ export const Sidebar = React.memo(function Sidebar({
       album: al,
     }));
 
-    return [offlineItem, ...playlistItems, ...albumItems];
+    return [...playlistItems, ...albumItems];
   }, [playlists, albums]);
 
   const itemMap = useMemo(() => {

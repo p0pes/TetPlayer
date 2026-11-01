@@ -17,16 +17,12 @@ import {
   Radio,
   Tv,
   Heart,
-  Download,
-  CheckCircle2,
-  Loader2,
 } from "lucide-react";
 import { usePlayer } from "../../context/PlayerContext";
 import { TimelineScrubber } from "./TimelineScrubber";
 import { SpectrumVisualizer } from "../Visualizer/SpectrumVisualizer";
 import { upgradeArtworkQuality, handleArtworkError } from "../../utils/artwork";
 import { useLikedTrack } from "../../services/likes";
-import { useTrackDownload } from "../../services/downloads";
 
 export const PlayerBar = memo(function PlayerBar() {
   const {
@@ -57,7 +53,6 @@ export const PlayerBar = memo(function PlayerBar() {
   } = usePlayer();
 
   const { isLiked, toggleLike } = useLikedTrack(currentTrack);
-  const { isDownloaded, isDownloading, toggleDownload } = useTrackDownload(currentTrack);
   const isDrawerOpen = isNowPlayingOpen || showLyrics;
 
   return (
@@ -149,36 +144,6 @@ export const PlayerBar = memo(function PlayerBar() {
                 isLiked ? "fill-current scale-105" : ""
               }`}
             />
-          </button>
-        )}
-
-        {/* Botão de Download Offline (Item 6.2) */}
-        {currentTrack && (
-          <button
-            type="button"
-            onClick={toggleDownload}
-            disabled={isDownloading}
-            title={
-              isDownloading
-                ? "Baixando faixa para offline..."
-                : isDownloaded
-                ? "Disponível offline no disco (clique para remover)"
-                : "Baixar música para ouvir offline"
-            }
-            aria-label={isDownloaded ? "Remover download offline" : "Baixar música offline"}
-            className={`p-1.5 rounded-xl transition-all cursor-pointer shrink-0 ml-0.5 ${
-              isDownloaded
-                ? "text-emerald-400 hover:text-red-400 hover:scale-110 drop-shadow-[0_0_8px_rgba(52,211,153,0.4)]"
-                : "text-[#71778c] hover:text-white hover:bg-[#1a1d28]"
-            }`}
-          >
-            {isDownloading ? (
-              <Loader2 className="w-4 h-4 text-[var(--accent)] animate-spin" />
-            ) : isDownloaded ? (
-              <CheckCircle2 className="w-4 h-4" />
-            ) : (
-              <Download className="w-4 h-4" />
-            )}
           </button>
         )}
       </div>
