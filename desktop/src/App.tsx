@@ -1490,6 +1490,60 @@ function AppContent({
     [handleTogglePinPlaylist]
   );
 
+
+  const handleDownloadCollectionFromMenu = useCallback(
+    async (item: CollectionContextItem) => {
+      const isPlaylist = item.kind === "playlist";
+      const id = isPlaylist ? item.playlist.id : item.album.id;
+      const title = isPlaylist ? item.playlist.title : item.album.title;
+
+      try {
+        let tracks: Track[] | null = null;
+        if (isPlaylist) {
+          tracks = LocalCacheService.getCachedPlaylistTracks(id);
+          if (!tracks || tracks.length === 0) {
+            tracks = await invoke<Track[]>("get_playlist_tracks", { playlistId: id });
+            if (tracks && tracks.length > 0) {
+              LocalCacheService.saveCachedPlaylistTracks(id, tracks);
+            }
+          }
+        } else {
+          const cached = LocalCacheService.getCachedAlbumDetail(id);
+          tracks = cached?.tracks || null;
+          if (!tracks || tracks.length === 0) {
+            const detail = await invoke<AlbumDetail>("get_album_details", { browseId: id });
+            if (detail && detail.tracks && detail.tracks.length > 0) {
+              LocalCacheService.saveCachedAlbumDetail(id, detail);
+              tracks = detail.tracks;
+            }
+          }
+        }
+
+        if (!tracks || tracks.length === 0) {
+          setPlaylistToast("Nenhuma faixa encontrada para download nesta coleção.");
+          return;
+        }
+
+        const stats = DownloadsService.getPlaylistDownloadStats(tracks);
+        if (stats.isAllDownloaded) {
+          setPlaylistToast(`Todas as faixas de "${title}" já estão baixadas offline.`);
+          return;
+        }
+
+        const remaining = tracks.length - stats.downloaded;
+        setPlaylistToast(`Baixando ${remaining} músicas de "${title}" para ouvir offline...`);
+        const result = await DownloadsService.downloadPlaylist(id, tracks);
+        if (result.completed > 0) {
+          setPlaylistToast(`Download de "${title}" concluído (${result.completed} faixas salvas)!`);
+        }
+      } catch (err) {
+        console.warn("[App] Erro ao baixar coleção para offline:", err);
+        setPlaylistToast("Falha ao baixar músicas para reprodução offline.");
+      }
+    },
+    []
+  );
+
   const handleAddAlbumToPlaylistFromMenu = useCallback(
     async (album: Album) => {
       try {
@@ -2174,6 +2228,7 @@ function AppContent({
         onAddAlbumToPlaylist={handleAddAlbumToPlaylistFromMenu}
         onEditPlaylist={(pl) => setEditingPlaylist(pl)}
         onDeletePlaylist={(pl) => setDeletingPlaylist(pl)}
+        onDownloadCollection={handleDownloadCollectionFromMenu}
       />
 
       <EditPlaylistModal

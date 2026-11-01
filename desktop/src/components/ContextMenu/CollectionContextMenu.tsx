@@ -9,12 +9,15 @@ import {
   Trash2,
   Copy,
   Check,
+  Download,
+  Loader2,
   Disc3,
   ListMusic,
   Flame,
 } from "lucide-react";
 import { Playlist, Album } from "../../types";
 import { upgradeArtworkQuality } from "../../utils/artwork";
+import { DownloadsService } from "../../services/downloads";
 
 export type CollectionContextItem =
   | { kind: "playlist"; playlist: Playlist; isPinned: boolean }
@@ -30,6 +33,7 @@ export interface CollectionContextMenuProps {
   onAddAlbumToPlaylist?: (album: Album) => void;
   onEditPlaylist?: (playlist: Playlist) => void;
   onDeletePlaylist?: (playlist: Playlist) => void;
+  onDownloadCollection?: (item: CollectionContextItem) => void;
 }
 
 export function triggerCollectionContextMenu(
@@ -59,6 +63,7 @@ export function CollectionContextMenu({
   onAddAlbumToPlaylist,
   onEditPlaylist,
   onDeletePlaylist,
+  onDownloadCollection,
 }: CollectionContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -129,6 +134,16 @@ export function CollectionContextMenu({
   function handleQueueAction() {
     onAddToQueue(item!);
     showToast(isPlaylist ? "Playlist adicionada à fila!" : "Álbum adicionado à fila!");
+  }
+
+  const itemId = item ? (item.kind === "playlist" ? item.playlist.id : item.album.id) : "";
+  const isDownloading = DownloadsService.isPlaylistDownloading(itemId);
+
+  function handleDownloadAction() {
+    if (item && onDownloadCollection) {
+      onDownloadCollection(item);
+    }
+    handleClose();
   }
 
   function handlePinAction() {
@@ -258,6 +273,30 @@ export function CollectionContextMenu({
           <Pin className={`w-4 h-4 shrink-0 ${item.isPinned ? "fill-current text-[var(--accent-text)]" : "text-[#8c91a4] group-hover:text-white"}`} />
           <span>{item.isPinned ? "Desafixar do Topo" : "Fixar no Topo"}</span>
         </button>
+
+        {/* Opção Download Offline da Coleção */}
+        {itemId !== "OFFLINE_DOWNLOADS" && (
+          <button
+            type="button"
+            role="menuitem"
+            disabled={isDownloading}
+            onClick={handleDownloadAction}
+            className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-[#c4c8d8] hover:text-white hover:bg-[var(--accent-subtle)] hover:border-[var(--accent-border)] border border-transparent transition-all cursor-pointer group text-left"
+          >
+            {isDownloading ? (
+              <Loader2 className="w-4 h-4 text-[var(--accent)] animate-spin shrink-0" />
+            ) : (
+              <Download className="w-4 h-4 text-[var(--accent-text)] group-hover:scale-110 transition-transform shrink-0" />
+            )}
+            <span>
+              {isDownloading
+                ? "Baixando faixas offline..."
+                : isPlaylist
+                ? "Baixar Playlist Offline"
+                : "Baixar Álbum Offline"}
+            </span>
+          </button>
+        )}
 
         {/* Opção 5 (Álbuns): Adicionar Álbum à Playlist */}
         {!isPlaylist && (

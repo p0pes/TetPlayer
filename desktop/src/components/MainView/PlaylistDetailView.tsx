@@ -17,6 +17,7 @@ import {
 import { Playlist, Track } from "../../types";
 import { VirtualizedTrackList } from "./VirtualizedTrackList";
 import { upgradeArtworkQuality } from "../../utils/artwork";
+import { usePlaylistDownload } from "../../services/downloads";
 
 export type PlaylistSortOption =
   | "original"
@@ -87,6 +88,17 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
   scrollRef,
 }: PlaylistDetailViewProps) {
   const [hasImageError, setHasImageError] = useState(false);
+  const {
+    total: totalDownloadable,
+    downloaded: downloadedCount,
+    isAllDownloaded,
+    isDownloading: isPlaylistDownloading,
+    batchInfo,
+    startDownload: handleStartPlaylistDownload,
+    cancelDownload: handleCancelPlaylistDownload,
+    removeDownloads: handleRemovePlaylistDownloads,
+  } = usePlaylistDownload(playlist.id, tracks);
+
   const [searchFilter, setSearchFilter] = useState("");
   const [sortBy, setSortBy] = useState<PlaylistSortOption>("original");
   const [isSortOpen, setIsSortOpen] = useState(false);
@@ -274,7 +286,7 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
               : `${tracks.length} ${tracks.length === 1 ? "música carregada" : "músicas carregadas"}`}
           </p>
 
-          <div className="pt-2">
+                    <div className="pt-2 flex flex-wrap items-center gap-3">
             <button
               onClick={() => onPlayPlaylist(displayedTracks)}
               disabled={displayedTracks.length === 0}
@@ -285,6 +297,77 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
                 ? `Tocar Lista Filtrada (${displayedTracks.length})`
                 : "Tocar Playlist"}
             </button>
+
+            {/* Ações de Download Offline da Playlist Inteira */}
+            {playlist.id !== "OFFLINE_DOWNLOADS" && tracks.length > 0 && (
+              isPlaylistDownloading ? (
+                <div className="flex items-center gap-2 bg-[#171b28] border border-[var(--accent)]/50 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-md">
+                  <Loader2 className="w-4 h-4 text-[var(--accent)] animate-spin" />
+                  <span>
+                    Baixando ({batchInfo ? `${batchInfo.completed}/${batchInfo.total}` : `${downloadedCount}/${totalDownloadable}`})...
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCancelPlaylistDownload}
+                    title="Cancelar download da playlist"
+                    aria-label="Cancelar download da playlist"
+                    className="ml-1 p-0.5 hover:bg-[#252b3d] text-[#8c91a4] hover:text-white rounded transition-colors cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : isAllDownloaded ? (
+                <div className="flex items-center gap-1.5">
+                  <div
+                    className="flex items-center gap-2 bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs font-semibold px-4 py-2.5 rounded-xl shadow-md"
+                    title="Todas as músicas desta playlist estão baixadas para reprodução offline"
+                  >
+                    <Check className="w-4 h-4 text-emerald-400" />
+                    <span>Playlist Baixada</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRemovePlaylistDownloads}
+                    title="Remover faixas baixadas desta playlist do disco"
+                    aria-label="Remover downloads desta playlist"
+                    className="p-2.5 bg-[#181c28] hover:bg-red-950/40 border border-[#272d40] hover:border-red-500/40 text-[#8c91a4] hover:text-red-400 rounded-xl transition-all cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleStartPlaylistDownload}
+                  className="flex items-center gap-2 bg-[#181c28] hover:bg-[#202536] border border-[#272d40] hover:border-[var(--accent-border)] text-[#c4c8d8] hover:text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm group"
+                  title={
+                    downloadedCount > 0
+                      ? `Baixar as ${totalDownloadable - downloadedCount} músicas restantes para ouvir offline`
+                      : "Baixar todas as faixas desta playlist para ouvir offline sem internet"
+                  }
+                >
+                  <Download className="w-4 h-4 text-[var(--accent-text)] group-hover:scale-110 transition-transform" />
+                  <span>
+                    {downloadedCount > 0
+                      ? `Baixar Restantes (${totalDownloadable - downloadedCount})`
+                      : "Baixar Playlist"}
+                  </span>
+                </button>
+              )
+            )}
+
+            {/* Opção para limpar todos os downloads na tela Músicas Baixadas */}
+            {playlist.id === "OFFLINE_DOWNLOADS" && tracks.length > 0 && (
+              <button
+                type="button"
+                onClick={handleRemovePlaylistDownloads}
+                className="flex items-center gap-2 bg-[#181c28] hover:bg-red-950/40 border border-[#272d40] hover:border-red-500/40 text-[#8c91a4] hover:text-red-400 text-xs font-semibold px-4 py-2.5 rounded-xl transition-all cursor-pointer group"
+                title="Remover todas as músicas salvas no disco offline"
+              >
+                <Trash2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                <span>Limpar Todos os Downloads</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

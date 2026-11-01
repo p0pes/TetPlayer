@@ -65,6 +65,14 @@ export interface DownloadedTrack {
   downloaded_at: number;
 }
 
+export interface PlaylistDownloadBatch {
+  playlistId: string;
+  total: number;
+  completed: number;
+  failed: number;
+  abortController: AbortController;
+}
+
 export interface DownloadProgressPayload {
   video_id: string;
   percent: number;
@@ -96,6 +104,7 @@ function loadInitialDownloadedIds(): Set<string> {
 
 let downloadedIds: Set<string> = loadInitialDownloadedIds();
 const activeProgress = new Map<string, number>();
+const activePlaylistBatches = new Map<string, PlaylistDownloadBatch>();
 const MAX_CACHED_BLOB_URLS = 4;
 const offlineBlobUrls = new Map<string, string>();
 
@@ -304,6 +313,118 @@ export const DownloadsService = {
     }
   },
 
+  isPlaylistDownloading(playlistId?: string | null): boolean {
+    if (!playlistId) return false;
+    return activePlaylistBatches.has(playlistId);
+  },
+
+  getPlaylistBatch(playlistId?: string | null): PlaylistDownloadBatch | undefined {
+    if (!playlistId) return undefined;
+    return activePlaylistBatches.get(playlistId);
+  },
+
+  getPlaylistDownloadStats(tracks: Track[] = []): {
+    total: number;
+    downloaded: number;
+    percent: number;
+    isAllDownloaded: boolean;
+  } {
+    if (!tracks || tracks.length === 0) {
+      return { total: 0, downloaded: 0, percent: 0, isAllDownloaded: false };
+    }
+    const total = tracks.length;
+    let downloaded = 0;
+    for (const t of tracks) {
+      if (t?.id && downloadedIds.has(t.id)) {
+        downloaded++;
+      }
+    }
+    const percent = total > 0 ? Math.round((downloaded / total) * 100) : 0;
+    const isAllDownloaded = total > 0 && downloaded === total;
+    return { total, downloaded, percent, isAllDownloaded };
+  },
+
+  async downloadPlaylist(
+    playlistId: string,
+    tracks: Track[],
+    onProgress?: (completed: number, total: number) => void
+  ): Promise<{ completed: number; failed: number }> {
+    if (!playlistId || !tracks || tracks.length === 0) {
+      return { completed: 0, failed: 0 };
+    }
+
+    if (activePlaylistBatches.has(playlistId)) {
+      return { completed: 0, failed: 0 };
+    }
+
+    const toDownload = tracks.filter((t) => t?.id && !downloadedIds.has(t.id));
+    if (toDownload.length === 0) {
+      return { completed: 0, failed: 0 };
+    }
+
+    const abortController = new AbortController();
+    const batch: PlaylistDownloadBatch = {
+      playlistId,
+      total: toDownload.length,
+      completed: 0,
+      failed: 0,
+      abortController,
+    };
+    activePlaylistBatches.set(playlistId, batch);
+    notify();
+
+    try {
+      for (const track of toDownload) {
+        if (abortController.signal.aborted) {
+          break;
+        }
+
+        try {
+          await this.downloadTrack(track);
+          batch.completed++;
+        } catch (err) {
+          console.warn(`[DownloadsService] Falha ao baixar faixa '${track.title}' (${track.id}) da playlist:`, err);
+          batch.failed++;
+        }
+
+        notify();
+        if (onProgress) {
+          onProgress(batch.completed, batch.total);
+        }
+
+        // Intervalo defensivo de 50ms para ceder a fila de microtarefas e evitar starvation
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    } finally {
+      activePlaylistBatches.delete(playlistId);
+      notify();
+    }
+
+    return { completed: batch.completed, failed: batch.failed };
+  },
+
+  cancelPlaylistDownload(playlistId: string): void {
+    const batch = activePlaylistBatches.get(playlistId);
+    if (batch) {
+      batch.abortController.abort();
+      activePlaylistBatches.delete(playlistId);
+      notify();
+    }
+  },
+
+  async removePlaylistDownloads(tracks: Track[]): Promise<number> {
+    if (!tracks || tracks.length === 0) return 0;
+    let removed = 0;
+    for (const track of tracks) {
+      if (track?.id && downloadedIds.has(track.id)) {
+        const ok = await this.removeDownload(track.id);
+        if (ok) removed++;
+      }
+    }
+    notify();
+    return removed;
+  },
+
   subscribe(listener: DownloadsListener): () => void {
     listeners.add(listener);
     return () => {
@@ -354,3 +475,43 @@ export function useTrackDownload(track?: Track | null) {
   };
 }
 
+export function usePlaylistDownload(playlistId?: string | null, tracks: Track[] = []) {
+  const [stats, setStats] = useState(() => DownloadsService.getPlaylistDownloadStats(tracks));
+  const [isDownloading, setIsDownloading] = useState(() => DownloadsService.isPlaylistDownloading(playlistId));
+  const [batchInfo, setBatchInfo] = useState(() => DownloadsService.getPlaylistBatch(playlistId));
+
+  useEffect(() => {
+    const update = () => {
+      setStats(DownloadsService.getPlaylistDownloadStats(tracks));
+      setIsDownloading(DownloadsService.isPlaylistDownloading(playlistId));
+      setBatchInfo(DownloadsService.getPlaylistBatch(playlistId));
+    };
+
+    update();
+    return DownloadsService.subscribe(update);
+  }, [playlistId, tracks]);
+
+  const startDownload = useCallback(async () => {
+    if (!playlistId || tracks.length === 0) return;
+    await DownloadsService.downloadPlaylist(playlistId, tracks);
+  }, [playlistId, tracks]);
+
+  const cancelDownload = useCallback(() => {
+    if (!playlistId) return;
+    DownloadsService.cancelPlaylistDownload(playlistId);
+  }, [playlistId]);
+
+  const removeDownloads = useCallback(async () => {
+    if (!tracks || tracks.length === 0) return;
+    await DownloadsService.removePlaylistDownloads(tracks);
+  }, [tracks]);
+
+  return {
+    ...stats,
+    isDownloading,
+    batchInfo,
+    startDownload,
+    cancelDownload,
+    removeDownloads,
+  };
+}

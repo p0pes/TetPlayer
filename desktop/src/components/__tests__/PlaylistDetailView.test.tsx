@@ -159,4 +159,47 @@ describe("PlaylistDetailView (Busca e Ordenação - Item 2.2)", () => {
     // Verifica que a seleção de ordenação foi aplicada
     expect((sortSelect as HTMLSelectElement).value).toBe("title");
   });
+
+  describe("Download de Playlist Completa Offline (UI)", () => {
+    it("deve exibir botão para Baixar Playlist quando houver faixas não baixadas", () => {
+      render(
+        <PlaylistDetailView
+          playlist={mockPlaylist}
+          tracks={mockTracks}
+          isLoadingTracks={false}
+          currentTrack={null}
+          isPlaying={false}
+          loadingTrackId={null}
+          onBack={vi.fn()}
+          onPlayPlaylist={vi.fn()}
+          onPlayTrack={vi.fn()}
+          scrollRef={{ current: null }}
+        />
+      );
+
+      const downloadBtn = screen.getByRole("button", { name: /baixar playlist/i });
+      expect(downloadBtn).toBeInTheDocument();
+    });
+
+    it("deve exibir botão 'Limpar Todos os Downloads' quando na coleção OFFLINE_DOWNLOADS", () => {
+      render(
+        <PlaylistDetailView
+          playlist={{ id: "OFFLINE_DOWNLOADS", title: "Músicas Baixadas" }}
+          tracks={mockTracks}
+          isLoadingTracks={false}
+          currentTrack={null}
+          isPlaying={false}
+          loadingTrackId={null}
+          onBack={vi.fn()}
+          onPlayPlaylist={vi.fn()}
+          onPlayTrack={vi.fn()}
+          scrollRef={{ current: null }}
+        />
+      );
+
+      const clearBtn = screen.getByRole("button", { name: /limpar todos os downloads/i });
+      expect(clearBtn).toBeInTheDocument();
+    });
+  });
+
 });
