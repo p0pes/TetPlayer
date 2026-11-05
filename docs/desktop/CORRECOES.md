@@ -818,3 +818,27 @@ Todos os **137 apontamentos técnicos (#01 a #137)** catalogados em auditorias t
   2. **Confirmação Visual Reativa e Toasts:** Integrado no `PlaylistDetailView.tsx` o sistema de feedback visual dinâmico pós-download com toasts semânticos de sucesso (`Todas as X músicas foram salvas para ouvir offline!`), parcialidade ou erro, com auto-dismiss em 5 segundos;
   3. **Identificação Visual por Faixa:** Confirmada a presença do ícone verde `<CheckCircle2>` ao lado do título de cada faixa na lista virtualizada quando a mesma já estiver presente localmente no disco;
   4. **Suíte de Testes:** Adicionado teste unitário em `PlaylistDetailView.test.tsx` cobrindo o fluxo de clique, resolução e aparição do toast de confirmação.
+
+
+---
+
+### 140. Resolução da Falha no Arrasto da Janela no Player Base & Restauração Suave de Janela Maximizada no Windows
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/components/TitleBar/TitleBar.tsx:115-285`](file:///d:/progrma%C3%A7%C3%A3o/programas/TetPlayer/desktop/src/components/TitleBar/TitleBar.tsx#L115-L285), [`desktop/src-tauri/src/lib.rs:716-750`](file:///d:/progrma%C3%A7%C3%A3o/programas/TetPlayer/desktop/src-tauri/src/lib.rs#L716-L750), [`desktop/src-tauri/capabilities/default.json:1-20`](file:///d:/progrma%C3%A7%C3%A3o/programas/TetPlayer/desktop/src-tauri/capabilities/default.json#L1-L20), [`desktop/src-tauri/tauri.conf.json:13-26`](file:///d:/progrma%C3%A7%C3%A3o/programas/TetPlayer/desktop/src-tauri/tauri.conf.json#L13-L26)
+* **Diagnóstico e Causa Raiz:** 
+  1. **Comportamento Win32 de Janelas Frameless Maximizadas:** No Windows, quando uma janela sem moldura nativa (`decorations: false`) está maximizada, o envio da mensagem `WM_NCLBUTTONDOWN` com `HTCAPTION` gerado por `window.start_dragging()` é sumariamente descartado pela API do Windows DWM/DefWindowProc. Ao contrário das janelas padrão com decorações de SO, janelas borderless não desmaximizam sozinhas ao arrastar. No `MiniPlayer.tsx`, o arrasto funcionava porque o mini player é forçado a ser unmaximized (`unmaximize()` e `maximizable(false)`), enquanto no player base a janela frequentemente operava maximizada;
+  2. **Interferência no Duplo Clique:** Em `TitleBar.tsx`, o manipulador `handleStartDrag` não checava `e.detail > 1`, disparando `start_drag_window` no segundo clique e gerando corrida com `onDoubleClick` (`handleToggleMaximize`);
+  3. **Conflito com Atributo Inválido:** Havia o uso de `data-tauri-drag-region="false"` no container de navegação, que no DOM HTML é interpretado como `true` por `hasAttribute()`, confundindo o interceptor do WebView2;
+  4. **Área Direita sem Região de Arrasto:** A wrapper à direita (`flex items-center h-full shrink-0`) não possuía `data-tauri-drag-region`, impedindo o arrasto ao clicar em espaços vagos entre os chips de status e os botões de janela.
+* **Solução Implementada:** 
+  1. **Unmaximize Proporcional no Backend Rust (`lib.rs`):** O comando `start_drag_window` foi reprogramado em Rust. Se a janela estiver maximizada, o sistema captura a posição atual do ponteiro do mouse (`GetCursorPos`), desmaximiza a janela e a reposiciona instantaneamente de modo que a barra de título continue exatamente sob o cursor (`target_x = mouse_x - (win_w / 2)`, `target_y = mouse_y - 15px`). Em seguida, chama `window.start_dragging()`, iniciando um arrasto fluído e contínuo no Windows DWM com suporte a Aero Snap;
+  2. **Proteção de Duplo Clique e Seletores em `TitleBar.tsx`:** Adicionado `if (e.detail > 1) return;` em `handleStartDrag` para isolar cliques de arrasto do duplo clique de alternância de maximização. Removido `data-tauri-drag-region="false"` e padronizado `data-no-drag`;
+  3. **Extensão de Região de Arrasto e Pointer Events:** Adicionado `data-tauri-drag-region` ao container da direita, `pointer-events-none` ao indicador de pulso do logo e `data-no-drag` explícito na barra de botões do Windows;
+  4. **Sincronização de Capabilities e Manifesto:** Declaradas permissões completas de manipulação de janela (`allow-unmaximize`, `allow-toggle-maximize`, `allow-maximize`, `allow-minimize`, `allow-close`, `allow-set-size`, `allow-set-position`) em `default.json` e configurado `"label": "main"`, `"resizable": true`, `"maximizable": true` em `tauri.conf.json`.
+
+---
+
+### 141. Paridade de Download Offline em Álbuns (UI/UX e Indicadores Visuais em AlbumDetailView)
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/components/MainView/AlbumDetailView.tsx:285-360`](file:///d:/progrma%C3%A7%C3%A3o/programas/TetPlayer/desktop/src/components/MainView/AlbumDetailView.tsx#L285-L360), [`desktop/src/components/MainView/AlbumDetailView.tsx:470-520`](file:///d:/progrma%C3%A7%C3%A3o/programas/TetPlayer/desktop/src/components/MainView/AlbumDetailView.tsx#L470-L520)
+* **Solução Implementada:** Estendida a experiência de download offline para a visualização detalhada de álbuns (`AlbumDetailView.tsx`). Agora, os álbuns contam com a mesma paridade de recursos das playlists: botão reativo "Baixar Álbum" (ou "Baixar Restantes (X)"), spinner com contagem dinâmica "Baixando (X/Y)..." com cancelamento inline, estado persistente "Baixado Offline" com opção de remoção do disco e toasts flutuantes animados com feedback de status da operação.

@@ -114,12 +114,14 @@ export const TitleBar = React.memo(function TitleBar({
 
   async function handleStartDrag(e: React.MouseEvent) {
     if (e.button === 0) {
+      if (e.detail > 1) return;
       const target = e.target as HTMLElement;
       if (
         target.closest("button") ||
         target.closest("input") ||
         target.closest("a") ||
-        target.closest("select")
+        target.closest("select") ||
+        target.closest("[data-no-drag]")
       ) {
         return;
       }
@@ -157,7 +159,7 @@ export const TitleBar = React.memo(function TitleBar({
         data-tauri-drag-region
         className="flex items-center gap-2.5 px-4 w-64 shrink-0 h-full border-r border-[#1f232e]"
       >
-        <div className="w-3 h-3 rounded-full bg-[var(--accent)] shadow-[0_0_8px_var(--accent-glow)] animate-pulse" />
+        <div className="w-3 h-3 rounded-full bg-[var(--accent)] shadow-[0_0_8px_var(--accent-glow)] animate-pulse pointer-events-none" />
         <span className="font-bold text-sm text-white tracking-tight flex items-center gap-1.5 pointer-events-none">
           TetPlayer{" "}
           <span className="text-[9px] bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] px-1.5 py-0.5 rounded font-medium tracking-normal">
@@ -169,7 +171,7 @@ export const TitleBar = React.memo(function TitleBar({
       {/* Centro: Navegação Histórico + Breadcrumbs */}
       <div data-tauri-drag-region className="flex-1 flex items-center px-3 h-full min-w-0 overflow-hidden gap-3">
         {/* Setas Voltar / Avançar (Item 4.2 & 119) */}
-        <div data-no-drag data-tauri-drag-region="false" className="flex items-center gap-1 shrink-0 pointer-events-auto">
+        <div data-no-drag className="flex items-center gap-1 shrink-0 pointer-events-auto">
           <button
             type="button"
             data-no-drag
@@ -213,7 +215,7 @@ export const TitleBar = React.memo(function TitleBar({
       </div>
 
       {/* Direita: Status de Conectividade + Status de Sessão + Controles de Janela Colados no Canto */}
-      <div className="flex items-center h-full shrink-0">
+      <div data-tauri-drag-region className="flex items-center h-full shrink-0">
         {!isOnline && (
           <span className="inline-flex items-center gap-1.5 bg-red-950/80 text-red-300 border border-red-800/60 px-2.5 py-0.5 rounded-full text-xs mr-3 pointer-events-none animate-pulse">
             <WifiOff className="w-3.5 h-3.5" />
@@ -240,7 +242,7 @@ export const TitleBar = React.memo(function TitleBar({
         )}
 
         {/* Menu de Navegação / Janela do Windows (Minimizar para Bandeja, Minimizar, Modo Janela, Fechar) */}
-        <div className="flex items-center h-full">
+        <div data-no-drag className="flex items-center h-full">
           <button
             onClick={handleHideToTray}
             title="Minimizar para a Bandeja do Windows (System Tray)"

@@ -714,8 +714,40 @@ fn is_window_maximized(window: tauri::Window) -> bool {
 }
 
 #[tauri::command]
-fn start_drag_window(window: tauri::Window) {
-    let _ = window.start_dragging();
+fn start_drag_window(window: tauri::Window) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
+        use windows_sys::Win32::Foundation::POINT;
+
+        if window.is_maximized().unwrap_or(false) {
+            let mut pt = POINT { x: 0, y: 0 };
+            unsafe { GetCursorPos(&mut pt) };
+            let monitor = window.current_monitor().ok().flatten();
+            let scale_factor = monitor.as_ref().map(|m| m.scale_factor()).unwrap_or(1.0);
+
+            let _ = window.unmaximize();
+
+            if let Ok(size) = window.outer_size() {
+                let win_w = size.width as f64 / scale_factor;
+                let target_x = (pt.x as f64 / scale_factor) - (win_w / 2.0);
+                let target_y = (pt.y as f64 / scale_factor) - 15.0;
+                let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition {
+                    x: target_x.max(0.0),
+                    y: target_y.max(0.0),
+                }));
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        if window.is_maximized().unwrap_or(false) {
+            let _ = window.unmaximize();
+        }
+    }
+
+    window.start_dragging().map_err(|e| e.to_string())
 }
 
 #[tauri::command]

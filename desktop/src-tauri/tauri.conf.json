@@ -12,11 +12,14 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "TetPlayer",
         "width": 1050,
         "height": 720,
         "minWidth": 800,
         "minHeight": 550,
+        "resizable": true,
+        "maximizable": true,
         "decorations": false,
         "shadow": true,
         "transparent": true,
