@@ -36,15 +36,41 @@ export function useKeyboardShortcuts({
   openNowPlaying,
   closeNowPlaying,
 }: UseKeyboardShortcutsProps) {
-  const currentTimeRef = useRef(currentTime);
-  const volumeRef = useRef(volume);
-  const isNowPlayingOpenRef = useRef(isNowPlayingOpen);
-  const nowPlayingTabRef = useRef(nowPlayingTab);
+  const stateAndHandlersRef = useRef({
+    togglePlayPause,
+    handleNextTrack,
+    handlePrevTrack,
+    seekTo,
+    currentTime,
+    changeVolume,
+    volume,
+    toggleMute,
+    toggleShuffle,
+    cycleRepeatMode,
+    isNowPlayingOpen,
+    nowPlayingTab,
+    toggleNowPlaying,
+    openNowPlaying,
+    closeNowPlaying,
+  });
 
-  currentTimeRef.current = currentTime;
-  volumeRef.current = volume;
-  isNowPlayingOpenRef.current = isNowPlayingOpen;
-  nowPlayingTabRef.current = nowPlayingTab;
+  stateAndHandlersRef.current = {
+    togglePlayPause,
+    handleNextTrack,
+    handlePrevTrack,
+    seekTo,
+    currentTime,
+    changeVolume,
+    volume,
+    toggleMute,
+    toggleShuffle,
+    cycleRepeatMode,
+    isNowPlayingOpen,
+    nowPlayingTab,
+    toggleNowPlaying,
+    openNowPlaying,
+    closeNowPlaying,
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -58,72 +84,76 @@ export function useKeyboardShortcuts({
         return;
       }
 
+      const h = stateAndHandlersRef.current;
+
       switch (e.code) {
         case "Space":
         case "MediaPlayPause":
           e.preventDefault();
-          togglePlayPause();
+          h.togglePlayPause();
           break;
         case "MediaTrackNext":
         case "KeyK":
           e.preventDefault();
-          handleNextTrack();
+          h.handleNextTrack();
           break;
         case "MediaTrackPrevious":
         case "KeyJ":
           e.preventDefault();
-          handlePrevTrack();
+          h.handlePrevTrack();
           break;
         case "ArrowLeft":
+          if (e.altKey) break;
           e.preventDefault();
-          seekTo(currentTimeRef.current - 5);
+          h.seekTo(h.currentTime - 5);
           break;
         case "ArrowRight":
+          if (e.altKey) break;
           e.preventDefault();
-          seekTo(currentTimeRef.current + 5);
+          h.seekTo(h.currentTime + 5);
           break;
         case "ArrowUp":
           e.preventDefault();
           // Item #5: Atalho Shift+Up para abrir/fechar a gaveta de reprodução conforme anunciado na UI
           if (e.shiftKey) {
-            toggleNowPlaying();
+            h.toggleNowPlaying();
             break;
           }
-          changeVolume(Math.min(1, Math.round((volumeRef.current + 0.05) * 100) / 100));
+          h.changeVolume(Math.min(1, Math.round((h.volume + 0.05) * 100) / 100));
           break;
         case "ArrowDown":
           e.preventDefault();
-          changeVolume(Math.max(0, Math.round((volumeRef.current - 0.05) * 100) / 100));
+          h.changeVolume(Math.max(0, Math.round((h.volume - 0.05) * 100) / 100));
           break;
         case "KeyM":
-          toggleMute();
+          h.toggleMute();
           break;
         case "KeyL":
           e.preventDefault();
-          if (isNowPlayingOpenRef.current && nowPlayingTabRef.current === "lyrics") {
-            closeNowPlaying();
+          if (h.isNowPlayingOpen && h.nowPlayingTab === "lyrics") {
+            h.closeNowPlaying();
           } else {
-            openNowPlaying("lyrics");
+            h.openNowPlaying("lyrics");
           }
           break;
         case "KeyQ":
           e.preventDefault();
-          if (isNowPlayingOpenRef.current && nowPlayingTabRef.current === "queue") {
-            closeNowPlaying();
+          if (h.isNowPlayingOpen && h.nowPlayingTab === "queue") {
+            h.closeNowPlaying();
           } else {
-            openNowPlaying("queue");
+            h.openNowPlaying("queue");
           }
           break;
         case "KeyS":
-          toggleShuffle();
+          h.toggleShuffle();
           break;
         case "KeyR":
-          cycleRepeatMode();
+          h.cycleRepeatMode();
           break;
         case "Escape":
-          if (isNowPlayingOpenRef.current) {
+          if (h.isNowPlayingOpen) {
             e.preventDefault();
-            closeNowPlaying();
+            h.closeNowPlaying();
           }
           break;
       }
@@ -131,17 +161,5 @@ export function useKeyboardShortcuts({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [
-    togglePlayPause,
-    handleNextTrack,
-    handlePrevTrack,
-    seekTo,
-    changeVolume,
-    toggleMute,
-    toggleShuffle,
-    cycleRepeatMode,
-    toggleNowPlaying,
-    openNowPlaying,
-    closeNowPlaying,
-  ]);
+  }, []);
 }

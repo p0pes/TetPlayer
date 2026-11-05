@@ -11,19 +11,20 @@ import {
 } from "../updater";
 
 describe("updater (Verificação SemVer e Atualizações)", () => {
-  it("deve reportar a versão atual como 2.1.0", () => {
-    expect(APP_VERSION).toBe("2.1.0");
+  it("deve reportar a versão atual como 2.1.1", () => {
+    expect(APP_VERSION).toBe("2.1.1");
   });
 
   it("deve detectar corretamente quando uma versão remota é mais recente", () => {
-    expect(isNewerVersion("2.1.1", "2.1.0")).toBe(true);
-    expect(isNewerVersion("2.2.0", "2.1.0")).toBe(true);
-    expect(isNewerVersion("3.0.0", "2.1.0")).toBe(true);
-    expect(isNewerVersion("v2.1.1", "v2.1.0")).toBe(true);
+    expect(isNewerVersion("2.1.2", "2.1.1")).toBe(true);
+    expect(isNewerVersion("2.2.0", "2.1.1")).toBe(true);
+    expect(isNewerVersion("3.0.0", "2.1.1")).toBe(true);
+    expect(isNewerVersion("v2.1.2", "v2.1.1")).toBe(true);
   });
 
   it("deve detectar quando a versão remota é igual ou mais antiga", () => {
-    expect(isNewerVersion("2.1.0", "2.1.0")).toBe(false);
+    expect(isNewerVersion("2.1.1", "2.1.1")).toBe(false);
+    expect(isNewerVersion("2.1.0", "2.1.1")).toBe(false);
     expect(isNewerVersion("2.0.2", "2.1.0")).toBe(false);
     expect(isNewerVersion("2.0.0", "2.1.0")).toBe(false);
     expect(isNewerVersion("1.4.0", "2.0.2")).toBe(false);

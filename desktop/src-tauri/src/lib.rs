@@ -504,6 +504,7 @@ async fn download_track(
     let _ = std::fs::create_dir_all(&music_dir);
     let file_name = format!("{}.{ext}", track.id);
     let dest_path = music_dir.join(&file_name);
+    let temp_path = music_dir.join(format!("{}.{ext}.part", track.id));
 
     let mut resp = ytm::HTTP_CLIENT
         .get(&stream_url)
@@ -516,9 +517,9 @@ async fn download_track(
     }
 
     let total_bytes = resp.content_length().unwrap_or(0);
-    let mut file = tokio::fs::File::create(&dest_path)
+    let mut file = tokio::fs::File::create(&temp_path)
         .await
-        .map_err(|e| format!("Falha ao criar arquivo de áudio offline: {e}"))?;
+        .map_err(|e| format!("Falha ao criar arquivo temporário de áudio offline: {e}"))?;
 
     let mut downloaded_bytes: u64 = 0;
     let mut last_emitted_percent: u8 = 0;
@@ -535,38 +536,70 @@ async fn download_track(
     );
 
     use tokio::io::AsyncWriteExt;
-    while let Some(chunk) = resp
-        .chunk()
-        .await
-        .map_err(|e| format!("Falha ao receber pedaço do áudio: {e}"))?
-    {
-        file.write_all(&chunk)
+    let stream_res: Result<(), String> = async {
+        while let Some(chunk) = resp
+            .chunk()
             .await
-            .map_err(|e| format!("Falha ao gravar dados no disco: {e}"))?;
+            .map_err(|e| format!("Falha ao receber pedaço do áudio: {e}"))?
+        {
+            file.write_all(&chunk)
+                .await
+                .map_err(|e| format!("Falha ao gravar dados no disco: {e}"))?;
 
-        downloaded_bytes += chunk.len() as u64;
+            downloaded_bytes += chunk.len() as u64;
 
-        if total_bytes > 0 {
-            let percent = ((downloaded_bytes as f64 / total_bytes as f64) * 100.0).clamp(0.0, 100.0) as u8;
-            if percent >= last_emitted_percent + 10 && percent < 100 {
-                last_emitted_percent = percent;
-                let _ = app.emit(
-                    "download-progress",
-                    DownloadProgressPayload {
-                        video_id: track.id.clone(),
-                        percent,
-                        downloaded_bytes,
-                        total_bytes,
-                        status: "downloading".to_string(),
-                    },
-                );
+            if total_bytes > 0 {
+                let percent = ((downloaded_bytes as f64 / total_bytes as f64) * 100.0).clamp(0.0, 100.0) as u8;
+                if percent >= last_emitted_percent + 10 && percent < 100 {
+                    last_emitted_percent = percent;
+                    let _ = app.emit(
+                        "download-progress",
+                        DownloadProgressPayload {
+                            video_id: track.id.clone(),
+                            percent,
+                            downloaded_bytes,
+                            total_bytes,
+                            status: "downloading".to_string(),
+                        },
+                    );
+                }
             }
         }
+
+        if downloaded_bytes == 0 {
+            return Err("Stream de áudio retornou 0 bytes.".to_string());
+        }
+
+        file.flush()
+            .await
+            .map_err(|e| format!("Falha ao sincronizar arquivo com disco: {e}"))?;
+        Ok(())
+    }
+    .await;
+
+    drop(file);
+
+    if let Err(err) = stream_res {
+        let _ = tokio::fs::remove_file(&temp_path).await;
+        let _ = app.emit(
+            "download-progress",
+            DownloadProgressPayload {
+                video_id: track.id,
+                percent: 0,
+                downloaded_bytes,
+                total_bytes,
+                status: "error".to_string(),
+            },
+        );
+        return Err(err);
     }
 
-    file.flush()
+    tokio::fs::rename(&temp_path, &dest_path)
         .await
-        .map_err(|e| format!("Falha ao sincronizar arquivo com disco: {e}"))?;
+        .map_err(|e| {
+            let _ = std::fs::remove_file(&temp_path);
+            format!("Falha ao finalizar arquivo offline no disco: {e}")
+        })?;
 
     let file_size_bytes = downloaded_bytes;
 

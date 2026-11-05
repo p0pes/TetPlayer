@@ -8,7 +8,7 @@
 
 1. [Sumário Executivo & Status Atual da Base de Código](#1-sumário-executivo--status-atual-da-base-de-código)
 2. [Apontamentos Ativos Catalogados (Pendentes de Correção)](#2-apontamentos-ativos-catalogados-pendentes-de-correção)
-3. [Histórico Consolidado e Ordenado de Itens Resolvidos (#01 a #137)](#3-histórico-consolidado-e-ordenado-de-itens-resolvidos-01-a-135)
+3. [Histórico Consolidado e Ordenado de Itens Resolvidos (#01 a #146)](#3-histórico-consolidado-e-ordenado-de-itens-resolvidos-01-a-135)
 
 ---
 
@@ -16,28 +16,28 @@
 
 Uma auditoria técnica profunda e minuciosa de ponta a ponta foi realizada em todo o ecossistema desktop do **TetPlayer** (Frontend React 19 + TypeScript + Tailwind CSS e Backend Tauri v2 + Rust + SQLite), cobrindo concorrência e condições de corrida, ciclo de vida de componentes React 19, isolamento de alta frequência (Mandamento #3), regras de negócio de reprodução offline/online, tratamento defensivo de erros e consistência de UI/UX.
 
-Todos os **137 apontamentos técnicos (#01 a #137)** catalogados em auditorias técnicas de software, testes de estresse, acessibilidade e benchmarks de SLA foram integralmente saneados, validados e consolidados no histórico definitivo.
+Todos os **146 apontamentos técnicos (#01 a #146)** catalogados em auditorias técnicas de software, testes de estresse, acessibilidade e benchmarks de SLA foram integralmente saneados, validados e consolidados no histórico definitivo.
 
 | Severidade | Pendentes Ativos | Resolvidos no Histórico | Status da Build & Testes |
 | :--- | :---: | :---: | :--- |
-| 🔴 **Críticos** | `0` | **137 Resolvidos** | ✅ `tsc && vite build` (0 erros) |
-| 🟡 **Avisos** | `0` | **137 Resolvidos** | ✅ `vitest` (131/131 testes passando) |
-| 🔵 **Sugestões** | `0` | **137 Resolvidos** | ✅ `cargo test` (15/15 testes passando) |
-| **Total Geral** | **`0 Pendentes`** | **`137 Itens Resolvidos`** | 🟢 **Base 100% Saneada, Estável e Otimizada** |
+| 🔴 **Críticos** | `0` | **146 Resolvidos** | ✅ `tsc && vite build` (0 erros) |
+| 🟡 **Avisos** | `0` | **146 Resolvidos** | ✅ `vitest` (131/131 testes passando) |
+| 🔵 **Sugestões** | `0` | **146 Resolvidos** | ✅ `cargo test` (15/15 testes passando) |
+| **Total Geral** | **`0 Pendentes`** | **`146 Itens Resolvidos`** | 🟢 **Base 100% Saneada, Estável e Otimizada** |
 
 ---
 
 ## 2. Apontamentos Ativos Catalogados (Pendentes de Correção)
 
 > [!NOTE]
-> 🟢 **Zero Apontamentos Pendentes**: Todos os **137 itens** levantados em auditorias técnicas profundas, inspeções de arquitetura, integridade de eventos DOM, acessibilidade universal WAI-ARIA e benchmarks de desempenho SLA foram integralmente corrigidos, testados e validados nas suítes automatizadas de testes e builds de produção. A base de código está 100% saneada e em conformidade estrita com as diretrizes operacionais do TetPlayer.
+> 🟢 **Zero Apontamentos Pendentes**: Todos os **146 itens** levantados em auditorias técnicas profundas, inspeções de arquitetura, integridade de eventos DOM, acessibilidade universal WAI-ARIA e benchmarks de desempenho SLA foram integralmente corrigidos, testados e validados nas suítes automatizadas de testes e builds de produção. A base de código está 100% saneada e em conformidade estrita com as diretrizes operacionais do TetPlayer.
 
 ---
 
 ## 3. Histórico Consolidado e Ordenado de Itens Resolvidos (#01 a #135)
 
 > [!NOTE]
-> Todos os **137 itens** abaixo foram diagnosticados, corrigidos, testados e validados no TetPlayer Desktop. A numeração foi integralmente saneada, deduplicada e organizada em ordem sequencial estrita para consulta histórica.
+> Todos os **146 itens** abaixo foram diagnosticados, corrigidos, testados e validados no TetPlayer Desktop. A numeração foi integralmente saneada, deduplicada e organizada em ordem sequencial estrita para consulta histórica.
 
 ### Índice Rápido do Histórico de Correções
 
@@ -785,7 +785,7 @@ Todos os **137 apontamentos técnicos (#01 a #137)** catalogados em auditorias t
 
 ---
 
-### 137. Refinamento do Modo Offline e Ergonomia de Downloads (Foco Exclusivo em Playlists & Filtragem de Biblioteca)
+### 146. Refinamento do Modo Offline e Ergonomia de Downloads (Foco Exclusivo em Playlists & Filtragem de Biblioteca)
 * **Status:** 🟢 **Resolvido**
 * **Localização:** [`desktop/src/components/Player/PlayerBar.tsx:150-185`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Player/PlayerBar.tsx#L150-L185), [`desktop/src/components/NowPlayingDrawer/NowPlayingDrawer.tsx:230-260`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/NowPlayingDrawer/NowPlayingDrawer.tsx#L230-L260), [`desktop/src/components/ContextMenu/TrackContextMenu.tsx:220-250`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/ContextMenu/TrackContextMenu.tsx#L220-L250), [`desktop/src/components/Sidebar/Sidebar.tsx:240-285`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Sidebar/Sidebar.tsx#L240-L285), [`desktop/src/App.tsx:274-325`](file:///d:/progrmação/programas/TetPlayer/desktop/src/App.tsx#L274-L325), [`desktop/src/services/downloads.ts:68-125`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/downloads.ts#L68-L125)
 * **Solução Implementada:** 
@@ -842,3 +842,59 @@ Todos os **137 apontamentos técnicos (#01 a #137)** catalogados em auditorias t
 * **Status:** 🟢 **Resolvido**
 * **Localização:** [`desktop/src/components/MainView/AlbumDetailView.tsx:285-360`](file:///d:/progrma%C3%A7%C3%A3o/programas/TetPlayer/desktop/src/components/MainView/AlbumDetailView.tsx#L285-L360), [`desktop/src/components/MainView/AlbumDetailView.tsx:470-520`](file:///d:/progrma%C3%A7%C3%A3o/programas/TetPlayer/desktop/src/components/MainView/AlbumDetailView.tsx#L470-L520)
 * **Solução Implementada:** Estendida a experiência de download offline para a visualização detalhada de álbuns (`AlbumDetailView.tsx`). Agora, os álbuns contam com a mesma paridade de recursos das playlists: botão reativo "Baixar Álbum" (ou "Baixar Restantes (X)"), spinner com contagem dinâmica "Baixando (X/Y)..." com cancelamento inline, estado persistente "Baixado Offline" com opção de remoção do disco e toasts flutuantes animados com feedback de status da operação.
+
+
+---
+
+### 142. Eliminação de Re-renderização Global a cada 80ms por Instabilidade de Referência em `seekTo` e `useKeyboardShortcuts` (Mandamento #3)
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/hooks/useYouTubePlayer.ts:567-668`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useYouTubePlayer.ts#L567-L668), [`desktop/src/context/PlayerContext.tsx:844-872`](file:///d:/progrmação/programas/TetPlayer/desktop/src/context/PlayerContext.tsx#L844-L872), [`desktop/src/hooks/useKeyboardShortcuts.ts:39-165`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useKeyboardShortcuts.ts#L39-L165)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  1. Em `useYouTubePlayer.ts`, as funções `seekTo`, `changeVolume`, `toggleMute` e `restartCurrentTrack` eram declaradas como funções comuns sem `useCallback`. Como `useYouTubePlayer` atualiza o estado `currentTime` a cada **80ms** (`12,5 vezes por segundo`), `seekTo` recebia uma nova referência de memória a cada tick de 80ms;
+  2. Em `PlayerContext.tsx`, `seekTo` estava listado no array de dependências do `useMemo` de `contextValue` (linha 866). Isso invalidava `contextValue` a cada 80ms, forçando **todos os consumidores de `usePlayer()`** (`AppContent`, `PlayerBar`, `NowPlayingDrawer`, `QueueView`, `MiniPlayer`) a re-renderizarem 12,5 vezes por segundo;
+  3. Em `useKeyboardShortcuts.ts`, o `useEffect` dependia diretamente dessas funções não memoizadas, removendo e recriando `window.addEventListener("keydown")` 12,5 vezes por segundo, além de não ignorar `e.altKey` nas teclas `ArrowLeft`/`ArrowRight` (fazendo o atalho de voltar página `Alt+←` retroceder 5s na música simultaneamente).
+* **Solução Implementada:**
+  1. Encapsulados `seekTo`, `changeVolume`, `toggleMute` e `restartCurrentTrack` em `useCallback` com dependências vazias (`[]`) apoiados por referências mutáveis (`durationRef`, `volumeRef`, `isMutedRef`) em `useYouTubePlayer.ts`, garantindo estabilidade referencial absoluta de `contextValue` durante os ticks de 80ms;
+  2. Refatorado `useKeyboardShortcuts.ts` para utilizar um `stateAndHandlersRef` (padrão idêntico ao `useMediaSession.ts`), registrando o listener global `keydown` apenas uma única vez (`[]`) na montagem e adicionando `if (e.altKey) break;` em `ArrowLeft`/`ArrowRight`.
+
+---
+
+### 143. Eliminação de Dupla Chamada IPC Concorrente no Arrasto da Janela (`data-tauri-drag-region` vs `onMouseDown`) e Limiar de Movimento em Janela Maximizada
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/components/TitleBar/TitleBar.tsx:115-218`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/TitleBar/TitleBar.tsx#L115-L218), [`desktop/src/components/MiniPlayer/MiniPlayer.tsx:223-245`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MiniPlayer/MiniPlayer.tsx#L223-L245)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  1. Os elementos de `TitleBar.tsx` e `MiniPlayer.tsx` possuíam simultaneamente o atributo `data-tauri-drag-region` (e `data-tauri-drag-region="false"` nos botões de histórico) e o handler React `onMouseDown={handleStartDrag}`. No Tauri v2, o script nativo do WebView2 escuta `mousedown` em qualquer elemento com `data-tauri-drag-region` e invoca `plugin:window|start_dragging` (e `toggle_maximize` em `detail === 2`) ao mesmo tempo em que o React invoca `start_drag_window` (e `onDoubleClick`). No Win32, a segunda chamada a `ReleaseCapture()` aborta imediatamente o loop modal `WM_NCLBUTTONDOWN` iniciado pela primeira;
+  2. Quando a janela principal estava maximizada, um clique simples na `TitleBar` (ou o primeiro clique de um duplo-clique) acionava `start_drag_window` imediatamente no `mousedown`, desmaximizando a janela antes mesmo do usuário mover o mouse.
+* **Solução Implementada:**
+  1. Removidos todos os atributos `data-tauri-drag-region` e `data-tauri-drag-region="false"` de `TitleBar.tsx` e `MiniPlayer.tsx`, delegando 100% do controle de arrasto ao handler determinístico do React;
+  2. Em `TitleBar.tsx`, quando a janela está maximizada, o arrasto (`start_drag_window`) só é disparado após o ponteiro se mover mais de `3px` com o botão esquerdo pressionado (`handleMouseMoveDrag`), preservando cliques simples e duplo-cliques sem desmaximização acidental.
+
+---
+
+### 144. Gravação Atômica de Downloads Offline via Arquivo Temporário (`.part`) e Limpeza em Caso de Queda de Rede
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src-tauri/src/lib.rs:502-602`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/lib.rs#L502-L602)
+* **Diagnóstico Técnico da Causa-Raiz:** O comando `download_track` criava o arquivo diretamente no destino final `data/music/{video_id}.{ext}` antes de concluir a transferência dos chunks HTTP. Se a conexão caísse no meio do download, o arquivo truncado permanecia na pasta `music/` e era detectado por `read_offline_track` e `is_track_downloaded` como se estivesse completo, causando falha na reprodução.
+* **Solução Implementada:** O stream agora é gravado em `data/music/{video_id}.{ext}.part`, validando que `downloaded_bytes > 0` e executando `file.flush()` antes de renomear atomicamente (`tokio::fs::rename(&temp_path, &dest_path)`) para o arquivo definitivo. Caso ocorra qualquer erro de rede ou I/O durante o download, o arquivo `.part` é removido imediatamente e o evento `download-progress` com `status: "error"` é emitido para limpar o estado da UI.
+
+---
+
+### 145. Blindagem do Cache Offline contra Evicção LRU, Registro de Coleções 100% Já Baixadas e Auto-Dismiss de Toasts no Menu de Contexto
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/services/downloads.ts:394-406`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/downloads.ts#L394-L406), [`desktop/src/services/cache.ts:33-98`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/cache.ts#L33-L98), [`desktop/src/services/cache.ts:308-340`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/cache.ts#L308-L340), [`desktop/src/App.tsx:593-615`](file:///d:/progrmação/programas/TetPlayer/desktop/src/App.tsx#L593-L615), [`desktop/src/App.tsx:1505-1535`](file:///d:/progrmação/programas/TetPlayer/desktop/src/App.tsx#L1505-L1535)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  1. Em `downloads.ts`, quando todas as faixas de uma playlist/álbum já estavam presentes no disco (`toDownload.length === 0`), `downloadPlaylist` retornava `{ completed: 0, failed: 0 }` precocemente sem registrar o ID da coleção em `downloadedCollectionIds` e sem salvar a lista de faixas no cache local;
+  2. Em `cache.ts`, `touchPlaylistLru`, `touchAlbumLru` e `clearCache()` não protegiam os IDs presentes em `tetplayer_downloaded_collection_ids`, podendo despejar a lista de faixas de uma coleção baixada quando o usuário navegasse por mais de 25 playlists/álbuns;
+  3. Em `App.tsx`, `handleDownloadCollectionFromMenu` chamava `setPlaylistToast` diretamente em vez de `showPlaylistToast`, impedindo o fechamento automático do toast após 3,5 segundos.
+* **Solução Implementada:**
+  1. `DownloadsService.downloadPlaylist` agora registra imediatamente a coleção em `downloadedCollectionIds`, persiste suas faixas no `LocalCacheService` e retorna `{ completed: tracks.length, failed: 0 }` quando todas as faixas já estão no disco;
+  2. `LocalCacheService` protege todas as coleções contidas em `tetplayer_downloaded_collection_ids` contra evicção LRU e limpeza de cache, e `handleSelectAlbum` reconstrói o `AlbumDetail` a partir das faixas salvas caso o detalhe não esteja no cache;
+  3. Padronizado o uso de `showPlaylistToast` em `handleDownloadCollectionFromMenu`.
+
+---
+
+### 146. Tratamento Defensivo de Rejeição Assíncrona (`AbortError` / Stream Expirado) no Caminho `instantCached` do Motor Nativo
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/hooks/useYouTubePlayer.ts:512-531`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useYouTubePlayer.ts#L512-L531)
+* **Diagnóstico Técnico da Causa-Raiz:** Em `loadAndPlayVideo`, quando a faixa possuía `StreamInfo` pré-carregado em memória (`instantCached`), a chamada `await nativeAudioEngine.play()` não estava envolvida por `try/catch`. Caso o usuário pulasse rapidamente de faixa (causando `AbortError`) ou o link temporário expirasse, uma rejeição de Promise não tratada (`unhandledrejection`) era disparada.
+* **Solução Implementada:** Adicionado bloco `try/catch` ao redor de `await nativeAudioEngine.play()` no fluxo `instantCached`, descartando silenciosamente requisições obsoletas (`requestId !== loadRequestIdRef.current`) e acionando fallback transparente para o IFrame do YouTube caso o stream nativo falhe (Mandamento #4).

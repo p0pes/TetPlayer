@@ -112,9 +112,14 @@ export const TitleBar = React.memo(function TitleBar({
     }
   }
 
+  const pendingMaxDragRef = React.useRef<{ x: number; y: number } | null>(null);
+
   async function handleStartDrag(e: React.MouseEvent) {
     if (e.button === 0) {
-      if (e.detail > 1) return;
+      if (e.detail > 1) {
+        pendingMaxDragRef.current = null;
+        return;
+      }
       const target = e.target as HTMLElement;
       if (
         target.closest("button") ||
@@ -125,12 +130,39 @@ export const TitleBar = React.memo(function TitleBar({
       ) {
         return;
       }
+      if (isMaximized) {
+        pendingMaxDragRef.current = { x: e.screenX, y: e.screenY };
+        return;
+      }
       try {
         await invoke("start_drag_window");
       } catch {
         // ignore fallback fora do Tauri
       }
     }
+  }
+
+  async function handleMouseMoveDrag(e: React.MouseEvent) {
+    if (!pendingMaxDragRef.current) return;
+    if ((e.buttons & 1) === 0) {
+      pendingMaxDragRef.current = null;
+      return;
+    }
+    const dx = Math.abs(e.screenX - pendingMaxDragRef.current.x);
+    const dy = Math.abs(e.screenY - pendingMaxDragRef.current.y);
+    if (dx > 3 || dy > 3) {
+      pendingMaxDragRef.current = null;
+      setIsMaximized(false);
+      try {
+        await invoke("start_drag_window");
+      } catch {
+        // ignore fallback fora do Tauri
+      }
+    }
+  }
+
+  function handleMouseUpDrag() {
+    pendingMaxDragRef.current = null;
   }
 
   const breadcrumbText = isNowPlayingOpen
@@ -149,14 +181,14 @@ export const TitleBar = React.memo(function TitleBar({
 
   return (
     <header
-      data-tauri-drag-region
       onMouseDown={handleStartDrag}
+      onMouseMove={handleMouseMoveDrag}
+      onMouseUp={handleMouseUpDrag}
       onDoubleClick={handleToggleMaximize}
       className="h-10 border-b border-[#1f232e] bg-[#0c0e14]/90 backdrop-blur-md flex items-center justify-between shrink-0 select-none z-50 cursor-default"
     >
       {/* Esquerda: Logo TetPlayer alinhado à largura da sidebar */}
       <div
-        data-tauri-drag-region
         className="flex items-center gap-2.5 px-4 w-64 shrink-0 h-full border-r border-[#1f232e]"
       >
         <div className="w-3 h-3 rounded-full bg-[var(--accent)] shadow-[0_0_8px_var(--accent-glow)] animate-pulse pointer-events-none" />
@@ -169,13 +201,12 @@ export const TitleBar = React.memo(function TitleBar({
       </div>
 
       {/* Centro: Navegação Histórico + Breadcrumbs */}
-      <div data-tauri-drag-region className="flex-1 flex items-center px-3 h-full min-w-0 overflow-hidden gap-3">
+      <div className="flex-1 flex items-center px-3 h-full min-w-0 overflow-hidden gap-3">
         {/* Setas Voltar / Avançar (Item 4.2 & 119) */}
         <div data-no-drag className="flex items-center gap-1 shrink-0 pointer-events-auto">
           <button
             type="button"
             data-no-drag
-            data-tauri-drag-region="false"
             onClick={onGoBack}
             disabled={!canGoBack}
             title="Voltar (Alt+← / Mouse 4)"
@@ -191,7 +222,6 @@ export const TitleBar = React.memo(function TitleBar({
           <button
             type="button"
             data-no-drag
-            data-tauri-drag-region="false"
             onClick={onGoForward}
             disabled={!canGoForward}
             title="Avançar (Alt+→ / Mouse 5)"
@@ -215,7 +245,7 @@ export const TitleBar = React.memo(function TitleBar({
       </div>
 
       {/* Direita: Status de Conectividade + Status de Sessão + Controles de Janela Colados no Canto */}
-      <div data-tauri-drag-region className="flex items-center h-full shrink-0">
+      <div className="flex items-center h-full shrink-0">
         {!isOnline && (
           <span className="inline-flex items-center gap-1.5 bg-red-950/80 text-red-300 border border-red-800/60 px-2.5 py-0.5 rounded-full text-xs mr-3 pointer-events-none animate-pulse">
             <WifiOff className="w-3.5 h-3.5" />

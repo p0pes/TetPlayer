@@ -30,13 +30,27 @@ function saveAlbumLruList(list: string[]): void {
   }
 }
 
+function getProtectedCollectionIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem("tetplayer_downloaded_collection_ids");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return new Set(parsed);
+    }
+  } catch {
+    // ignore
+  }
+  return new Set();
+}
+
 function touchAlbumLru(albumId: string): void {
+  const protectedIds = getProtectedCollectionIds();
   const list = getAlbumLruList().filter((id) => id !== albumId);
   list.unshift(albumId);
 
   while (list.length > MAX_CACHED_ALBUMS) {
     const evictedId = list.pop();
-    if (evictedId) {
+    if (evictedId && !protectedIds.has(evictedId)) {
       try {
         localStorage.removeItem(`${ALBUM_DETAIL_CACHE_PREFIX}${evictedId}`);
       } catch {
@@ -66,13 +80,14 @@ function saveLruList(list: string[]): void {
 }
 
 function touchPlaylistLru(playlistId: string): void {
+  const protectedIds = getProtectedCollectionIds();
   const list = getLruList().filter((id) => id !== playlistId);
   list.unshift(playlistId);
 
-  // Evicção das playlists que excedem o teto máximo permitido no localStorage
+  // Evicção das playlists que excedem o teto máximo permitido no localStorage (preservando coleções baixadas offline)
   while (list.length > MAX_CACHED_PLAYLISTS) {
     const evictedId = list.pop();
-    if (evictedId) {
+    if (evictedId && !protectedIds.has(evictedId)) {
       try {
         localStorage.removeItem(`${PLAYLIST_TRACKS_CACHE_PREFIX}${evictedId}`);
       } catch {
@@ -307,10 +322,23 @@ export const LocalCacheService = {
   // Limpeza de cache temporário (preserva histórico de reprodução e playlists fixadas)
   async clearCache(): Promise<void> {
     try {
+      const protectedIds = getProtectedCollectionIds();
       const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && (key.startsWith("tetplayer_cache_") || key.startsWith("tetplayer_palette_"))) {
+        if (!key) continue;
+        if (key.startsWith(PLAYLIST_TRACKS_CACHE_PREFIX)) {
+          const id = key.slice(PLAYLIST_TRACKS_CACHE_PREFIX.length);
+          if (protectedIds.has(id)) continue;
+        }
+        if (key.startsWith(ALBUM_DETAIL_CACHE_PREFIX)) {
+          const id = key.slice(ALBUM_DETAIL_CACHE_PREFIX.length);
+          if (protectedIds.has(id)) continue;
+        }
+        if ((key === PLAYLISTS_CACHE_KEY || key === ALBUMS_CACHE_KEY) && protectedIds.size > 0) {
+          continue;
+        }
+        if (key.startsWith("tetplayer_cache_") || key.startsWith("tetplayer_palette_")) {
           keysToRemove.push(key);
         }
       }

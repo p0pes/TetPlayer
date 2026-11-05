@@ -17,6 +17,7 @@
    - [Eixo 6: Ecossistema, Integrações Sociais & Modo Offline](#eixo-6-ecossistema-integrações-sociais--modo-offline)
 4. [Matriz de Priorização (Impacto × Esforço) & Roadmap Visual](#4-matriz-de-priorização-impacto--esforço--roadmap-visual)
 5. [Histórico Consolidado: 61 Funcionalidades e Otimizações Concluídas](#5-histórico-consolidado-61-funcionalidades-e-otimizações-concluídas)
+6. [Plano Diretor de Minimalismo, Despoluição Visual & Redução de Cliques (*Clean UI/UX Overhaul*)](#6-plano-diretor-de-minimalismo-despoluição-visual--redução-de-cliques-clean-uiux-overhaul)
 
 ---
 
@@ -725,3 +726,157 @@ Para definir o que tornará o TetPlayer **inconfundível e superior** às altern
   - Backend Rust realizando streaming e gravação direta dos arquivos de áudio (`.opus` / `.m4a`) com feedback de progresso e comandos IPC rápidos.
   - `useYouTubePlayer` com verificação primária offline: se a música estiver no disco, ela toca instantaneamente através de Blob URL em ~5ms sem consumir rede.
   - Coleção "Músicas Baixadas" na barra lateral e biblioteca, crachá visual de download concluído nas faixas e botões de baixar/remover em todos os menus.
+
+
+---
+
+## 6. Plano Diretor de Minimalismo, Despoluição Visual & Redução de Cliques (*Clean UI/UX Overhaul*)
+
+> **Objetivo deste Segmento:** Auditoria completa da interface atual do **TetPlayer Desktop** com foco em eliminar a sensação de "interface entupida", reduzir o ruído cognitivo/textual, substituir rótulos verbosos por **ícones universais limpos**, eliminar controles duplicados entre painéis adjacentes e diminuir o número de cliques para as ações cotidianas — mantendo **100% das funcionalidades acessíveis** e preservando a performance extrema (**< 50MB RAM, < 1% CPU, 144 FPS locked**).
+
+---
+
+### 6.1 Princípios Norteadores do Redesign *Clean & Minimalista*
+
+1. **Regra "Ícone Primeiro, Texto no Tooltip" (*Icon-First Secondary Actions*):**
+   - Apenas a ação primária de uma tela (ex: **Reproduzir**) deve ter destaque cheio. Todas as ações secundárias (`Aleatório`, `Baixar Offline`, `Fixar`, `Editar`, `Excluir`, `Copiar Link`, `Nova Playlist`, `Sincronizar`, `Fila`, `Letras`) devem ser convertidas em botões circulares/quadrados somente-ícone (`w-9 h-9` ou `w-10 h-10`) com `title` / `aria-label` instantâneos e feedback por cor semântica.
+2. **Zero Duplicação Simultânea na Mesma Viewport:**
+   - Nenhum dado ou controle deve aparecer duplicado na mesma tela (ex: status da conta Google repetido na `TitleBar` e na `Sidebar`; título da música repetido 3 vezes quando o `NowPlayingDrawer` está aberto; filtros e botões de criar/sincronizar duplicados lado a lado entre `Sidebar` e `LibraryView`).
+3. **Revelação Progressiva (*Progressive Disclosure* no Hover):**
+   - Elementos de manipulação estrutural (alças de arrasto `<GripVertical />`, botões de opções `<MoreVertical />`, ações rápidas de fila e contadores secundários) devem permanecer invisíveis em repouso (`opacity-0 group-hover:opacity-100`), garantindo alinhamento geométrico limpo e zero custo de *layout reflow* (animando exclusivamente `opacity` e `transform`).
+4. **Ergonomia de 0 a 1 Clique (*Zero/One-Click Flows*):**
+   - Ações frequentes devem exigir no máximo **1 clique** (ou **0 cliques** via roda do mouse / hover), eliminando menus intermediários desnecessários.
+
+---
+
+### 6.2 Diagnóstico e Propostas Componente por Componente (*Antes vs. Depois*)
+
+#### A. Barra de Título Superior (`TitleBar.tsx`) — Topo Respirável e Livre para Arrasto
+* **Arquivo:** [`desktop/src/components/TitleBar/TitleBar.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/TitleBar/TitleBar.tsx)
+* **Problemas de Poluição Identificados (Estado Atual):**
+  - **Crachá de versão fixo (`v2.1.0`):** Ocupa espaço permanente ao lado do logo sem utilidade contínua para o usuário durante a audição.
+  - **Status de Autenticação Duplicado:** Exibe uma pílula `"Google: {user_name}"` ou `"Modo Visitante"` no topo direito (linhas 230–240), repetindo a mesma informação que já ocupa todo o rodapé da `Sidebar`.
+  - **Breadcrumb Verboso (`Biblioteca > Nome da Playlist`):** Repete o prefixo `"Biblioteca >"` e o nome da playlist/álbum que já está renderizado em fonte `text-3xl` poucos pixels abaixo no banner principal.
+  - **Banner Offline Extenso:** O aviso `"Modo offline (sem conexão com a internet)"` ocupa grande largura horizontal na barra de título.
+* **Proposta de Limpeza (*Clean UI*):**
+  1. **Mover a tag de versão (`v2.1.0`)** exclusivamente para o rodapé do modal de Configurações (`SettingsModal`).
+  2. **Remover o crachá textual `"Google: Nome"` da `TitleBar`**, deixando na direita apenas indicadores de estado críticos e os 4 botões de janela nativos.
+  3. **Simplificar o Indicador Offline:** Reduzir o texto na `TitleBar` para uma pílula compacta `<WifiOff /> Offline` (exibindo a explicação completa no tooltip ao passar o mouse).
+  4. **Breadcrumb Inteligente (Contextual ao Scroll):** Ocultar o título redundante no `TitleBar` enquanto o cabeçalho grande da playlist/álbum estiver visível no topo, exibindo-o suavemente (`opacity`) apenas quando o usuário rolar a lista de músicas para baixo.
+* **Impacto:** Libera **+40% de área livre** na barra de título para arrastar a janela (`start_drag_window`) sem clicar acidentalmente em crachás.
+
+---
+
+#### B. Barra Lateral (`Sidebar.tsx`) — Alinhamento Limpo, Busca Retrátil e Rodapé Compacto
+* **Arquivo:** [`desktop/src/components/Sidebar/Sidebar.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Sidebar/Sidebar.tsx)
+* **Problemas de Poluição Identificados (Estado Atual):**
+  - **Alça `<GripVertical />` sempre visível nos Fixados (linha 793):** Cada playlist/álbum fixado renderiza 6 pontos de arrasto fixos à esquerda da capa, empurrando as miniaturas para a direita e quebrando o alinhamento vertical com o restante da lista.
+  - **Excesso de Cabeçalhos em Caixa Alta e Badges:** Divisórias com texto `"FIXADOS (X)"`, `"OUVIDOS RECENTES"`, além de pílulas textuais `"Tocando"` e `"Fixado"` dentro de cada linha, espremendo o título da playlist em uma barra de apenas `256px` (`w-64`).
+  - **Subtítulos Verbosos em Cada Item:** Cada linha repete `"Playlist • Autor • 109 músicas"` ou `"Álbum • Artista"`, gerando três informações truncadas na mesma linha.
+  - **Caixa de Busca Sempre Aberta + Segmented Control:** O topo da coleção empilha título + 2 botões + 3 abas + 1 input de busca permanente, consumindo **~135px verticais** antes mesmo do primeiro item da lista.
+  - **Card de Conta Gigante no Rodapé (linhas 950–1018):** Ocupa **~76px de altura** mostrando Avatar, Nome, E-mail completo, botão de Revalidar Sessão e botão de Configurações.
+* **Proposta de Limpeza & Redução de Cliques:**
+  1. **Alinhamento Perfeito das Capas (Zero `<GripVertical />` Fixo):** Remover o `<GripVertical />` estático da esquerda; permitir arrastar diretamente pelo item fixado (ou exibir o grip sutilmente sobreposto no `group-hover`), mantendo todas as capas `w-10 h-10` alinhadas na mesma coluna.
+  2. **Substituir Rótulos `"FIXADOS"` e `"OUVIDOS RECENTES"` por Divisória Minimalista:** Trocar os cabeçalhos de texto em caixa alta por uma linha sutil de `1px` (`border-white/5`) e identificar itens fixados apenas por um discreto ícone `<Pin className="w-3 h-3" />`.
+  3. **Substituir o Badge `"Tocando"` por Indicador Acústico na Capa:** Em vez de uma tag de texto `"Tocando"` ao lado do nome, exibir o mini indicador de barras de áudio diretamente sobre a miniatura da capa da playlist ativa, ganhando **+65px horizontais** para leitura do nome da playlist.
+  4. **Busca Retrátil por Ícone (`1 Clique`):** Substituir o campo de texto permanente `"Filtrar coleção..."` por uma lupa `<Search />` integrada na mesma linha das pílulas `[Tudo | Playlists | Álbuns]`. Ao clicar na lupa, o input desliza suavemente sobre a linha; ao limpar/pressionar `Esc`, recolhe novamente.
+  5. **Unificar Rodapé em Pílula Compacta de 1 Clique:** Compactar o rodapé de conta para uma única linha discreta (`Avatar 28px + Nome + Ícone Engrenagem`), movendo o e-mail completo e o botão `"Revalidar sessão"` para dentro da aba Conta do `SettingsModal`.
+* **Impacto:** Economiza **~110px de altura vertical** na `Sidebar` (permitindo ver **+2 a 3 playlists extras** sem rolar) e elimina o truncamento prematuro dos títulos.
+
+---
+
+#### C. Tela Principal da Biblioteca (`App.tsx` / `PlaylistGridView` / `AlbumGridView`) — Desduplicação da Toolbar
+* **Arquivos:** [`desktop/src/App.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/App.tsx), [`desktop/src/components/MainView/PlaylistGridView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/PlaylistGridView.tsx) e [`desktop/src/components/MainView/AlbumGridView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/AlbumGridView.tsx)
+* **Problemas de Poluição Identificados (Estado Atual):**
+  - **Subtítulo Explicativo Redundante (linha 1782):** Exibe a frase longa *"Suas playlists e álbuns salvos sincronizados com o YouTube Music (X playlists • Y álbuns)"*.
+  - **Toolbar Repetida:** A barra superior da grade principal repete os mesmos controles que já estão a poucos centímetros de distância na `Sidebar` (`[Tudo | Playlists | Álbuns]`, campo de busca, botão `+ Nova Playlist` com texto e botão `Sincronizar`).
+  - **Seletor de Ordenação Verboso:** O botão de ordenação exibe o prefixo estático `"Ordenar: Recentes"`, ocupando largura desnecessária.
+* **Proposta de Limpeza & Redução de Cliques:**
+  1. **Remover o Subtítulo Longo:** Deixar apenas o título `"Biblioteca"` acompanhado de um contador discreto em pílula (`24`).
+  2. **Converter Botões de Texto em Ícones Circulares (`w-9 h-9`):**
+     - Substituir o botão largo `[+ Nova Playlist]` por um botão circular somente-ícone `<Plus />` com tooltip `"Nova Playlist"`.
+     - No dropdown de ordenação, remover o texto `"Ordenar:"` e manter apenas o ícone `<ArrowUpDown />` + critério curto (`Recentes`, `A–Z`), ou apenas o ícone com indicador.
+     - Transformar o input `"Filtrar playlists e álbuns..."` em um botão `<Search />` expansível.
+  3. **Sincronia Silenciosa:** Ocultar os contadores numéricos dentro de cada aba do Segmented Control (`Tudo`, `Playlists`, `Álbuns`), deixando a pílula deslizante muito mais limpa e simétrica.
+
+---
+
+#### D. Cabeçalho de Playlists e Álbuns (`PlaylistDetailView.tsx` & `AlbumDetailView.tsx`) — Fim da "Muralha de Botões"
+* **Arquivos:** [`desktop/src/components/MainView/PlaylistDetailView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/PlaylistDetailView.tsx) e [`desktop/src/components/MainView/AlbumDetailView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/AlbumDetailView.tsx)
+* **Problemas de Poluição Identificados (Estado Atual):**
+  - **Fileira de 5 a 7 Botões com Texto Lado a Lado:**
+    Atualmente, abrir uma playlist ou álbum renderiza uma fileira pesada de botões retangulares com texto:
+    `[▶ Tocar Playlist]` + `[🔀 Aleatório]` + `[➕ Adicionar à Playlist]` + `[⬇ Baixar Playlist]` + `[📌 Fixar]` + `[✏️ Editar]` + `[🗑️ Excluir]` / `[🔗 Copiar Link]`.
+  - **Triplicação da Contagem de Faixas:**
+    1. Linha 1 do cabeçalho: `P0pes • 109 itens`
+    2. Linha 2 do cabeçalho: `109 músicas carregadas` (visível nas capturas de tela)
+    3. Barra de busca abaixo: `109 itens`
+  - **Botão `"← Voltar para Biblioteca"` Repetido:** Ocupa uma linha vertical inteira acima da capa, repetindo a função da seta `<` que já existe logo acima no `TitleBar`.
+  - **Segunda Barra de Ferramentas Volumosa:** Um container inteiro abaixo do cabeçalho só para abrigar o campo `"Buscar música ou artista na playlist... (Ctrl+F)"`, o dropdown `"Posição original"` e o contador repetido.
+* **Proposta de Limpeza (*Padrão Spotify / Apple Music / Cider 2*):**
+  1. **1 Botão Principal + Fileira de Ícones Circulares (`Icon Action Bar`):**
+     - Manter **apenas** o botão primário de **Play/Pause** em destaque (um botão circular `w-12 h-12 rounded-full bg-[var(--accent)]` ou pílula curta `Reproduzir`).
+     - Converter **todas** as demais ações em **botões circulares somente-ícone** (`w-10 h-10 rounded-full`):
+       - `<Shuffle />` (*Modo Aleatório*)
+       - `<Download />` / `<CheckCircle2 />` (*Baixar Offline / Baixada* — fica verde-esmeralda quando concluído, ou mostra anel de progresso compacto durante o download)
+       - `<Pin />` (*Fixar na Biblioteca*)
+       - `<ListPlus />` (*Adicionar Álbum à Playlist*)
+       - `<Pencil />` (*Editar Playlist*)
+       - `<Link2 />` (*Copiar Link*)
+       - `<Trash2 />` (*Excluir Playlist*)
+  2. **Unificar Metadados em 1 Única Linha:**
+     - Fundir tudo em `P0pes • 109 músicas • 6h 12m`, **removendo completamente** a segunda linha `"109 músicas carregadas"` e o contador repetido da barra inferior.
+  3. **Remover a Linha `"← Voltar para Biblioteca"` (ou torná-la apenas um ícone circular discreto):** Como o `TitleBar`, o atalho `Alt+←` e o botão lateral do mouse já voltam instantaneamente, eliminar o texto `"Voltar para Biblioteca"` ganha **+36px verticais** imediatos.
+  4. **Integrar Busca (`Ctrl+F`) e Ordenação na Mesma Linha dos Botões de Ação:**
+     - Em vez de uma segunda caixa inteira abaixo do banner, posicionar no lado direito da própria linha de botões de ação uma lupa `<Search />` (que expande o input quando clicada ou via `Ctrl+F`) e o ícone `<ArrowUpDown />` de ordenação.
+* **Impacto:** Reduz a largura ocupada pelos botões em **~65%**, elimina **3 textos repetidos** e libera **+90px de espaço vertical** para exibir imediatamente mais faixas da playlist na tela.
+
+---
+
+#### E. Linhas de Música (`TrackRow.tsx`) — Ações de 1 Clique e Eliminação do Play Duplicado
+* **Arquivo:** [`desktop/src/components/MainView/TrackRow.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/TrackRow.tsx)
+* **Problemas de Poluição Identificados (Estado Atual):**
+  - **Botão de Play Redundante na Extrema Direita (linhas 233–249):** Mesmo que clicar em qualquer lugar da linha (`TrackRow`) já reproduza ou pause a faixa, toda linha renderiza um botão circular `w-8 h-8` de Play permanente na extrema direita ao lado de `Duração`, `Heart` e `MoreVertical`.
+  - **3 Cliques para Adicionar à Fila ou Playlist:** Para colocar uma música como "Tocar a seguir" ou salvá-la em uma playlist, o usuário precisa clicar em `...` (`MoreVertical`) e depois procurar a opção no menu.
+* **Proposta de Limpeza & Redução de Cliques:**
+  1. **Unificar Número da Faixa + Botão Play na Esquerda:**
+     - Remover o botão circular de Play da extrema direita.
+     - Na coluna esquerda (onde fica o índice `1, 2, 3...`), exibir o número em repouso; no `group-hover` (ou quando a faixa estiver tocando), substituir suavemente o número pelo ícone `<Play />` / `<Pause />` (ou mini barras animadas).
+  2. **Ação Rápida de 1 Clique no Hover (`Adicionar à Fila / Playlist`):**
+     - Na direita da linha, manter visível em repouso **apenas** a `Duração` (e o `<Heart />` se a música já for curtida).
+     - Ao passar o mouse (`group-hover`), revelar suavemente 3 ícones limpos de **1 clique**:
+       - `<Heart />` (*Curtir / Descurtir em 1 clique*)
+       - `<ListPlus />` (*Adicionar para Tocar a Seguir em 1 clique*, sem precisar abrir o menu de contexto!)
+       - `<MoreVertical />` (*Mais opções*)
+
+---
+
+#### F. Barra do Reprodutor (`PlayerBar.tsx`) & Gaveta (`NowPlayingDrawer.tsx`) — Foco Absoluto na Música
+* **Arquivos:** [`desktop/src/components/Player/PlayerBar.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Player/PlayerBar.tsx) e [`desktop/src/components/NowPlayingDrawer/NowPlayingDrawer.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/NowPlayingDrawer/NowPlayingDrawer.tsx)
+* **Problemas de Poluição Identificados (Estado Atual):**
+  - **3 Botões Diferentes para Abrir a Mesma Gaveta na `PlayerBar`:** Na direita da `PlayerBar`, existem o botão `[🎵 Fila]`, o botão `[🎤 Letras]` e um terceiro botão `[⌃ Seta]` (`ChevronUp/Down`), além do clique na capa/título da esquerda.
+  - **Textos Desnecessários na Direita da `PlayerBar`:** Rótulos `"Fila"`, `"Letras"` e o crachá `"Tocando"` / `"Pausa"` ao lado do mini visualizador (sendo que o botão central de Play/Pause já mostra claramente se está tocando ou pausado).
+  - **Triplicação da Faixa Atual no `NowPlayingDrawer`:** Quando a gaveta está aberta, o título e o artista da música aparecem simultaneamente em **3 lugares** na mesma tela (no topo esquerdo da gaveta com o badge `"REPRODUZINDO AGORA"`, abaixo da capa 3D central e na `PlayerBar` inferior), além de **2 botões de Curtir** e **2 indicadores de Crossfade** visíveis ao mesmo tempo.
+* **Proposta de Limpeza & Ergonomia de 0/1 Clique:**
+  1. **`PlayerBar` 100% Iconográfica na Direita:**
+     - Remover os textos `"Fila"` e `"Letras"` dos botões da `PlayerBar`, mantendo apenas os ícones `<ListMusic />` e `<Mic2 />` com o mesmo ponto luminoso inferior (`w-1 h-1 rounded-full bg-[var(--accent)]`) já usado nos botões de `Shuffle`, `Repeat` e `Radio` — criando unidade visual perfeita em toda a barra inferior.
+     - Remover o texto `"Tocando"` / `"Pausa"` do mini visualizador de espectro.
+     - Remover o botão redundante `<ChevronUp />` da extrema direita (clicar em `<ListMusic />` abre/fecha a Fila em 1 clique; clicar em `<Mic2 />` abre/fecha as Letras em 1 clique; clicar na capa também alterna a gaveta).
+  2. **Volume com Scroll do Mouse (*0 Cliques*):**
+     - Adicionar suporte a `onWheel` sobre a área de volume da `PlayerBar` para aumentar/diminuir o som em passos de `5%` apenas girando o scroll do mouse, sem precisar clicar e arrastar a barra.
+  3. **Cabeçalho Minimalista no `NowPlayingDrawer`:**
+     - Remover a repetição do título/artista e o crachá `"REPRODUZINDO AGORA"` do canto superior esquerdo da gaveta.
+     - Remover o botão duplicado `"Curtir"` com texto e o badge repetido `"Crossfade Xs"` que ficam empilhados abaixo da capa `MotionCover` (já que o botão interativo de Crossfade está no topo da gaveta e o botão de Curtir está logo abaixo na `PlayerBar`), deixando a capa 3D, o título principal e o `SpectrumVisualizer` respirarem com estética de galeria (*Apple Music / Cider 2*).
+
+---
+
+### 6.3 Matriz Resumo de Impacto: Redução de Cliques, Textos e Ganho de Espaço
+
+| Área / Componente | O Que Sai (Poluição Removida) | O Que Entra (Solução Clean) | Economia de Espaço / Cliques |
+| :--- | :--- | :--- | :--- |
+| **`TitleBar`** | Tag `v2.1.0`, pílula duplicada `Google: Nome`, prefixo `Biblioteca >` e texto longo do modo offline. | Indicadores compactos por ícone e barra superior desobstruída para arrasto. | **-4 textos fixos** / **+40% área de drag** |
+| **`Sidebar`** | `<GripVertical />` fixo desalinhado, cabeçalhos `FIXADOS` / `OUVIDOS RECENTES`, badge `Tocando`, input de busca fixo e rodapé de 76px. | Capas 100% alinhadas, lupa expansível em 1 clique, onda sobre a capa e rodapé compacto em linha única. | **+110px verticais livres** (+3 playlists visíveis sem scroll) |
+| **`Library Toolbar`** | Subtítulo longo, texto `+ Nova Playlist`, prefixo `Ordenar:` e contadores redundantes nas abas. | Botões circulares somente-ícone (`<Plus />`, `<ArrowUpDown />`, `<Search />`). | **-60% de ruído textual** no topo da grade |
+| **`Playlist & Album Header`** | Fileira de 6 botões largos com texto, linha repetida `X músicas carregadas`, linha `Voltar para Biblioteca` e 2ª barra de busca volumosa. | **1 botão Play de destaque** + fileira de **ícones circulares (`w-10 h-10`)** com busca/ordenação integradas na mesma linha. | **-65% largura de botões** / **+90px verticais** para a lista |
+| **`TrackRow`** | Botão circular de Play duplicado na extrema direita da linha. | Play integrado no número da faixa no hover + botão rápido `<ListPlus />` (*Tocar a seguir*). | **De 2 cliques para 1 clique** para adicionar à fila |
+| **`PlayerBar` & `Drawer`** | Rótulos `Fila`/`Letras`, texto `Tocando/Pausa`, botão `<ChevronUp>` extra, e triplicação de título/Curtir/Crossfade na gaveta. | Controles 100% por ícones com ponto luminoso ativo, volume via *Mouse Wheel* e gaveta limpa focada na arte. | **0 cliques** p/ volume (scroll) e **-5 elementos duplicados** |

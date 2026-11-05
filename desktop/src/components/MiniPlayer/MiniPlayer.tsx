@@ -220,7 +220,10 @@ export function MiniPlayer() {
 
   // Visualização Completa do Mini Player Flutuante (Solid Edge-to-Edge Frame)
   return (
-    <div className="w-full h-full bg-[#0c0e17] border border-[#232738] flex flex-col justify-between overflow-hidden shadow-2xl relative select-none">
+    <div
+      onMouseDown={handleStartDrag}
+      className="w-full h-full bg-[#0c0e17] border border-[#232738] flex flex-col justify-between overflow-hidden shadow-2xl relative select-none"
+    >
       {/* Glow Aurora de fundo sutil */}
       <div
         className="absolute inset-0 opacity-25 pointer-events-none"
@@ -232,12 +235,9 @@ export function MiniPlayer() {
 
       {/* Header com Drag e Controles de Janela */}
       <div
-        data-tauri-drag-region
-        onMouseDown={handleStartDrag}
         className="h-7 px-2.5 bg-[#121522] border-b border-[#1c2030] flex items-center justify-between cursor-move shrink-0 z-20"
       >
         <div
-          data-tauri-drag-region
           className="flex items-center gap-1.5 pointer-events-none select-none"
         >
           <div className="w-2 h-2 rounded-full bg-[var(--accent)] animate-pulse" />

@@ -590,7 +590,22 @@ function AppContent({
     setActiveTab("library");
     closeNowPlaying();
 
-    const cachedDetail = LocalCacheService.getCachedAlbumDetail(album.id);
+    let cachedDetail = LocalCacheService.getCachedAlbumDetail(album.id);
+    if (!cachedDetail) {
+      const offlineTracks = LocalCacheService.getCachedPlaylistTracks(album.id);
+      if (offlineTracks && offlineTracks.length > 0) {
+        cachedDetail = {
+          id: album.id,
+          title: album.title,
+          artist: album.artist,
+          year: album.year || "",
+          artwork_url: album.artwork_url || "",
+          track_count: offlineTracks.length,
+          tracks: offlineTracks,
+          related_albums: [],
+        };
+      }
+    }
     if (cachedDetail) {
       setAlbumDetail(cachedDetail);
     } else {
@@ -1503,28 +1518,31 @@ function AppContent({
         }
 
         if (!tracks || tracks.length === 0) {
-          setPlaylistToast("Nenhuma faixa encontrada para download nesta coleção.");
+          showPlaylistToast("Nenhuma faixa encontrada para download nesta coleção.");
           return;
         }
 
         const stats = DownloadsService.getPlaylistDownloadStats(tracks);
         if (stats.isAllDownloaded) {
-          setPlaylistToast(`Todas as faixas de "${title}" já estão baixadas offline.`);
+          await DownloadsService.downloadPlaylist(id, tracks);
+          showPlaylistToast(`Todas as faixas de "${title}" já estão baixadas offline!`);
           return;
         }
 
         const remaining = tracks.length - stats.downloaded;
-        setPlaylistToast(`Baixando ${remaining} músicas de "${title}" para ouvir offline...`);
+        showPlaylistToast(`Baixando ${remaining} músicas de "${title}" para ouvir offline...`);
         const result = await DownloadsService.downloadPlaylist(id, tracks);
         if (result.completed > 0) {
-          setPlaylistToast(`Download de "${title}" concluído (${result.completed} faixas salvas)!`);
+          showPlaylistToast(`Download de "${title}" concluído (${result.completed} faixas salvas)!`);
+        } else if (result.failed > 0) {
+          showPlaylistToast(`Não foi possível baixar as faixas de "${title}".`);
         }
       } catch (err) {
         console.warn("[App] Erro ao baixar coleção para offline:", err);
-        setPlaylistToast("Falha ao baixar músicas para reprodução offline.");
+        showPlaylistToast("Falha ao baixar músicas para reprodução offline.");
       }
     },
-    []
+    [showPlaylistToast]
   );
 
   const handleAddAlbumToPlaylistFromMenu = useCallback(

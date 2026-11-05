@@ -79,6 +79,8 @@ export function useYouTubePlayer({
   isPlayingRef.current = isPlaying;
   const currentTimeRef = useRef(currentTime);
   currentTimeRef.current = currentTime;
+  const durationRef = useRef(duration);
+  durationRef.current = duration;
   const isSeekingRef = useRef(false);
   const seekTimeoutRef = useRef<number | null>(null);
   // Evita flicker Play -> Pause -> Play durante transição de faixa ou fallback de motor
@@ -509,18 +511,26 @@ export function useYouTubePlayer({
         setDuration(instantCached.duration_seconds);
       }
 
-      await nativeAudioEngine.play();
-      if (requestId !== loadRequestIdRef.current || currentVideoIdRef.current !== videoId) {
-        nativeAudioEngine.stop();
+      try {
+        await nativeAudioEngine.play();
+        if (requestId !== loadRequestIdRef.current || currentVideoIdRef.current !== videoId) {
+          nativeAudioEngine.stop();
+          return;
+        }
+        activeLoadedVideoIdRef.current = videoId;
+        PerformanceTelemetry.endTrackTransition(videoId);
+        clearTransitionGuard();
+        isPlayingRef.current = true;
+        setIsPlaying(true);
+        setLoadingTrackId(null);
         return;
+      } catch (err) {
+        if (requestId !== loadRequestIdRef.current || currentVideoIdRef.current !== videoId) {
+          return;
+        }
+        console.warn("[useYouTubePlayer] Falha no stream nativo em cache, acionando fallback para IFrame:", err);
+        nativeAudioEngine.stop();
       }
-      activeLoadedVideoIdRef.current = videoId;
-      PerformanceTelemetry.endTrackTransition(videoId);
-      clearTransitionGuard();
-      isPlayingRef.current = true;
-      setIsPlaying(true);
-      setLoadingTrackId(null);
-      return;
     }
 
     // 2. Se o stream nativo não está em cache e o motor anterior era nativo, encerra o áudio nativo
@@ -564,9 +574,11 @@ export function useYouTubePlayer({
     }
   }, [clearTransitionGuard]);
 
-  function seekTo(seconds: number) {
-    const clamped = Math.max(0, Math.min(seconds, duration || 99999));
+  const seekTo = useCallback((seconds: number) => {
+    const dur = durationRef.current;
+    const clamped = Math.max(0, Math.min(seconds, dur || 99999));
     setCurrentTime(clamped);
+    currentTimeRef.current = clamped;
 
     if (activeEngineRef.current === "native") {
       nativeAudioEngine.seek(clamped);
@@ -596,10 +608,12 @@ export function useYouTubePlayer({
         setIsPlaying(true);
       }
     }
-  }
+  }, []);
 
-  function changeVolume(newVolume: number) {
+  const changeVolume = useCallback((newVolume: number) => {
     const clamped = Math.max(0, Math.min(1, newVolume));
+    volumeRef.current = clamped;
+    isMutedRef.current = false;
     setVolume(clamped);
     setIsMuted(false);
     try {
@@ -619,10 +633,11 @@ export function useYouTubePlayer({
         lastAppliedVolumeRef.current = targetVol;
       }
     }
-  }
+  }, []);
 
-  function toggleMute() {
-    if (isMuted) {
+  const toggleMute = useCallback(() => {
+    if (isMutedRef.current) {
+      isMutedRef.current = false;
       setIsMuted(false);
       try {
         localStorage.setItem("tetplayer_muted", "false");
@@ -630,14 +645,15 @@ export function useYouTubePlayer({
         // ignore
       }
       if (activeEngineRef.current === "native") {
-        nativeAudioEngine.setVolume(volume);
+        nativeAudioEngine.setVolume(volumeRef.current);
       } else if (ytPlayerRef.current) {
         ytPlayerRef.current.unMute();
-        const target = Math.round(volume * 100);
+        const target = Math.round(volumeRef.current * 100);
         ytPlayerRef.current.setVolume(target);
         lastAppliedVolumeRef.current = target;
       }
     } else {
+      isMutedRef.current = true;
       setIsMuted(true);
       try {
         localStorage.setItem("tetplayer_muted", "true");
@@ -651,10 +667,11 @@ export function useYouTubePlayer({
         lastAppliedVolumeRef.current = 0;
       }
     }
-  }
+  }, []);
 
-  function restartCurrentTrack() {
+  const restartCurrentTrack = useCallback(() => {
     setCurrentTime(0);
+    currentTimeRef.current = 0;
     if (activeEngineRef.current === "native") {
       nativeAudioEngine.seek(0);
       nativeAudioEngine.play().catch(console.error);
@@ -664,7 +681,7 @@ export function useYouTubePlayer({
       ytPlayerRef.current.playVideo();
       setIsPlaying(true);
     }
-  }
+  }, []);
 
   return {
     ytPlayerRef,

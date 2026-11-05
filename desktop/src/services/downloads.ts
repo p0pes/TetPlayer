@@ -393,7 +393,15 @@ export const DownloadsService = {
 
     const toDownload = tracks.filter((t) => t?.id && !downloadedIds.has(t.id));
     if (toDownload.length === 0) {
-      return { completed: 0, failed: 0 };
+      downloadedCollectionIds.add(playlistId);
+      saveDownloadedCollectionIds(downloadedCollectionIds);
+      try {
+        LocalCacheService.saveCachedPlaylistTracks(playlistId, tracks);
+      } catch {
+        // ignore
+      }
+      notify();
+      return { completed: tracks.length, failed: 0 };
     }
 
     const abortController = new AbortController();
