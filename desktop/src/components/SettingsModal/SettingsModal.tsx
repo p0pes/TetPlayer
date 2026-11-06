@@ -28,8 +28,11 @@ import {
   ExternalLink,
   Folder,
   FolderOpen,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
+import { NetworkService, useNetworkStatus } from "../../services/network";
 import {
   SettingsService,
   AppSettings,
@@ -80,6 +83,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [cacheSize, setCacheSize] = useState<string>("Calculando...");
   const [isClearingCache, setIsClearingCache] = useState(false);
   const [cacheClearSuccess, setCacheClearSuccess] = useState(false);
+  const { isSimulatedOffline } = useNetworkStatus();
 
   // Estados reativos do Auto-Update Manual nas Configurações (Item 4.10)
   const [manualUpdateState, setManualUpdateState] = useState<"idle" | "checking" | "upToDate" | "available">("idle");
@@ -937,6 +941,46 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     >
                       <FolderOpen className="w-3.5 h-3.5 text-indigo-400" />
                       <span>Abrir Pasta de Dados</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Ferramentas de Teste & Simulação Offline (Develop Only) */}
+                <div className="border-t border-[#1f2434] pt-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        <WifiOff className="w-4 h-4 text-amber-400" />
+                        <span>Simulação de Conexão Offline</span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                          DEVELOP ONLY
+                        </span>
+                      </h3>
+                      <p className="text-xs text-[#8c91a4] mt-1 max-w-md">
+                        Corta a conexão da aplicação com a internet para testar a reprodução offline de músicas baixadas, filtros de biblioteca e resiliência de cache sem desconectar seu computador. Atalho: <kbd className="px-1.5 py-0.5 rounded bg-black/40 text-amber-200 border border-white/10 font-mono text-[10px]">Ctrl+Alt+O</kbd>.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => NetworkService.toggleSimulatedOffline()}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 shrink-0 ${
+                        isSimulatedOffline
+                          ? "bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 shadow-lg shadow-amber-950/40"
+                          : "bg-[#1e2334] hover:bg-[#282f46] text-white border border-[#2e364e]"
+                      }`}
+                    >
+                      {isSimulatedOffline ? (
+                        <>
+                          <WifiOff className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                          <span>Restabelecer Conexão</span>
+                        </>
+                      ) : (
+                        <>
+                          <Wifi className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Cortar Conexão (Offline)</span>
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>

@@ -50,7 +50,7 @@ export const TitleBar = React.memo(function TitleBar({
   onOpenCommandPalette,
 }: TitleBarProps) {
   const [isMaximized, setIsMaximized] = useState(false);
-  const { isOnline, showRestoredNotice } = useNetworkStatus();
+  const { isOnline, isSimulatedOffline, showRestoredNotice, toggleSimulatedOffline } = useNetworkStatus();
 
   useEffect(() => {
     checkMaximizedState();
@@ -271,7 +271,19 @@ export const TitleBar = React.memo(function TitleBar({
             </kbd>
           </button>
         )}
-        {!isOnline && (
+        {/* Toggle Dev de Simulação Offline (Develop Only) */}
+        {!isOnline && isSimulatedOffline && (
+          <button
+            data-no-drag
+            onClick={toggleSimulatedOffline}
+            title="Dev: Conexão cortada para testes offline. Clique para RESTABELECER a conexão com a internet (Ctrl+Alt+O)."
+            className="inline-flex items-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 px-2.5 py-0.5 rounded-full text-[11px] font-semibold mr-2 transition-all cursor-pointer animate-pulse"
+          >
+            <WifiOff className="w-3.5 h-3.5 text-amber-400" />
+            <span>Dev: Offline (Reconectar)</span>
+          </button>
+        )}
+        {!isOnline && !isSimulatedOffline && (
           <span
             data-no-drag
             role="status"
@@ -282,6 +294,17 @@ export const TitleBar = React.memo(function TitleBar({
             <WifiOff className="w-3 h-3" />
             <span>Offline</span>
           </span>
+        )}
+        {isOnline && (
+          <button
+            data-no-drag
+            onClick={toggleSimulatedOffline}
+            title="Dev: Cortar conexão da aplicação para testar reprodução e cache offline (Ctrl+Alt+O)"
+            className="hidden sm:inline-flex items-center gap-1.5 bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white border border-white/5 hover:border-white/10 px-2 py-0.5 rounded text-[11px] font-mono mr-2 transition-all cursor-pointer"
+          >
+            <Wifi className="w-3 h-3 text-emerald-400" />
+            <span>Dev: Online</span>
+          </button>
         )}
         {isOnline && showRestoredNotice && (
           <span

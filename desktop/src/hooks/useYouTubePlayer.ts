@@ -4,6 +4,7 @@ import { nativeAudioEngine } from "../services/audioEngine";
 import { fetchStreamInfoCached, getCachedStreamInfo } from "../services/streamCache";
 import { DownloadsService } from "../services/downloads";
 import { PerformanceTelemetry } from "../services/telemetry";
+import { NetworkService } from "../services/network";
 
 interface UseYouTubePlayerProps {
   crossfadeSeconds: number;
@@ -484,6 +485,33 @@ export function useYouTubePlayer({
         console.warn(`[useYouTubePlayer] Falha ao reproduzir áudio offline para ${videoId}, caindo em fallback online:`, err);
         DownloadsService.revokeOfflineAudioUrl?.(videoId);
       }
+    }
+
+    // Se a aplicação está sem conexão com a internet (real ou simulada) e a faixa não está baixada:
+    if (!NetworkService.isOnline()) {
+      clearTransitionGuard();
+      isPlayingRef.current = false;
+      setIsPlaying(false);
+      setLoadingTrackId(null);
+      if (activeEngineRef.current === "native") {
+        nativeAudioEngine.stop();
+      } else if (ytPlayerRef.current) {
+        try {
+          ytPlayerRef.current.stopVideo();
+        } catch {
+          // ignore
+        }
+      }
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("tetplayer:toast", {
+            detail: {
+              message: "Faixa indisponível offline: Baixe a música para ouvir sem conexão.",
+            },
+          })
+        );
+      }
+      return;
     }
 
     // 1. Resolução Síncrona Imediata (0ms) se o stream nativo já estiver em cache

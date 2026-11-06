@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { NowPlayingTab } from "../types";
+import { NetworkService } from "../services/network";
 
 interface UseKeyboardShortcutsProps {
   togglePlayPause: () => void;
@@ -81,6 +82,13 @@ export function useKeyboardShortcuts({
           target.tagName === "TEXTAREA" ||
           target.isContentEditable)
       ) {
+        return;
+      }
+
+      // Atalho de Desenvolvedor (Develop Only): Ctrl + Alt + O para alternar simulação offline
+      if ((e.ctrlKey || e.metaKey) && e.altKey && e.code === "KeyO") {
+        e.preventDefault();
+        NetworkService.toggleSimulatedOffline();
         return;
       }
 

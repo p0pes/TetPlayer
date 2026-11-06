@@ -14,9 +14,12 @@ import {
   Sparkles,
   CornerDownLeft,
   X,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { Playlist, Album } from "../../types";
 import { upgradeArtworkQuality } from "../../utils/artwork";
+import { NetworkService } from "../../services/network";
 
 export interface CommandPaletteProps {
   isOpen: boolean;
@@ -240,6 +243,23 @@ export const CommandPalette = React.memo(function CommandPalette({
         subtitle: "Ajustes de áudio, aparência Aurora e conta",
         icon: <Settings className="w-4 h-4 text-[var(--accent-text)]" />,
         action: onOpenSettings,
+      },
+      {
+        id: "act-dev-toggle-offline",
+        kind: "action",
+        title: NetworkService.isSimulatedOffline()
+          ? "Dev: Restabelecer Conexão de Internet"
+          : "Dev: Cortar Conexão à Internet (Simular Offline)",
+        subtitle: "Ferramenta de teste de resiliência e reprodução offline",
+        shortcut: "Ctrl+Alt+O",
+        icon: NetworkService.isSimulatedOffline() ? (
+          <Wifi className="w-4 h-4 text-emerald-400" />
+        ) : (
+          <WifiOff className="w-4 h-4 text-amber-400" />
+        ),
+        action: () => {
+          NetworkService.toggleSimulatedOffline();
+        },
       },
     ];
 

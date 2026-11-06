@@ -569,6 +569,14 @@ function AppContent({
       setPlaylistTracks([]);
     }
 
+    if (!isOnline) {
+      setIsLoadingPlaylistTracks(false);
+      if (!cachedTracks || cachedTracks.length === 0) {
+        setErrorMessage("Playlist indisponível offline: nenhuma faixa foi baixada ou armazenada em cache.");
+      }
+      return;
+    }
+
     setIsLoadingPlaylistTracks(true);
     setErrorMessage(null);
 
@@ -643,6 +651,14 @@ function AppContent({
       setAlbumDetail(cachedDetail);
     } else {
       setAlbumDetail(null);
+    }
+
+    if (!isOnline) {
+      setIsLoadingAlbumDetail(false);
+      if (!cachedDetail) {
+        setErrorMessage("Álbum indisponível offline: não foi baixado nem armazenado em cache.");
+      }
+      return;
     }
 
     setIsLoadingAlbumDetail(true);
@@ -1169,8 +1185,51 @@ function AppContent({
     setHasSearched(true);
     setActiveTab("search");
     setErrorMessage(null);
+
+    // Se estiver offline (real ou simulado), busca apenas nas faixas e álbuns baixados localmente
+    if (!isOnline) {
+      try {
+        const queryLower = q.toLowerCase();
+        const downloaded = await DownloadsService.getDownloadedTracks();
+        const matchedTracks: Track[] = downloaded
+          .filter(
+            (t) =>
+              t.title.toLowerCase().includes(queryLower) ||
+              t.artist.toLowerCase().includes(queryLower)
+          )
+          .map((d) => ({
+            id: d.video_id,
+            title: d.title,
+            artist: d.artist,
+            duration: d.duration_seconds
+              ? `${Math.floor(d.duration_seconds / 60)}:${String(d.duration_seconds % 60).padStart(2, "0")}`
+              : "",
+            thumbnail: d.artwork_url || "",
+          }));
+
+        const matchedAlbums = albums.filter(
+          (a) =>
+            DownloadsService.isPlaylistDownloaded(a.id) &&
+            (a.title.toLowerCase().includes(queryLower) ||
+              a.artist.toLowerCase().includes(queryLower))
+        );
+        setSearchResults(matchedTracks);
+        setSearchAlbums(matchedAlbums);
+        showPlaylistToast(
+          matchedTracks.length > 0 || matchedAlbums.length > 0
+            ? `Modo Offline: ${matchedTracks.length} faixas e ${matchedAlbums.length} álbuns locais encontrados.`
+            : `Modo Offline: Nenhuma faixa baixada encontrada para "${q}".`
+        );
+      } catch (err) {
+        setErrorMessage(`Erro na busca local offline: ${String(err)}`);
+      } finally {
+        setIsSearching(false);
+      }
+      return;
+    }
+
     try {
-      const [tracks, albums] = await Promise.all([
+      const [tracks, albumsResult] = await Promise.all([
         invoke<Track[]>("search_tracks", { query: q }),
         invoke<Album[]>("search_albums", { query: q }).catch((err) => {
           console.warn("Falha ao buscar álbuns:", err);
@@ -1178,13 +1237,13 @@ function AppContent({
         }),
       ]);
       setSearchResults(tracks);
-      setSearchAlbums(albums);
+      setSearchAlbums(albumsResult);
     } catch (err) {
       setErrorMessage(`Erro na busca: ${String(err)}`);
     } finally {
       setIsSearching(false);
     }
-  }, [searchQuery, setErrorMessage]);
+  }, [searchQuery, isOnline, albums, showPlaylistToast, setErrorMessage]);
 
   const handleBackToPlaylists = useCallback(() => {
     pushHistoryEntry({
