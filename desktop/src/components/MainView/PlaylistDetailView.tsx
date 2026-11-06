@@ -251,17 +251,21 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
 
   const isVirtualCollection = playlist.id === "VLLM";
 
-  return (
-    <div className="space-y-6">
-      {/* Botão Voltar */}
-      <button
-        onClick={onBack}
-        className="flex items-center gap-2 text-xs font-semibold text-[#8c91a4] hover:text-white transition-colors cursor-pointer"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Voltar para todas as playlists
-      </button>
+  const totalDurationText = useMemo(() => {
+    if (tracks.length === 0) return "";
+    const totalSecs = tracks.reduce(
+      (acc, t) => acc + parseDurationToSeconds(t.duration, t.duration_seconds),
+      0
+    );
+    if (totalSecs <= 0) return "";
+    const hours = Math.floor(totalSecs / 3600);
+    const mins = Math.floor((totalSecs % 3600) / 60);
+    if (hours > 0) return `${hours}h ${mins}m`;
+    return `${mins} min`;
+  }, [tracks]);
 
+  return (
+    <div className="space-y-4">
       {/* Header da Playlist */}
       <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 bg-gradient-to-r from-[var(--accent-subtle)] via-[#1c1826] to-[#12141c] p-6 rounded-2xl border border-[var(--accent-border)]">
         <div className="w-36 h-36 rounded-xl bg-gradient-to-br from-indigo-600 via-purple-700 to-pink-600 overflow-hidden shrink-0 shadow-2xl flex items-center justify-center">
@@ -272,259 +276,245 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
               referrerPolicy="no-referrer"
               onError={() => setHasImageError(true)}
               className="w-full h-full object-cover"
-            /> ) : (
+            />
+          ) : (
             <Music className="w-14 h-14 text-white/50" />
           )}
         </div>
 
-        <div className="flex-1 space-y-2 text-center sm:text-left">
-          <div className="flex items-center justify-between">
-            <span className={`text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md border ${
-              playlist.id === "OFFLINE_DOWNLOADS"
-                ? "bg-emerald-950/70 border-emerald-500/40 text-emerald-300"
-                : "bg-[var(--accent-subtle)] border-[var(--accent-border)] text-[var(--accent-text)]"
-            }`}>
+        <div className="flex-1 space-y-2 text-center sm:text-left min-w-0">
+          <div className="flex items-center justify-center sm:justify-start gap-2">
+            <button
+              type="button"
+              onClick={onBack}
+              title="Voltar para a Biblioteca (Alt+←)"
+              aria-label="Voltar para todas as playlists"
+              className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-[#8c91a4] hover:text-white transition-colors cursor-pointer shrink-0"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+            </button>
+            <span
+              className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md border ${
+                playlist.id === "OFFLINE_DOWNLOADS"
+                  ? "bg-emerald-950/70 border-emerald-500/40 text-emerald-300"
+                  : "bg-[var(--accent-subtle)] border-[var(--accent-border)] text-[var(--accent-text)]"
+              }`}
+            >
               {playlist.id === "OFFLINE_DOWNLOADS" ? "Armazenamento Offline" : "Playlist"}
             </span>
-
-            {/* Ações da Playlist (Editar e Excluir) apenas se não for coleção virtual */}
-            {!isVirtualCollection && (
-              <div className="flex items-center gap-1.5">
-                {onEditPlaylist && (
-                  <button
-                    type="button"
-                    onClick={() => onEditPlaylist(playlist)}
-                    title="Editar título e descrição da playlist"
-                    aria-label="Editar playlist"
-                    className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[#8c91a4] hover:text-white transition-colors cursor-pointer"
-                  >
-                    <Edit3 className="w-3.5 h-3.5" />
-                  </button>
-                )}
-                {onDeletePlaylist && (
-                  <button
-                    type="button"
-                    onClick={() => onDeletePlaylist(playlist)}
-                    title="Excluir playlist do YouTube Music"
-                    aria-label="Excluir playlist"
-                    className="p-1.5 rounded-lg bg-white/5 hover:bg-rose-500/20 text-[#8c91a4] hover:text-rose-400 transition-colors cursor-pointer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            )}
           </div>
 
-          <h2 className="text-2xl font-extrabold text-white">
+          <h2 className="text-2xl font-extrabold text-white truncate">
             {playlist.title}
           </h2>
-          {playlist.subtitle && (
-            <p className="text-xs text-[#8c91a4]">
-              {playlist.subtitle}
-            </p>
-          )}
+
+          {/* Linha Única de Metadados Unificada (6.2.D.2) */}
+          <p className="text-xs text-[#8c91a4] truncate">
+            {playlist.subtitle ? `${playlist.subtitle} • ` : ""}
+            {tracks.length} {tracks.length === 1 ? "música" : "músicas"}
+            {totalDurationText ? ` • ${totalDurationText}` : ""}
+          </p>
+
           {playlist.description && (
             <p className="text-xs text-[#8c91a4] line-clamp-2 italic">
               {playlist.description}
             </p>
           )}
-          <p className="text-xs text-[#71778c]">
-            {playlist.id === "OFFLINE_DOWNLOADS"
-              ? `${tracks.length} ${tracks.length === 1 ? "música salva no disco" : "músicas salvas no disco"}`
-              : `${tracks.length} ${tracks.length === 1 ? "música carregada" : "músicas carregadas"}`}
-          </p>
 
-                    <div className="pt-2 flex flex-wrap items-center gap-3">
-            <button
-              onClick={() => onPlayPlaylist(displayedTracks)}
-              disabled={displayedTracks.length === 0}
-              className="bg-[var(--accent)] hover:opacity-90 disabled:opacity-50 text-white text-xs font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-[var(--accent-glow)] flex items-center gap-2 transition-all cursor-pointer"
-            >
-              <Play className="w-4 h-4 fill-current ml-0.5" />
-              {searchFilter.trim() || sortBy !== "original"
-                ? `Tocar Lista Filtrada (${displayedTracks.length})`
-                : "Tocar Playlist"}
-            </button>
+          {/* Barra de Ações + Busca/Ordenação Integradas na Mesma Linha (6.2.D.1 & 6.2.D.4) */}
+          <div className="pt-2 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+              <button
+                onClick={() => onPlayPlaylist(displayedTracks)}
+                disabled={displayedTracks.length === 0}
+                className="bg-[var(--accent)] hover:opacity-90 disabled:opacity-50 text-white text-xs font-semibold px-5 h-10 rounded-xl shadow-lg shadow-[var(--accent-glow)] flex items-center gap-2 transition-all cursor-pointer"
+              >
+                <Play className="w-4 h-4 fill-current ml-0.5" />
+                {searchFilter.trim() || sortBy !== "original"
+                  ? `Tocar Filtrada (${displayedTracks.length})`
+                  : "Reproduzir"}
+              </button>
 
-            {/* Ações de Download Offline da Playlist Inteira */}
-            {tracks.length > 0 && (
-              isPlaylistDownloading ? (
-                <div className="flex items-center gap-2 bg-[#171b28] border border-[var(--accent)]/50 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-md">
-                  <Loader2 className="w-4 h-4 text-[var(--accent)] animate-spin" />
-                  <span>
-                    Baixando ({batchInfo ? `${batchInfo.completed}/${batchInfo.total}` : `${downloadedCount}/${totalDownloadable}`})...
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleCancelPlaylistDownload}
-                    title="Cancelar download da playlist"
-                    aria-label="Cancelar download da playlist"
-                    className="ml-1 p-0.5 hover:bg-[#252b3d] text-[#8c91a4] hover:text-white rounded transition-colors cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ) : isAllDownloaded ? (
-                <div className="flex items-center gap-1.5">
-                  <div
-                    className="flex items-center gap-2 bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs font-semibold px-4 py-2.5 rounded-xl shadow-md"
-                    title="Todas as músicas desta playlist estão baixadas para reprodução offline"
-                  >
-                    <Check className="w-4 h-4 text-emerald-400" />
-                    <span>Playlist Baixada</span>
+              {/* Ação Secundária: Download Offline (Somente-Ícone c/ Tooltip e Semântica) */}
+              {tracks.length > 0 &&
+                (isPlaylistDownloading ? (
+                  <div className="flex items-center gap-2 bg-[#171b28] border border-[var(--accent)]/50 text-white text-xs font-semibold px-3.5 h-10 rounded-xl shadow-md">
+                    <Loader2 className="w-4 h-4 text-[var(--accent)] animate-spin shrink-0" />
+                    <span className="font-mono text-[11px]">
+                      {batchInfo
+                        ? `${batchInfo.completed}/${batchInfo.total}`
+                        : `${downloadedCount}/${totalDownloadable}`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleCancelPlaylistDownload}
+                      title="Cancelar download da playlist"
+                      aria-label="Cancelar download da playlist"
+                      className="p-0.5 hover:bg-[#252b3d] text-[#8c91a4] hover:text-white rounded transition-colors cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
                   </div>
+                ) : isAllDownloaded ? (
                   <button
                     type="button"
                     onClick={onRemoveDownloadsWithFeedback}
-                    title="Remover faixas baixadas desta playlist do disco"
+                    title="Playlist baixada para reprodução offline (Clique para remover downloads do disco)"
                     aria-label="Remover downloads desta playlist"
-                    className="p-2.5 bg-[#181c28] hover:bg-red-950/40 border border-[#272d40] hover:border-red-500/40 text-[#8c91a4] hover:text-red-400 rounded-xl transition-all cursor-pointer"
+                    className="w-10 h-10 flex items-center justify-center bg-emerald-950/60 hover:bg-red-950/50 border border-emerald-500/40 hover:border-red-500/40 text-emerald-400 hover:text-red-400 rounded-xl shadow-md transition-all cursor-pointer group"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Check className="w-4 h-4 group-hover:hidden" />
+                    <Trash2 className="w-4 h-4 hidden group-hover:block" />
                   </button>
-                </div>
-              ) : (
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onStartDownloadWithFeedback}
+                    aria-label="Baixar playlist"
+                    title={
+                      downloadedCount > 0
+                        ? `Baixar as ${totalDownloadable - downloadedCount} músicas restantes para ouvir offline`
+                        : "Baixar playlist para ouvir offline"
+                    }
+                    className="w-10 h-10 flex items-center justify-center bg-[#181c28] hover:bg-[#202536] border border-[#272d40] hover:border-[var(--accent-border)] text-[#c4c8d8] hover:text-white rounded-xl transition-all cursor-pointer shadow-sm group"
+                  >
+                    <Download className="w-4 h-4 text-[var(--accent-text)] group-hover:scale-110 transition-transform" />
+                  </button>
+                ))}
+
+              {/* Ações da Playlist (Editar e Excluir) como Ícones Integrados na Mesma Linha */}
+              {!isVirtualCollection && onEditPlaylist && (
                 <button
                   type="button"
-                  onClick={onStartDownloadWithFeedback}
-                  className="flex items-center gap-2 bg-[#181c28] hover:bg-[#202536] border border-[#272d40] hover:border-[var(--accent-border)] text-[#c4c8d8] hover:text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm group"
-                  title={
-                    downloadedCount > 0
-                      ? `Baixar as ${totalDownloadable - downloadedCount} músicas restantes para ouvir offline`
-                      : "Baixar todas as faixas desta playlist para ouvir offline sem internet"
-                  }
+                  onClick={() => onEditPlaylist(playlist)}
+                  title="Editar título e descrição da playlist"
+                  aria-label="Editar playlist"
+                  className="w-10 h-10 flex items-center justify-center rounded-xl bg-[#181c28] hover:bg-[#202536] border border-[#272d40] text-[#8c91a4] hover:text-white transition-colors cursor-pointer"
                 >
-                  <Download className="w-4 h-4 text-[var(--accent-text)] group-hover:scale-110 transition-transform" />
-                  <span>
-                    {downloadedCount > 0
-                      ? `Baixar Restantes (${totalDownloadable - downloadedCount})`
-                      : "Baixar Playlist"}
-                  </span>
+                  <Edit3 className="w-4 h-4" />
                 </button>
-              )
-            )}
-</div>
-        </div>
-      </div>
-
-      {/* Barra de Filtro e Ordenação (Sugestão 2.2) */}
-      {tracks.length > 0 && (
-        <div className="relative z-30 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 rounded-xl bg-[#121520]/80 border border-[#212638] backdrop-blur-md">
-          {/* Campo de Busca Rápida */}
-          <div className="relative flex-1 min-w-0 max-w-md">
-            <Search className="w-4 h-4 text-[#6c7287] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              ref={filterInputRef}
-              type="text"
-              value={searchFilter}
-              onChange={(e) => setSearchFilter(e.target.value)}
-              placeholder="Filtrar nesta playlist... (Ctrl+F)"
-              aria-label="Filtrar músicas na playlist"
-              className="w-full bg-[#181c28] text-xs text-white placeholder-[#6c7287] pl-9 pr-8 py-2 rounded-lg border border-[#272d40] hover:border-[#384056] focus:border-[var(--accent)] focus:outline-none transition-colors"
-            />
-            {searchFilter && (
-              <button
-                onClick={() => setSearchFilter("")}
-                title="Limpar filtro"
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8c91a4] hover:text-white p-0.5 rounded transition-colors cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-
-          {/* Controles de Ordenação e Contador */}
-          <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
-            {/* Seletor de Ordenação Customizado */}
-            <div ref={sortRef} className="relative flex items-center gap-1.5 text-xs text-[#8c91a4]">
-              <ArrowUpDown className="w-3.5 h-3.5 text-[#6c7287] shrink-0" />
-              <label htmlFor="playlist-sort-select" className="hidden md:inline text-[11px] font-medium text-[#6c7287]">
-                Ordenar por:
-              </label>
-
-              {/* Select acessível invisível para leitores de tela e testes automatizados */}
-              <select
-                id="playlist-sort-select"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as PlaylistSortOption)}
-                aria-label="Ordenar músicas da playlist"
-                className="sr-only"
-                tabIndex={-1}
-                aria-hidden="true"
-              >
-                {sortOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-
-              {/* Botão de Gatilho do Dropdown Customizado */}
-              <button
-                type="button"
-                onClick={() => setIsSortOpen((prev) => !prev)}
-                className={`flex items-center gap-2 bg-[#181c28] text-[#d1d5db] hover:text-white border rounded-xl px-2.5 py-1.5 text-xs font-medium transition-all cursor-pointer select-none ${
-                  isSortOpen
-                    ? "border-[var(--accent)] shadow-md shadow-[var(--accent-glow)] bg-[#1e2334]"
-                    : "border-[#272d40] hover:border-[#384056] hover:bg-[#1c202e]"
-                }`}
-                aria-haspopup="listbox"
-                aria-expanded={isSortOpen}
-              >
-                <span>{sortOptionLabels[sortBy]}</span>
-                <ChevronDown
-                  className={`w-3.5 h-3.5 text-[#8c91a4] transition-transform duration-200 ${
-                    isSortOpen ? "rotate-180 text-[var(--accent-text)]" : ""
-                  }`}
-                />
-              </button>
-
-              {/* Menu Flutuante Customizado (Substitui gaveta nativa do Windows) */}
-              {isSortOpen && (
-                <div
-                  role="listbox"
-                  aria-label="Opções de ordenação"
-                  className="absolute right-0 top-full mt-1.5 z-50 min-w-[195px] bg-[#12141f]/95 backdrop-blur-2xl border border-[#272c3f] rounded-2xl shadow-2xl p-1.5 flex flex-col gap-0.5 select-none animate-in fade-in zoom-in-95 duration-100"
+              )}
+              {!isVirtualCollection && onDeletePlaylist && (
+                <button
+                  type="button"
+                  onClick={() => onDeletePlaylist(playlist)}
+                  title="Excluir playlist do YouTube Music"
+                  aria-label="Excluir playlist"
+                  className="w-10 h-10 flex items-center justify-center rounded-xl bg-[#181c28] hover:bg-rose-500/20 border border-[#272d40] hover:border-rose-500/40 text-[#8c91a4] hover:text-rose-400 transition-colors cursor-pointer"
                 >
-                  {sortOptions.map((opt) => {
-                    const isSelected = sortBy === opt.value;
-                    return (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        role="option"
-                        aria-selected={isSelected}
-                        onClick={() => {
-                          setSortBy(opt.value);
-                          setIsSortOpen(false);
-                        }}
-                        className={`flex items-center justify-between gap-3 px-3 py-1.5 rounded-xl text-xs font-medium transition-all cursor-pointer text-left ${
-                          isSelected
-                            ? "bg-[var(--accent-subtle)] text-white border border-[var(--accent-border)] font-semibold shadow-sm"
-                            : "text-[#c4c8d8] hover:text-white hover:bg-white/5 border border-transparent"
-                        }`}
-                      >
-                        <span>{opt.label}</span>
-                        {isSelected && (
-                          <Check className="w-3.5 h-3.5 text-[var(--accent-text)] shrink-0" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
+                  <Trash2 className="w-4 h-4" />
+                </button>
               )}
             </div>
 
-            {/* Contador de Músicas */}
-            <span className="text-xs text-[#6c7287] font-mono shrink-0">
-              {searchFilter.trim()
-                ? `${displayedTracks.length} de ${tracks.length}`
-                : `${tracks.length} ${tracks.length === 1 ? "faixa" : "faixas"}`}
-            </span>
+            {/* Busca (Ctrl+F) e Ordenação Integradas na Mesma Linha dos Botões de Ação (6.2.D.4) */}
+            {tracks.length > 0 && (
+              <div className="relative z-30 flex items-center gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto justify-center sm:justify-end">
+                <div className="relative flex-1 sm:w-56 min-w-[180px]">
+                  <Search className="w-3.5 h-3.5 text-[#6c7287] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    ref={filterInputRef}
+                    type="text"
+                    value={searchFilter}
+                    onChange={(e) => setSearchFilter(e.target.value)}
+                    placeholder="Filtrar nesta playlist... (Ctrl+F)"
+                    aria-label="Filtrar músicas na playlist"
+                    className="w-full h-10 bg-[#181c28]/90 text-xs text-white placeholder-[#6c7287] pl-8 pr-7 rounded-xl border border-[#272d40] hover:border-[#384056] focus:border-[var(--accent)] focus:outline-none transition-colors"
+                  />
+                  {searchFilter && (
+                    <button
+                      onClick={() => setSearchFilter("")}
+                      title="Limpar filtro"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-[#8c91a4] hover:text-white p-0.5 rounded transition-colors cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                <div ref={sortRef} className="relative flex items-center text-xs text-[#8c91a4] shrink-0">
+                  <select
+                    id="playlist-sort-select"
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as PlaylistSortOption)}
+                    aria-label="Ordenar músicas da playlist"
+                    className="sr-only"
+                    tabIndex={-1}
+                    aria-hidden="true"
+                  >
+                    {sortOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsSortOpen((prev) => !prev)}
+                    title="Ordenar músicas da playlist"
+                    className={`flex items-center gap-1.5 h-10 bg-[#181c28]/90 text-[#d1d5db] hover:text-white border rounded-xl px-3 text-xs font-medium transition-all cursor-pointer select-none ${
+                      isSortOpen
+                        ? "border-[var(--accent)] shadow-md shadow-[var(--accent-glow)] bg-[#1e2334]"
+                        : "border-[#272d40] hover:border-[#384056] hover:bg-[#1c202e]"
+                    }`}
+                    aria-haspopup="listbox"
+                    aria-expanded={isSortOpen}
+                  >
+                    <ArrowUpDown className="w-3.5 h-3.5 text-[#8c91a4] shrink-0" />
+                    <span className="hidden md:inline">{sortOptionLabels[sortBy]}</span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-[#8c91a4] transition-transform duration-200 ${
+                        isSortOpen ? "rotate-180 text-[var(--accent-text)]" : ""
+                      }`}
+                    />
+                  </button>
+
+                  {isSortOpen && (
+                    <div
+                      role="listbox"
+                      aria-label="Opções de ordenação"
+                      className="absolute right-0 top-full mt-1.5 z-50 min-w-[195px] bg-[#12141f]/95 backdrop-blur-2xl border border-[#272c3f] rounded-2xl shadow-2xl p-1.5 flex flex-col gap-0.5 select-none animate-in fade-in zoom-in-95 duration-100"
+                    >
+                      {sortOptions.map((opt) => {
+                        const isSelected = sortBy === opt.value;
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            role="option"
+                            aria-selected={isSelected}
+                            onClick={() => {
+                              setSortBy(opt.value);
+                              setIsSortOpen(false);
+                            }}
+                            className={`flex items-center justify-between gap-3 px-3 py-1.5 rounded-xl text-xs font-medium transition-all cursor-pointer text-left ${
+                              isSelected
+                                ? "bg-[var(--accent-subtle)] text-white border border-[var(--accent-border)] font-semibold shadow-sm"
+                                : "text-[#c4c8d8] hover:text-white hover:bg-white/5 border border-transparent"
+                            }`}
+                          >
+                            <span>{opt.label}</span>
+                            {isSelected && (
+                              <Check className="w-3.5 h-3.5 text-[var(--accent-text)] shrink-0" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {searchFilter.trim() && (
+                  <span className="text-xs text-[#8c91a4] font-mono shrink-0">
+                    {`${displayedTracks.length} de ${tracks.length}`}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
-      )}
+      </div>
 
       {/* Lista de Faixas com Virtualização */}
       <div className="relative z-10 space-y-2">

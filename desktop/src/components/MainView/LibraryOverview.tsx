@@ -124,7 +124,7 @@ const QuickAccessCard = React.memo(function QuickAccessCard({
         }
       }}
       data-testid="quick-access-card"
-      className={`group relative flex items-center justify-between gap-3 p-2 pr-3 rounded-2xl bg-[#121520]/80 hover:bg-[#191d2b] border transition-all duration-200 cursor-pointer select-none shadow-sm hover:shadow-lg ${
+      className={`group relative flex items-center justify-between gap-3 p-2 pr-3 rounded-2xl bg-[#121520]/80 hover:bg-[#171b28]/95 border transition-colors duration-200 cursor-pointer select-none shadow-sm hover:shadow-md hover:shadow-[var(--accent-glow)]/10 ${
         isActivePlaying
           ? "border-[var(--accent)] ring-1 ring-[var(--accent-glow)]/35 bg-[#171b29]"
           : item.isPinned
@@ -153,7 +153,7 @@ const QuickAccessCard = React.memo(function QuickAccessCard({
                 decoding="async"
                 referrerPolicy="no-referrer"
                 onError={() => setHasImgError(true)}
-                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                className="w-full h-full object-cover transform-gpu transition-transform duration-300 ease-out group-hover:scale-[1.015]"
               />
             ) : isLiked ? (
               <Flame className="w-5 h-5 text-orange-400" />

@@ -5,24 +5,23 @@ import {
   Copy,
   Square,
   X,
-  CheckCircle2,
-  AlertCircle,
   ArrowDownToDot,
   WifiOff,
   Wifi,
   ChevronLeft,
   ChevronRight,
+  Search,
 } from "lucide-react";
 import { AuthSession, Playlist, Track, ActiveTab, NowPlayingTab, Album } from "../../types";
 import { useNetworkStatus } from "../../services/network";
 import { SettingsService } from "../../services/settings";
-import { APP_VERSION } from "../../services/updater";
 
 interface TitleBarProps {
   auth: AuthSession | null;
   activeTab: ActiveTab;
   selectedPlaylist: Playlist | null;
   selectedAlbum?: Album | null;
+  selectedArtist?: { id?: string; name: string } | null;
   currentTrack: Track | null;
   isNowPlayingOpen: boolean;
   nowPlayingTab: NowPlayingTab;
@@ -31,14 +30,15 @@ interface TitleBarProps {
   canGoForward?: boolean;
   onGoBack?: () => void;
   onGoForward?: () => void;
+  isHeaderScrolled?: boolean;
+  onOpenCommandPalette?: () => void;
 }
 
 export const TitleBar = React.memo(function TitleBar({
-  auth,
   activeTab,
   selectedPlaylist,
   selectedAlbum,
-  currentTrack,
+  selectedArtist,
   isNowPlayingOpen,
   nowPlayingTab,
   showLyrics,
@@ -46,6 +46,8 @@ export const TitleBar = React.memo(function TitleBar({
   canGoForward = false,
   onGoBack,
   onGoForward,
+  isHeaderScrolled = false,
+  onOpenCommandPalette,
 }: TitleBarProps) {
   const [isMaximized, setIsMaximized] = useState(false);
   const { isOnline, showRestoredNotice } = useNetworkStatus();
@@ -165,19 +167,31 @@ export const TitleBar = React.memo(function TitleBar({
     pendingMaxDragRef.current = null;
   }
 
+  const isCollectionDetailView =
+    !isNowPlayingOpen &&
+    !showLyrics &&
+    activeTab === "library" &&
+    Boolean(selectedPlaylist || selectedAlbum || selectedArtist);
+
+  const hideRedundantTitle = isCollectionDetailView && !isHeaderScrolled;
+
   const breadcrumbText = isNowPlayingOpen
-    ? `Reprodução > ${nowPlayingTab === "queue" ? "Fila de Reprodução" : "Letras"} > ${currentTrack?.title || "Música Atual"}`
+    ? nowPlayingTab === "queue"
+      ? "Fila de Reprodução"
+      : "Letras Sincronizadas"
     : showLyrics
-    ? `Letras Sincronizadas > ${currentTrack?.title || "Música Atual"}`
-    : activeTab === "library"
-    ? selectedPlaylist
-      ? `Biblioteca > ${selectedPlaylist.title}`
-      : selectedAlbum
-      ? `Biblioteca > ${selectedAlbum.title}`
-      : "Biblioteca"
-    : activeTab === "search"
-    ? "Busca de Músicas"
-    : "Estatísticas de Reprodução";
+      ? "Letras Sincronizadas"
+      : activeTab === "library"
+        ? selectedArtist
+          ? selectedArtist.name
+          : selectedPlaylist
+            ? selectedPlaylist.title
+            : selectedAlbum
+              ? selectedAlbum.title
+              : "Biblioteca"
+        : activeTab === "search"
+          ? "Busca"
+          : "Estatísticas";
 
   return (
     <header
@@ -187,23 +201,19 @@ export const TitleBar = React.memo(function TitleBar({
       onDoubleClick={handleToggleMaximize}
       className="h-10 border-b border-[#1f232e] bg-[#0c0e14]/90 backdrop-blur-md flex items-center justify-between shrink-0 select-none z-50 cursor-default"
     >
-      {/* Esquerda: Logo TetPlayer alinhado à largura da sidebar */}
+      {/* Esquerda: Logo TetPlayer limpo alinhado à largura da sidebar */}
       <div
         className="flex items-center gap-2.5 px-4 w-64 shrink-0 h-full border-r border-[#1f232e]"
       >
-        <div className="w-3 h-3 rounded-full bg-[var(--accent)] shadow-[0_0_8px_var(--accent-glow)] animate-pulse pointer-events-none" />
-        <span className="font-bold text-sm text-white tracking-tight flex items-center gap-1.5 pointer-events-none">
-          TetPlayer{" "}
-          <span className="text-[9px] bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] px-1.5 py-0.5 rounded font-medium tracking-normal">
-            v{APP_VERSION}
-          </span>
+        <div className="w-2.5 h-2.5 rounded-full bg-[var(--accent)] shadow-[0_0_8px_var(--accent-glow)] pointer-events-none" />
+        <span className="font-bold text-sm text-white tracking-tight pointer-events-none">
+          TetPlayer
         </span>
       </div>
 
-      {/* Centro: Navegação Histórico + Breadcrumbs */}
-      <div className="flex-1 flex items-center px-3 h-full min-w-0 overflow-hidden gap-3">
-        {/* Setas Voltar / Avançar (Item 4.2 & 119) */}
-        <div data-no-drag className="flex items-center gap-1 shrink-0 pointer-events-auto">
+      {/* Centro: Navegação Histórico + Contexto Conciso */}
+      <div className="flex-1 flex items-center px-3 h-full min-w-0 overflow-hidden gap-2.5">
+        <div data-no-drag className="flex items-center gap-0.5 shrink-0 pointer-events-auto">
           <button
             type="button"
             data-no-drag
@@ -211,11 +221,10 @@ export const TitleBar = React.memo(function TitleBar({
             disabled={!canGoBack}
             title="Voltar (Alt+← / Mouse 4)"
             aria-label="Voltar para a tela anterior"
-            className={`p-1 rounded-md transition-all cursor-pointer ${
-              canGoBack
+            className={`p-1 rounded-md transition-all cursor-pointer ${canGoBack
                 ? "text-[#8c91a4] hover:text-white hover:bg-white/10 active:scale-95"
-                : "text-[#8c91a4]/25 cursor-not-allowed"
-            }`}
+                : "text-[#8c91a4]/20 cursor-not-allowed"
+              }`}
           >
             <ChevronLeft className="w-4 h-4 pointer-events-none" />
           </button>
@@ -226,11 +235,10 @@ export const TitleBar = React.memo(function TitleBar({
             disabled={!canGoForward}
             title="Avançar (Alt+→ / Mouse 5)"
             aria-label="Avançar para a próxima tela"
-            className={`p-1 rounded-md transition-all cursor-pointer ${
-              canGoForward
+            className={`p-1 rounded-md transition-all cursor-pointer ${canGoForward
                 ? "text-[#8c91a4] hover:text-white hover:bg-white/10 active:scale-95"
-                : "text-[#8c91a4]/25 cursor-not-allowed"
-            }`}
+                : "text-[#8c91a4]/20 cursor-not-allowed"
+              }`}
           >
             <ChevronRight className="w-4 h-4 pointer-events-none" />
           </button>
@@ -238,40 +246,55 @@ export const TitleBar = React.memo(function TitleBar({
 
         <span
           key={breadcrumbText}
-          className="text-xs text-[#8c91a4] truncate animate-breadcrumb-fade inline-block pointer-events-none"
+          className={`text-xs font-medium text-[#8c91a4] truncate transition-opacity duration-200 inline-block pointer-events-none ${hideRedundantTitle ? "opacity-0" : "opacity-100 animate-breadcrumb-fade"
+            }`}
         >
           {breadcrumbText}
         </span>
       </div>
 
-      {/* Direita: Status de Conectividade + Status de Sessão + Controles de Janela Colados no Canto */}
+      {/* Direita: Atalho Command Palette (Ctrl+K) + Indicador Compacto de Rede + Controles de Janela */}
       <div className="flex items-center h-full shrink-0">
+        {onOpenCommandPalette && (
+          <button
+            type="button"
+            data-no-drag
+            onClick={onOpenCommandPalette}
+            title="Paleta de Comandos e Busca Rápida (Ctrl+K)"
+            aria-label="Abrir paleta de comandos rápidos"
+            className="hidden sm:inline-flex items-center gap-2 bg-[#141722] hover:bg-[#1c2030] border border-[#232738] hover:border-[var(--accent-border)] text-[#8c91a4] hover:text-white px-2.5 py-1 rounded-lg text-[11px] font-medium mr-2.5 transition-colors cursor-pointer"
+          >
+            <Search className="w-3 h-3 text-[var(--accent-text)]" />
+            <span>Ir para...</span>
+            <kbd className="text-[10px] font-mono text-[#63697e] bg-[#0e1017] px-1 rounded border border-white/5">
+              Ctrl+K
+            </kbd>
+          </button>
+        )}
         {!isOnline && (
-          <span className="inline-flex items-center gap-1.5 bg-red-950/80 text-red-300 border border-red-800/60 px-2.5 py-0.5 rounded-full text-xs mr-3 pointer-events-none animate-pulse">
-            <WifiOff className="w-3.5 h-3.5" />
-            Modo Offline
+          <span
+            data-no-drag
+            role="status"
+            aria-live="polite"
+            title="Modo offline (sem conexão com a internet) — Exibindo apenas playlists e álbuns baixados no disco"
+            className="inline-flex items-center gap-1.5 bg-amber-950/80 text-amber-300 border border-amber-700/50 px-2.5 py-0.5 rounded-full text-[11px] font-medium mr-2.5 animate-pulse"
+          >
+            <WifiOff className="w-3 h-3" />
+            <span>Offline</span>
           </span>
         )}
         {isOnline && showRestoredNotice && (
-          <span className="inline-flex items-center gap-1.5 bg-emerald-950/80 text-emerald-300 border border-emerald-800/60 px-2.5 py-0.5 rounded-full text-xs mr-3 pointer-events-none transition-all">
-            <Wifi className="w-3.5 h-3.5" />
-            Conexão Restaurada
+          <span
+            data-no-drag
+            title="Conexão com a internet restaurada"
+            className="inline-flex items-center gap-1.5 bg-emerald-950/80 text-emerald-300 border border-emerald-800/60 px-2.5 py-0.5 rounded-full text-[11px] font-medium mr-2.5 transition-all"
+          >
+            <Wifi className="w-3 h-3" />
+            <span>Online</span>
           </span>
         )}
 
-        {auth?.is_authenticated ? (
-          <span className="inline-flex items-center gap-1.5 bg-emerald-950/70 text-emerald-400 border border-emerald-800/50 px-2.5 py-0.5 rounded-full text-xs mr-3 pointer-events-none">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            Google: {auth.user_name || "Conectado"}
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1.5 bg-amber-950/70 text-amber-300 border border-amber-800/50 px-2.5 py-0.5 rounded-full text-xs mr-3 pointer-events-none">
-            <AlertCircle className="w-3.5 h-3.5" />
-            Modo Visitante
-          </span>
-        )}
-
-        {/* Menu de Navegação / Janela do Windows (Minimizar para Bandeja, Minimizar, Modo Janela, Fechar) */}
+        {/* Controles Nativos da Janela (Bandeja, Minimizar, Maximizar/Restaurar, Fechar) */}
         <div data-no-drag className="flex items-center h-full">
           <button
             onClick={handleHideToTray}

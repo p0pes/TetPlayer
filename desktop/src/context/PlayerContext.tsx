@@ -79,6 +79,7 @@ interface PlayerContextType {
   togglePlayPause: () => void;
   handleSeekTo: (seconds: number) => void;
   handleVolumeChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  setVolume: (newVol: number) => void;
   toggleMute: () => void;
 
   handlePlayNext: (track: Track) => void;
@@ -100,6 +101,7 @@ interface PlayerContextType {
 const PlayerContext = createContext<PlayerContextType | null>(null);
 
 let globalOpenContextMenuHandler: ((e: React.MouseEvent, track: Track, playlistId?: string) => void) | null = null;
+let globalPlayNextHandler: ((track: Track) => void) | null = null;
 
 /**
  * Aciona o menu de contexto de faixa sem exigir subscrição ao PlayerContext,
@@ -108,6 +110,22 @@ let globalOpenContextMenuHandler: ((e: React.MouseEvent, track: Track, playlistI
 export function triggerTrackContextMenu(e: React.MouseEvent, track: Track, playlistId?: string) {
   if (globalOpenContextMenuHandler) {
     globalOpenContextMenuHandler(e, track, playlistId);
+  }
+}
+
+/**
+ * Insere uma faixa para tocar a seguir na fila em 1 clique sem exigir subscrição ao PlayerContext.
+ */
+export function triggerPlayNext(track: Track) {
+  if (globalPlayNextHandler) {
+    globalPlayNextHandler(track);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("tetplayer:toast", {
+          detail: { message: `Tocando a seguir: "${track.title}"` },
+        })
+      );
+    }
   }
 }
 
@@ -506,7 +524,20 @@ export function PlayerProvider({
 
   function handleRemoveFromQueue(idx: number, e?: React.MouseEvent) {
     if (e) e.stopPropagation();
+    const queue = activeQueueRef.current;
+    const currentIdx = currentQueueIndexRef.current;
     dispatchQueue({ type: "REMOVE_FROM_QUEUE", payload: { index: idx } });
+
+    if (idx === currentIdx && queue.length > 1) {
+      const remaining = queue.filter((_, i) => i !== idx);
+      const nextIdx = Math.min(currentIdx, remaining.length - 1);
+      const nextTrack = remaining[nextIdx];
+      if (nextTrack) {
+        recordTrackPlayed(nextTrack);
+        hasStartedPlaybackRef.current = true;
+        loadAndPlayVideo(nextTrack.id, 0, true);
+      }
+    }
   }
 
   function handleClearUpcomingQueue() {
@@ -603,16 +634,46 @@ export function PlayerProvider({
   }
 
   // Ações do Menu de Contexto (Sugestão 2.2)
-  function handlePlayNext(track: Track) {
-    dispatchQueue({ type: "INSERT_NEXT", payload: { track } });
-  }
+  const handlePlayNext = useCallback(
+    (track: Track) => {
+      const wasEmpty = activeQueueRef.current.length === 0;
+      dispatchQueue({ type: "INSERT_NEXT", payload: { track } });
+      if (wasEmpty && track?.id) {
+        recordTrackPlayed(track);
+        hasStartedPlaybackRef.current = true;
+        loadAndPlayVideo(track.id, 0, true);
+      }
+    },
+    [loadAndPlayVideo]
+  );
+
+  useEffect(() => {
+    globalPlayNextHandler = handlePlayNext;
+    return () => {
+      if (globalPlayNextHandler === handlePlayNext) {
+        globalPlayNextHandler = null;
+      }
+    };
+  }, [handlePlayNext]);
 
   function handleAddToQueue(track: Track) {
+    const wasEmpty = activeQueueRef.current.length === 0;
     dispatchQueue({ type: "ADD_TO_END", payload: { track } });
+    if (wasEmpty && track?.id) {
+      recordTrackPlayed(track);
+      hasStartedPlaybackRef.current = true;
+      loadAndPlayVideo(track.id, 0, true);
+    }
   }
 
   function handleAddTracksToQueue(tracks: Track[]) {
+    const wasEmpty = activeQueueRef.current.length === 0;
     dispatchQueue({ type: "ADD_TRACKS_TO_END", payload: { tracks } });
+    if (wasEmpty && tracks.length > 0 && tracks[0]?.id) {
+      recordTrackPlayed(tracks[0]);
+      hasStartedPlaybackRef.current = true;
+      loadAndPlayVideo(tracks[0].id, 0, true);
+    }
   }
 
   function handleStartRadio(track: Track) {
@@ -827,6 +888,7 @@ export function PlayerProvider({
       togglePlayPause: handleTogglePlayPause,
       handleSeekTo: seekTo,
       handleVolumeChange,
+      setVolume: changeVolume,
       toggleMute,
       handlePlayNext,
       handleAddToQueue,

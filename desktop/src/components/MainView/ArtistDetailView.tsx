@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { Album, ArtistDetail, Track } from "../../types";
 import { upgradeArtworkQuality, handleArtworkError } from "../../utils/artwork";
-import { triggerTrackContextMenu } from "../../context/PlayerContext";
+import { triggerTrackContextMenu, triggerPlayNext } from "../../context/PlayerContext";
 import { AlbumCard } from "./AlbumCard";
 
 export type ArtistSortOption =
@@ -226,6 +226,18 @@ export const ArtistDetailView = React.memo(function ArtistDetailView({
     return sorted;
   }, [tracks, searchFilter, sortBy]);
 
+  const totalDurationText = useMemo(() => {
+    const totalSec = tracks.reduce(
+      (acc, t) => acc + parseDurationToSeconds(t.duration, t.duration_seconds),
+      0
+    );
+    if (totalSec <= 0) return null;
+    const hours = Math.floor(totalSec / 3600);
+    const mins = Math.floor((totalSec % 3600) / 60);
+    if (hours > 0) return `${hours}h ${mins}m`;
+    return `${mins} min`;
+  }, [tracks]);
+
   const isCurrentArtistPlaying = useMemo(() => {
     if (!currentTrack || tracks.length === 0) return false;
     return tracks.some((t) => t.id === currentTrack.id);
@@ -272,15 +284,6 @@ export const ArtistDetailView = React.memo(function ArtistDetailView({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
-      {/* Botão Voltar */}
-      <button
-        onClick={onBack}
-        className="flex items-center gap-2 text-xs font-semibold text-[#8c91a4] hover:text-white transition-colors cursor-pointer group"
-      >
-        <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
-        Voltar
-      </button>
-
       {/* Header Cinematográfico do Artista */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[var(--accent-subtle)] via-[#151824] to-[#0e1017] p-6 sm:p-8 border border-[var(--accent-border)] shadow-2xl">
         {/* Glow dinâmico de fundo */}
@@ -305,16 +308,27 @@ export const ArtistDetailView = React.memo(function ArtistDetailView({
           </div>
 
           {/* Metadados e Ações Principais */}
-          <div className="flex-1 flex flex-col items-center md:items-start text-center md:text-left min-w-0">
-            <span className="text-[11px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-md bg-white/10 text-[var(--accent-text)] border border-white/10 shadow-sm inline-block">
-              ARTISTA
-            </span>
+          <div className="flex-1 flex flex-col items-center md:items-start text-center md:text-left min-w-0 w-full">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onBack}
+                title="Voltar (Alt+←)"
+                aria-label="Voltar"
+                className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-[#8c91a4] hover:text-white flex items-center justify-center transition-all cursor-pointer active:scale-95"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+              </button>
+              <span className="text-[11px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-md bg-white/10 text-[var(--accent-text)] border border-white/10 shadow-sm inline-block">
+                ARTISTA
+              </span>
+            </div>
 
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight mt-2 text-balance leading-tight">
               {displayName}
             </h1>
 
-            <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 text-xs sm:text-sm text-[#8c91a4] mt-2.5 font-medium">
+            <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 text-xs sm:text-sm text-[#8c91a4] mt-2 font-medium">
               {artistDetail?.monthly_listeners && (
                 <span className="text-white font-semibold">
                   {artistDetail.monthly_listeners}
@@ -332,6 +346,9 @@ export const ArtistDetailView = React.memo(function ArtistDetailView({
                   {tracks.length} {tracks.length === 1 ? "música" : "músicas"}
                 </span>
               )}
+              {totalDurationText && (
+                <span className="text-[#63697e]">• {totalDurationText}</span>
+              )}
               {albums.length > 0 && (
                 <span>
                   • {albums.length} {albums.length === 1 ? "lançamento" : "lançamentos"}
@@ -340,21 +357,20 @@ export const ArtistDetailView = React.memo(function ArtistDetailView({
             </div>
 
             {artistDetail?.description && (
-              <div className="mt-3 max-w-2xl">
-                <div
-                  className={`overflow-hidden transition-[max-height] duration-300 ease-out ${
-                    isBioExpanded ? "max-h-[600px]" : "max-h-[38px]"
+              <div className="mt-2.5 max-w-2xl">
+                <p
+                  key={isBioExpanded ? "bio-expanded" : "bio-collapsed"}
+                  className={`text-xs text-[#a0a5b8] leading-relaxed animate-view-fade ${
+                    isBioExpanded ? "" : "line-clamp-2"
                   }`}
                 >
-                  <p className="text-xs text-[#a0a5b8] leading-relaxed">
-                    {artistDetail.description}
-                  </p>
-                </div>
+                  {artistDetail.description}
+                </p>
                 {artistDetail.description.length > 140 && (
                   <button
                     type="button"
                     onClick={() => setIsBioExpanded((prev) => !prev)}
-                    className="text-[11px] font-semibold text-[var(--accent-text)] hover:underline mt-1.5 cursor-pointer transition-colors block"
+                    className="text-[11px] font-semibold text-[var(--accent-text)] hover:underline mt-1 cursor-pointer transition-colors block"
                   >
                     {isBioExpanded ? "Mostrar menos" : "Ler biografia completa"}
                   </button>
@@ -362,149 +378,147 @@ export const ArtistDetailView = React.memo(function ArtistDetailView({
               </div>
             )}
 
-            {/* Barra de Ações do Artista */}
-            <div className="flex items-center gap-3 mt-6 flex-wrap justify-center md:justify-start">
-              <button
-                onClick={handlePlayAllClick}
-                disabled={isLoading || tracks.length === 0}
-                aria-label={
-                  isCurrentArtistPlaying && isPlaying
-                    ? "Pausar reprodução do artista"
-                    : "Reproduzir músicas do artista"
-                }
-                className="flex items-center gap-2.5 px-6 py-3 rounded-full bg-[var(--accent)] hover:opacity-90 active:scale-95 text-white font-bold text-xs uppercase tracking-wider transition-all shadow-lg shadow-[var(--accent-glow)]/30 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isCurrentArtistPlaying && isPlaying && !searchFilter.trim() ? (
-                  <>
-                    <Pause className="w-4 h-4 fill-current" />
-                    Pausar
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-4 h-4 fill-current ml-0.5" />
-                    Reproduzir Tudo
-                  </>
-                )}
-              </button>
+            {/* Barra de Ações Unificada: Primário + Ícones + Busca Ctrl+F e Ordenação */}
+            <div className="mt-5 pt-4 border-t border-white/10 w-full flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 flex-wrap justify-center md:justify-start">
+                <button
+                  onClick={handlePlayAllClick}
+                  disabled={isLoading || tracks.length === 0}
+                  aria-label={
+                    isCurrentArtistPlaying && isPlaying
+                      ? "Pausar reprodução do artista"
+                      : "Reproduzir músicas do artista"
+                  }
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-[var(--accent)] hover:opacity-90 active:scale-95 text-white font-bold text-xs uppercase tracking-wider transition-all shadow-lg shadow-[var(--accent-glow)]/30 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isCurrentArtistPlaying && isPlaying && !searchFilter.trim() ? (
+                    <>
+                      <Pause className="w-4 h-4 fill-current" />
+                      Pausar
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4 fill-current ml-0.5" />
+                      Reproduzir
+                    </>
+                  )}
+                </button>
 
-              <button
-                onClick={handleShuffleClick}
-                disabled={isLoading || tracks.length === 0}
-                title="Reproduzir músicas do artista em ordem aleatória"
-                aria-label="Reproduzir aleatoriamente"
-                className="flex items-center gap-2 px-4 py-3 rounded-full bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 text-white font-semibold text-xs transition-all cursor-pointer disabled:opacity-50"
-              >
-                <Shuffle className="w-4 h-4" />
-                <span className="hidden sm:inline">Aleatório</span>
-              </button>
+                <button
+                  onClick={handleShuffleClick}
+                  disabled={isLoading || tracks.length === 0}
+                  title="Reproduzir músicas do artista em ordem aleatória"
+                  aria-label="Reproduzir aleatoriamente"
+                  className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 text-white transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <Shuffle className="w-4 h-4" />
+                </button>
 
-              <button
-                type="button"
-                onClick={handleAddToPlaylist}
-                disabled={isLoading || tracks.length === 0}
-                title="Adicionar músicas deste artista a uma playlist"
-                aria-label="Adicionar músicas à playlist"
-                className="flex items-center gap-2 px-4 py-3 rounded-full bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 text-white font-semibold text-xs transition-all cursor-pointer disabled:opacity-50"
-              >
-                <ListPlus className="w-4 h-4 text-[var(--accent-text)]" />
-                <span className="hidden sm:inline">Adicionar à Playlist</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={handleAddToPlaylist}
+                  disabled={isLoading || tracks.length === 0}
+                  title="Adicionar músicas deste artista a uma playlist"
+                  aria-label="Adicionar músicas à playlist"
+                  className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 text-[var(--accent-text)] hover:text-white transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <ListPlus className="w-4 h-4" />
+                </button>
 
-              <button
-                onClick={handleCopyLink}
-                title="Copiar link do artista no YouTube Music"
-                aria-label="Copiar link do artista"
-                className="p-3 rounded-full bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 text-[#8c91a4] hover:text-white transition-all cursor-pointer"
-              >
-                {isCopied ? (
-                  <Check className="w-4 h-4 text-emerald-400" />
-                ) : (
-                  <Share2 className="w-4 h-4" />
-                )}
-              </button>
+                <button
+                  onClick={handleCopyLink}
+                  title="Copiar link do artista no YouTube Music"
+                  aria-label="Copiar link do artista"
+                  className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 text-[#8c91a4] hover:text-white transition-all cursor-pointer"
+                >
+                  {isCopied ? (
+                    <Check className="w-4 h-4 text-emerald-400" />
+                  ) : (
+                    <Share2 className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+
+              {/* Busca Ctrl+F e Ordenação integradas na mesma linha */}
+              {!isLoading && tracks.length > 0 && (
+                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-center md:justify-end">
+                  <div className="relative flex-1 sm:w-52">
+                    <Search className="w-3.5 h-3.5 text-[#71778c] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      ref={filterInputRef}
+                      type="text"
+                      value={searchFilter}
+                      onChange={(e) => setSearchFilter(e.target.value)}
+                      placeholder="Filtrar músicas... (Ctrl+F)"
+                      aria-label="Filtrar músicas do artista"
+                      className="w-full pl-8 pr-7 py-2 rounded-xl bg-black/25 border border-white/10 text-xs text-white placeholder-[#71778c] focus:outline-none focus:border-[var(--accent)] transition-colors"
+                    />
+                    {searchFilter && (
+                      <button
+                        onClick={() => setSearchFilter("")}
+                        aria-label="Limpar filtro"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-[#71778c] hover:text-white p-0.5 rounded cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div ref={sortRef} className="relative flex items-center shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setIsSortOpen((prev) => !prev)}
+                      aria-haspopup="listbox"
+                      aria-expanded={isSortOpen}
+                      className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-black/25 hover:bg-white/10 border border-white/10 text-xs text-zinc-200 font-medium focus:outline-none focus:border-[var(--accent)] cursor-pointer transition-colors"
+                    >
+                      <ArrowUpDown className="w-3.5 h-3.5 text-[#71778c] shrink-0" />
+                      <span className="truncate">{sortOptionLabels[sortBy]}</span>
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 text-[#71778c] shrink-0 transition-transform duration-200 ${
+                          isSortOpen ? "rotate-180 text-white" : ""
+                        }`}
+                      />
+                    </button>
+
+                    {isSortOpen && (
+                      <div
+                        role="listbox"
+                        aria-label="Ordenar faixas do artista"
+                        className="absolute right-0 top-full mt-1.5 w-52 rounded-xl bg-[#161925]/95 backdrop-blur-xl border border-white/10 shadow-2xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150"
+                      >
+                        {sortOptions.map((option) => {
+                          const isSelected = sortBy === option.value;
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              role="option"
+                              aria-selected={isSelected}
+                              onClick={() => {
+                                setSortBy(option.value);
+                                setIsSortOpen(false);
+                              }}
+                              className={`w-full flex items-center justify-between px-3.5 py-2 text-xs text-left transition-colors cursor-pointer ${
+                                isSelected
+                                  ? "bg-[var(--accent-subtle)] text-[var(--accent-text)] font-semibold"
+                                  : "text-zinc-300 hover:bg-white/5 hover:text-white"
+                              }`}
+                            >
+                              <span>{option.label}</span>
+                              {isSelected && <Check className="w-3.5 h-3.5 text-[var(--accent)]" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
-
-      {/* Barra de Filtro e Ordenação das Músicas */}
-      {!isLoading && tracks.length > 0 && (
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#12141c] p-3 rounded-xl border border-[#1f232e]">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-[#71778c] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              ref={filterInputRef}
-              type="text"
-              value={searchFilter}
-              onChange={(e) => setSearchFilter(e.target.value)}
-              placeholder={`Filtrar músicas de ${displayName}... (Ctrl+F)`}
-              aria-label="Filtrar músicas do artista"
-              className="w-full pl-9 pr-8 py-2 rounded-lg bg-[#181b26] border border-[#242838] text-xs text-white placeholder-[#71778c] focus:outline-none focus:border-[var(--accent)] transition-colors"
-            />
-            {searchFilter && (
-              <button
-                onClick={() => setSearchFilter("")}
-                aria-label="Limpar filtro"
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#71778c] hover:text-white p-0.5 rounded cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-
-          <div ref={sortRef} className="relative flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => setIsSortOpen((prev) => !prev)}
-              aria-haspopup="listbox"
-              aria-expanded={isSortOpen}
-              className="flex items-center justify-between gap-2.5 px-3 py-2 rounded-lg bg-[#181b26] hover:bg-[#1e2230] border border-[#242838] text-xs text-zinc-200 font-medium focus:outline-none focus:border-[var(--accent)] cursor-pointer transition-colors min-w-[180px]"
-            >
-              <span className="flex items-center gap-2 truncate">
-                <ArrowUpDown className="w-3.5 h-3.5 text-[#71778c] shrink-0" />
-                <span className="truncate">{sortOptionLabels[sortBy]}</span>
-              </span>
-              <ChevronDown
-                className={`w-3.5 h-3.5 text-[#71778c] shrink-0 transition-transform duration-200 ${
-                  isSortOpen ? "rotate-180 text-white" : ""
-                }`}
-              />
-            </button>
-
-            {isSortOpen && (
-              <div
-                role="listbox"
-                aria-label="Ordenar faixas do artista"
-                className="absolute right-0 top-full mt-1.5 w-52 rounded-xl bg-[#161925]/95 backdrop-blur-xl border border-white/10 shadow-2xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150"
-              >
-                {sortOptions.map((option) => {
-                  const isSelected = sortBy === option.value;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      role="option"
-                      aria-selected={isSelected}
-                      onClick={() => {
-                        setSortBy(option.value);
-                        setIsSortOpen(false);
-                      }}
-                      className={`w-full flex items-center justify-between px-3.5 py-2 text-xs text-left transition-colors cursor-pointer ${
-                        isSelected
-                          ? "bg-[var(--accent-subtle)] text-[var(--accent-text)] font-semibold"
-                          : "text-zinc-300 hover:bg-white/5 hover:text-white"
-                      }`}
-                    >
-                      <span>{option.label}</span>
-                      {isSelected && <Check className="w-3.5 h-3.5 text-[var(--accent)]" />}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Lista de Músicas do Artista */}
       <div className="bg-[#0e1017]/80 rounded-2xl border border-[#1f232e] overflow-hidden p-4 sm:p-6 shadow-md">
@@ -648,9 +662,21 @@ export const ArtistDetailView = React.memo(function ArtistDetailView({
                     </div>
                   </div>
 
-                  {/* Duração e Menu de Contexto */}
-                  <div className="flex items-center gap-3 shrink-0 pl-3">
-                    <span className="text-xs font-mono text-[#71778c]">
+                  {/* Tocar a seguir (1 clique) + Duração e Menu de Contexto */}
+                  <div className="flex items-center gap-2 shrink-0 pl-3">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        triggerPlayNext(track);
+                      }}
+                      title="Tocar a seguir"
+                      aria-label={`Tocar a seguir: ${track.title}`}
+                      className="p-1.5 rounded-lg text-[#71778c] hover:text-[var(--accent-text)] hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                    >
+                      <ListPlus className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="text-xs font-mono text-[#71778c] w-11 text-right">
                       {track.duration || "--:--"}
                     </span>
                     <button

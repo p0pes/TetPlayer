@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { ChevronDown, Play, Pause, Trash2, ListMusic, MoreVertical, GripVertical } from "lucide-react";
 import { usePlayer } from "../../context/PlayerContext";
 import { formatTime } from "../../hooks/useLyrics";
@@ -24,6 +24,52 @@ export function QueueView() {
 
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const pointerDragRef = useRef<{ fromIdx: number; overIdx: number | null } | null>(null);
+
+  useEffect(() => {
+    if (draggedIdx === null) return;
+
+    const handlePointerMove = (e: PointerEvent) => {
+      if (!pointerDragRef.current) return;
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const row = el?.closest("[data-queue-idx]") as HTMLElement | null;
+      if (row) {
+        const idx = parseInt(row.getAttribute("data-queue-idx") || "", 10);
+        if (!isNaN(idx) && idx !== pointerDragRef.current.overIdx) {
+          pointerDragRef.current.overIdx = idx;
+          setDragOverIdx(idx);
+        }
+      }
+    };
+
+    const handlePointerUp = () => {
+      const state = pointerDragRef.current;
+      pointerDragRef.current = null;
+      if (state && state.overIdx !== null && state.fromIdx !== state.overIdx) {
+        handleReorderQueue(state.fromIdx, state.overIdx);
+      }
+      setDraggedIdx(null);
+      setDragOverIdx(null);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+    };
+  }, [draggedIdx, handleReorderQueue]);
+
+  const handleStartPointerDrag = (actualIdx: number, e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    pointerDragRef.current = { fromIdx: actualIdx, overIdx: actualIdx };
+    setDraggedIdx(actualIdx);
+    setDragOverIdx(actualIdx);
+  };
 
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
@@ -38,21 +84,14 @@ export function QueueView() {
             >
               <span>Músicas que Já Passaram ({pastTracks.length})</span>
               <ChevronDown
-                className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                  showPastTracks ? "rotate-180" : "rotate-0"
-                }`}
+                className={`w-3.5 h-3.5 transition-transform duration-200 ${showPastTracks ? "rotate-180" : "rotate-0"
+                  }`}
               />
             </button>
           </div>
 
-          <div
-            className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out overflow-hidden ${
-              showPastTracks
-                ? "grid-rows-[1fr] opacity-100"
-                : "grid-rows-[0fr] opacity-0 pointer-events-none"
-            }`}
-          >
-            <div className="min-h-0 space-y-1 opacity-70 hover:opacity-100 transition-opacity">
+          {showPastTracks && (
+            <div className="space-y-1 opacity-70 hover:opacity-100 transition-opacity animate-view-fade">
               {pastTracks.map((track, idx) => (
                 <div
                   key={`past-${track.id}-${idx}`}
@@ -61,9 +100,12 @@ export function QueueView() {
                   className="flex items-center justify-between p-2.5 rounded-xl bg-[#12141c]/60 hover:bg-[#1a1e2c] border border-transparent hover:border-[#282d3d] transition-all cursor-pointer group [content-visibility:auto] [contain-intrinsic-size:0_56px]"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <span className="w-5 text-center text-[11px] font-mono text-[#52576b] group-hover:text-[#8c91a4]">
-                      {idx + 1}
-                    </span>
+                    <div className="w-5 flex items-center justify-center shrink-0">
+                      <span className="text-[11px] font-mono text-[#52576b] group-hover:hidden">
+                        {idx + 1}
+                      </span>
+                      <Play className="w-3 h-3 fill-current hidden group-hover:block text-white" />
+                    </div>
                     <div className="w-9 h-9 rounded-lg bg-[#1a1d27] overflow-hidden shrink-0">
                       <img
                         src={upgradeArtworkQuality(track.artwork_url, track.id)}
@@ -101,23 +143,11 @@ export function QueueView() {
                     >
                       <MoreVertical className="w-3.5 h-3.5" />
                     </button>
-                    <button
-                      type="button"
-                      title="Ouvir novamente"
-                      aria-label={`Ouvir novamente: ${track.title}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handlePlayFromQueue(idx);
-                      }}
-                      className="p-1 rounded-lg text-[#71778c] hover:text-white hover:bg-[#252b3d] transition-colors cursor-pointer"
-                    >
-                      <Play className="w-3 h-3 fill-current ml-0.5" />
-                    </button>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -209,62 +239,34 @@ export function QueueView() {
               return (
                 <div
                   key={`upcoming-${track.id}-${actualIdx}`}
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData("text/plain", String(actualIdx));
-                    e.dataTransfer.effectAllowed = "move";
-                    setDraggedIdx(actualIdx);
-                  }}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = "move";
-                    if (dragOverIdx !== actualIdx) {
-                      setDragOverIdx(actualIdx);
-                    }
-                  }}
-                  onDragLeave={() => {
-                    if (dragOverIdx === actualIdx) {
-                      setDragOverIdx(null);
-                    }
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    const fromIdx =
-                      draggedIdx ?? parseInt(e.dataTransfer.getData("text/plain"), 10);
-                    if (!isNaN(fromIdx) && fromIdx !== actualIdx) {
-                      handleReorderQueue(fromIdx, actualIdx);
-                    }
-                    setDraggedIdx(null);
-                    setDragOverIdx(null);
-                  }}
-                  onDragEnd={() => {
-                    setDraggedIdx(null);
-                    setDragOverIdx(null);
-                  }}
+                  data-queue-idx={actualIdx}
                   onClick={() => handlePlayFromQueue(actualIdx)}
                   onContextMenu={(e) => openContextMenu(e, track)}
-                  className={`flex items-center justify-between p-2.5 rounded-xl transition-all duration-150 ease-out cursor-pointer group [content-visibility:auto] [contain-intrinsic-size:0_60px] ${
-                    isBeingDragged
+                  className={`flex items-center justify-between p-2.5 rounded-xl transition-all duration-150 ease-out cursor-pointer group [content-visibility:auto] [contain-intrinsic-size:0_60px] ${isBeingDragged
                       ? "opacity-35 scale-[0.98] border-dashed border-[var(--accent)] bg-[#1e2334] shadow-inner"
                       : isDragOver
-                      ? "border-t-2 border-t-[var(--accent)] bg-[#1c2030] shadow-md shadow-[var(--accent-glow)]/30 -translate-y-0.5"
-                      : "bg-[#141722]/70 hover:bg-[#1c2030] border border-[#1f2433] hover:border-[#2d3448]"
-                  }`}
+                        ? "border-t-2 border-t-[var(--accent)] bg-[#1c2030] shadow-md shadow-[var(--accent-glow)]/30 -translate-y-0.5"
+                        : "bg-[#141722]/70 hover:bg-[#1c2030] border border-[#1f2433] hover:border-[#2d3448]"
+                    }`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    {/* Alça tátil de arrasto */}
+                    {/* Alça tátil de arrasto via Pointer Events 144 FPS */}
                     <div
-                      className="p-0.5 text-[#52576b] hover:text-[#c4c8d8] cursor-grab active:cursor-grabbing opacity-40 group-hover:opacity-100 transition-opacity shrink-0"
+                      onPointerDown={(e) => handleStartPointerDrag(actualIdx, e)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="p-0.5 text-[#52576b] hover:text-[#c4c8d8] cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity shrink-0 touch-none"
                       title="Segure e arraste para reordenar"
                       aria-label="Arrastar para reordenar"
-                      onClick={(e) => e.stopPropagation()}
                     >
                       <GripVertical className="w-3.5 h-3.5" />
                     </div>
 
-                    <span className="w-4 text-center text-xs font-mono text-[#71778c] group-hover:text-[var(--accent-text)] shrink-0">
-                      {relativeIdx + 1}
-                    </span>
+                    <div className="w-4 flex items-center justify-center shrink-0">
+                      <span className="text-xs font-mono text-[#71778c] group-hover:hidden">
+                        {relativeIdx + 1}
+                      </span>
+                      <Play className="w-3 h-3 fill-current hidden group-hover:block text-[var(--accent-text)]" />
+                    </div>
                     <div className="w-10 h-10 rounded-lg bg-[#1a1d27] overflow-hidden shrink-0 border border-[#232838]">
                       <img
                         src={upgradeArtworkQuality(track.artwork_url, track.id)}
@@ -305,20 +307,7 @@ export function QueueView() {
                       <MoreVertical className="w-3.5 h-3.5" />
                     </button>
 
-                    {/* Botão de Tocar Imediatamente com WAI-ARIA (Item #6) */}
-                    <button
-                      title="Tocar agora"
-                      aria-label={`Tocar agora: ${track.title}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handlePlayFromQueue(actualIdx);
-                      }}
-                      className="p-1.5 rounded-lg text-[#71778c] hover:text-white hover:bg-[#252b3d] transition-colors cursor-pointer"
-                    >
-                      <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
-                    </button>
-
-                    {/* Botão de Remover da Fila com WAI-ARIA (Item #6) */}
+                    {/* Botão de Remover da Fila com WAI-ARIA */}
                     <button
                       title="Remover da fila"
                       aria-label={`Remover ${track.title} da fila`}

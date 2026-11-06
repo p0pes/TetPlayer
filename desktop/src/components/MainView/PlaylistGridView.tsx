@@ -115,9 +115,9 @@ const PlaylistCardItem = React.memo(function PlaylistCardItem({
         })
       }
       data-testid="playlist-card"
-      className={`bg-[#11131b]/75 hover:bg-[#181b26] ${
+      className={`bg-[#11131b]/75 hover:bg-[#161924]/90 ${
         isCompact ? "p-2.5 rounded-xl" : "p-3 rounded-2xl"
-      } border transition-all duration-200 group cursor-pointer flex flex-col justify-between relative shadow-sm hover:shadow-xl hover:shadow-[var(--accent-glow)]/10 ${
+      } border transition-colors duration-200 group cursor-pointer flex flex-col justify-between relative shadow-sm hover:shadow-lg hover:shadow-[var(--accent-glow)]/15 ${
         isActivePlaying
           ? "border-[var(--accent)] ring-1 ring-[var(--accent-glow)]/40 bg-[#161926]"
           : isPinned
@@ -125,7 +125,7 @@ const PlaylistCardItem = React.memo(function PlaylistCardItem({
           : "border-[#1d212e] hover:border-[var(--accent-border)]"
       }`}
     >
-      <div className="relative w-full aspect-square rounded-xl overflow-hidden shadow-md flex items-center justify-center bg-gradient-to-br from-indigo-700 via-purple-800 to-pink-700 border border-white/5">
+      <div className="relative w-full aspect-square rounded-xl overflow-hidden shadow-md flex items-center justify-center bg-gradient-to-br from-indigo-700 via-purple-800 to-pink-700 border border-white/5 group-hover:border-[var(--accent-border)]/50 transition-colors duration-200">
         {pl.artwork_url && !hasImageError ? (
           <img
             src={upgradeArtworkQuality(pl.artwork_url, undefined, "card")}
@@ -135,7 +135,7 @@ const PlaylistCardItem = React.memo(function PlaylistCardItem({
             referrerPolicy="no-referrer"
             onLoad={() => setIsImageLoaded(true)}
             onError={() => setHasImageError(true)}
-            className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-300 ${
+            className={`w-full h-full object-cover transform-gpu group-hover:scale-[1.015] transition-transform duration-300 ease-out ${
               isImageLoaded ? "opacity-100" : "opacity-0"
             }`}
           />

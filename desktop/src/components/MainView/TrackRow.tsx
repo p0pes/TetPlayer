@@ -1,8 +1,19 @@
-import React from "react";
-import { Music, Play, Pause, Loader2, MoreVertical, GripVertical, Heart, CheckCircle2 } from "lucide-react";
+import React, { useState } from "react";
+import {
+  Music,
+  Play,
+  Pause,
+  Loader2,
+  MoreVertical,
+  GripVertical,
+  Heart,
+  CheckCircle2,
+  ListPlus,
+  Check,
+} from "lucide-react";
 import { Track } from "../../types";
 import { upgradeArtworkQuality, handleArtworkError } from "../../utils/artwork";
-import { triggerTrackContextMenu } from "../../context/PlayerContext";
+import { triggerTrackContextMenu, triggerPlayNext } from "../../context/PlayerContext";
 import { useLikedTrack } from "../../services/likes";
 import { useTrackDownload } from "../../services/downloads";
 
@@ -41,6 +52,15 @@ export const TrackRow = React.memo(function TrackRow({
 }: TrackRowProps) {
   const { isLiked, toggleLike } = useLikedTrack(track);
   const { isDownloaded } = useTrackDownload(track);
+  const [addedNextFeedback, setAddedNextFeedback] = useState(false);
+
+  function handlePlayNextClick(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    triggerPlayNext?.(track);
+    setAddedNextFeedback(true);
+    setTimeout(() => setAddedNextFeedback(false), 1200);
+  }
 
   function handleContextMenu(e: React.MouseEvent) {
     e.preventDefault();
@@ -86,7 +106,7 @@ export const TrackRow = React.memo(function TrackRow({
         <div className="pointer-events-none absolute -bottom-1.5 left-2 right-2 h-0.5 bg-[var(--accent)] rounded-full shadow-[0_0_10px_var(--accent)] z-20" />
       )}
 
-      {/* Área esquerda arrastável (índice, capa, título e artista) */}
+      {/* Área esquerda arrastável (índice + play integrado, capa, título e artista) */}
       <div
         onPointerDown={(e) => {
           if (canReorder && e.button === 0) {
@@ -97,16 +117,42 @@ export const TrackRow = React.memo(function TrackRow({
           canReorder ? "cursor-grab active:cursor-grabbing select-none" : ""
         }`}
       >
-        <div className="w-6 flex items-center justify-center shrink-0 relative">
-          <span
-            className={`text-center text-xs font-mono text-[#5e6479] transition-opacity ${
-              canReorder ? "group-hover:opacity-0" : ""
-            }`}
-          >
-            {index + 1}
-          </span>
+        <div className="w-7 flex items-center justify-center shrink-0 relative">
           {canReorder && (
-            <GripVertical className="w-3.5 h-3.5 text-[#8c91a4] opacity-0 group-hover:opacity-100 transition-opacity absolute" />
+            <GripVertical
+              aria-hidden="true"
+              className="w-3 h-3 text-[#63697e] opacity-0 group-hover:opacity-100 transition-opacity absolute -left-2.5"
+            />
+          )}
+          {isLoadingThis ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--accent)]" />
+          ) : isCurrent ? (
+            <button
+              type="button"
+              onClick={handleClick}
+              aria-label={isPlaying ? `Pausar ${track.title}` : `Tocar ${track.title}`}
+              className="w-6 h-6 flex items-center justify-center text-[var(--accent-text)] cursor-pointer"
+            >
+              {isPlaying ? (
+                <Pause className="w-3.5 h-3.5 fill-current" />
+              ) : (
+                <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+              )}
+            </button>
+          ) : (
+            <>
+              <span className="text-center text-xs font-mono text-[#5e6479] group-hover:opacity-0 transition-opacity">
+                {index + 1}
+              </span>
+              <button
+                type="button"
+                onClick={handleClick}
+                aria-label={`Tocar ${track.title}`}
+                className="w-6 h-6 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity absolute cursor-pointer"
+              >
+                <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+              </button>
+            </>
           )}
         </div>
 
@@ -197,13 +243,9 @@ export const TrackRow = React.memo(function TrackRow({
         </div>
       </div>
 
-      {/* Duration & Actions */}
-      <div className="flex items-center gap-2.5 shrink-0 pl-3">
-        {track.duration && (
-          <span className="text-xs text-[#71778c] font-mono mr-1">{track.duration}</span>
-        )}
-
-        {/* Botão de Curtir Música (Item 5.1) */}
+      {/* Duração & Ações Rápidas de 1 Clique no Hover */}
+      <div className="flex items-center gap-1.5 shrink-0 pl-3">
+        {/* Botão de Curtir Música (1 Clique) */}
         <button
           type="button"
           onClick={toggleLike}
@@ -212,40 +254,46 @@ export const TrackRow = React.memo(function TrackRow({
           className={`p-1.5 rounded-lg transition-all cursor-pointer ${
             isLiked
               ? "text-[var(--accent)] drop-shadow-[0_0_8px_var(--accent-glow)] opacity-100"
-              : "text-[#71778c] hover:text-white hover:bg-[#202535] opacity-0 group-hover:opacity-100"
+              : "text-[#71778c] hover:text-white hover:bg-[#202535] opacity-0 group-hover:opacity-100 focus:opacity-100"
           }`}
         >
           <Heart className={`w-4 h-4 transition-transform ${isLiked ? "fill-current scale-105" : ""}`} />
         </button>
 
-        {/* Botão de Contexto / Mais Opções */}
+        {/* Botão Tocar a Seguir na Fila (1 Clique) */}
+        <button
+          type="button"
+          onClick={handlePlayNextClick}
+          title={addedNextFeedback ? "Adicionada para tocar a seguir!" : "Tocar a seguir na fila"}
+          aria-label="Tocar a seguir"
+          className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+            addedNextFeedback
+              ? "text-emerald-400 opacity-100"
+              : "text-[#71778c] hover:text-white hover:bg-[#202535] opacity-0 group-hover:opacity-100 focus:opacity-100"
+          }`}
+        >
+          {addedNextFeedback ? (
+            <Check className="w-4 h-4 text-emerald-400" />
+          ) : (
+            <ListPlus className="w-4 h-4" />
+          )}
+        </button>
+
+        {track.duration && (
+          <span className="text-xs text-[#71778c] font-mono min-w-[36px] text-right">
+            {track.duration}
+          </span>
+        )}
+
+        {/* Botão de Contexto / Mais Opções (Revelado no Hover) */}
         <button
           type="button"
           onClick={handleContextMenu}
           title="Mais opções da música"
           aria-label="Mais opções"
-          className="p-1.5 rounded-lg text-[#71778c] hover:text-white hover:bg-[#202535] opacity-80 group-hover:opacity-100 transition-opacity cursor-pointer"
+          className="p-1.5 rounded-lg text-[#71778c] hover:text-white hover:bg-[#202535] opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity cursor-pointer"
         >
           <MoreVertical className="w-4 h-4" />
-        </button>
-
-        {/* Play/Pause Button */}
-        <button
-          type="button"
-          onClick={handleClick}
-          aria-label={isCurrent && isPlaying ? `Pausar ${track.title}` : `Tocar ${track.title}`}
-          className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${isCurrent && isPlaying
-              ? "bg-[var(--accent)] text-white shadow-md shadow-[var(--accent-glow)]"
-              : "bg-[#1a1d28] text-white group-hover:bg-[var(--accent)]"
-            }`}
-        >
-          {isLoadingThis ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          ) : isCurrent && isPlaying ? (
-            <Pause className="w-3.5 h-3.5 fill-current" />
-          ) : (
-            <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
-          )}
         </button>
       </div>
     </div>

@@ -19,7 +19,7 @@ import {
 import { usePlaylistDownload } from "../../services/downloads";
 import { Album, AlbumDetail, Track } from "../../types";
 import { upgradeArtworkQuality } from "../../utils/artwork";
-import { triggerTrackContextMenu } from "../../context/PlayerContext";
+import { triggerTrackContextMenu, triggerPlayNext } from "../../context/PlayerContext";
 import { AlbumCard } from "./AlbumCard";
 
 interface AlbumDetailViewProps {
@@ -225,16 +225,7 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
       : "ÁLBUM";
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
-      {/* Botão Voltar */}
-      <button
-        onClick={onBack}
-        className="flex items-center gap-2 text-xs font-semibold text-[#8c91a4] hover:text-white transition-colors cursor-pointer group"
-      >
-        <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
-        Voltar para todos os álbuns
-      </button>
-
+    <div className="space-y-5 animate-in fade-in duration-200">
       {/* Header Cinematográfico do Álbum */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[var(--accent-subtle)] via-[#151824] to-[#0e1017] p-6 sm:p-8 border border-[var(--accent-border)] shadow-2xl">
         {/* Glow dinâmico de fundo */}
@@ -260,9 +251,20 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
 
           {/* Metadados e Ações Principais */}
           <div className="flex-1 flex flex-col items-center md:items-start text-center md:text-left min-w-0">
-            <span className="text-[11px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-md bg-white/10 text-[var(--accent-text)] border border-white/10 shadow-sm inline-block">
-              {albumTypeLabel}
-            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onBack}
+                title="Voltar para a Biblioteca (Alt+←)"
+                aria-label="Voltar para todos os álbuns"
+                className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-[#8c91a4] hover:text-white transition-colors cursor-pointer shrink-0"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+              </button>
+              <span className="text-[11px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-md bg-white/10 text-[var(--accent-text)] border border-white/10 shadow-sm inline-block">
+                {albumTypeLabel}
+              </span>
+            </div>
 
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight mt-2 text-balance leading-tight">
               {displayAlbum.title}
@@ -304,8 +306,8 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
               </p>
             )}
 
-            {/* Barra de Ações do Álbum */}
-            <div className="flex items-center gap-3 mt-6 flex-wrap justify-center md:justify-start">
+            {/* Barra de Ações do Álbum: 1 Botão Principal + Fileira de Ícones Circulares (Regra 6.1.1) */}
+            <div className="flex items-center gap-2.5 mt-5 flex-wrap justify-center md:justify-start">
               <button
                 onClick={handlePlayAlbumClick}
                 disabled={isLoading || tracks.length === 0}
@@ -314,17 +316,17 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
                     ? "Pausar álbum"
                     : "Reproduzir álbum na íntegra"
                 }
-                className="flex items-center gap-2.5 px-6 py-3 rounded-full bg-[var(--accent)] hover:opacity-90 active:scale-95 text-white font-bold text-xs uppercase tracking-wider transition-all shadow-lg shadow-[var(--accent-glow)]/30 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-6 h-10 rounded-full bg-[var(--accent)] hover:opacity-90 active:scale-95 text-white font-bold text-xs uppercase tracking-wider transition-all shadow-lg shadow-[var(--accent-glow)]/30 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isCurrentAlbumPlaying && isPlaying ? (
                   <>
                     <Pause className="w-4 h-4 fill-current" />
-                    Pausar Álbum
+                    Pausar
                   </>
                 ) : (
                   <>
                     <Play className="w-4 h-4 fill-current ml-0.5" />
-                    Reproduzir Álbum
+                    Reproduzir
                   </>
                 )}
               </button>
@@ -334,10 +336,9 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
                 disabled={isLoading || tracks.length === 0}
                 title="Reproduzir álbum em ordem aleatória"
                 aria-label="Reproduzir álbum aleatoriamente"
-                className="flex items-center gap-2 px-4 py-3 rounded-full bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 text-white font-semibold text-xs transition-all cursor-pointer disabled:opacity-50"
+                className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 text-white transition-all cursor-pointer disabled:opacity-50"
               >
                 <Shuffle className="w-4 h-4" />
-                <span className="hidden sm:inline">Aleatório</span>
               </button>
 
               <button
@@ -346,54 +347,51 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
                 disabled={isLoading || tracks.length === 0}
                 title="Adicionar todas as músicas deste álbum a uma playlist"
                 aria-label="Adicionar álbum à playlist"
-                className="flex items-center gap-2 px-4 py-3 rounded-full bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 text-white font-semibold text-xs transition-all cursor-pointer disabled:opacity-50"
+                className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 text-[var(--accent-text)] hover:text-white transition-all cursor-pointer disabled:opacity-50"
               >
-                <ListPlus className="w-4 h-4 text-[var(--accent-text)]" />
-                <span className="hidden sm:inline">Adicionar à Playlist</span>
+                <ListPlus className="w-4 h-4" />
               </button>
 
-              {/* Botão de Download Offline do Álbum */}
-              {tracks.length > 0 && (
-                isAlbumDownloading ? (
+              {/* Botão de Download Offline do Álbum (Somente-Ícone c/ Tooltip) */}
+              {tracks.length > 0 &&
+                (isAlbumDownloading ? (
                   <button
                     type="button"
                     onClick={handleCancelAlbumDownload}
-                    className="flex items-center gap-2 px-4 py-3 rounded-full bg-amber-950/60 hover:bg-amber-900/80 border border-amber-600/50 text-amber-200 text-xs font-semibold transition-all cursor-pointer shadow-sm group"
+                    className="flex items-center gap-1.5 px-3.5 h-10 rounded-full bg-amber-950/60 hover:bg-amber-900/80 border border-amber-600/50 text-amber-200 text-xs font-semibold transition-all cursor-pointer shadow-sm group"
                     title="Clique para cancelar o download das faixas deste álbum"
                   >
                     <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />
-                    <span>
-                      Baixando ({batchInfo?.completed ?? downloadedCount}/{totalDownloadable})...
+                    <span className="font-mono text-[11px]">
+                      {batchInfo?.completed ?? downloadedCount}/{totalDownloadable}
                     </span>
-                    <span className="text-[10px] opacity-70 group-hover:opacity-100 ml-1">✕</span>
+                    <span className="text-[10px] opacity-70 group-hover:opacity-100 ml-0.5">✕</span>
                   </button>
                 ) : isAllDownloaded ? (
                   <button
                     type="button"
                     onClick={handleRemoveAlbumDownloads}
-                    className="flex items-center gap-2 px-4 py-3 rounded-full bg-emerald-950/50 hover:bg-red-950/50 border border-emerald-600/50 hover:border-red-600/50 text-emerald-300 hover:text-red-300 text-xs font-semibold transition-all cursor-pointer shadow-sm group"
-                    title="Álbum salvo para ouvir offline. Clique para remover do disco."
+                    aria-label="Remover download do álbum"
+                    className="w-10 h-10 flex items-center justify-center rounded-full bg-emerald-950/50 hover:bg-red-950/50 border border-emerald-600/50 hover:border-red-600/50 text-emerald-300 hover:text-red-300 transition-all cursor-pointer shadow-sm group"
+                    title="Álbum salvo para ouvir offline (Clique para remover do disco)"
                   >
-                    <Check className="w-4 h-4 text-emerald-400 group-hover:hidden" />
-                    <span className="group-hover:hidden">Baixado Offline</span>
-                    <span className="hidden group-hover:inline">Remover Download</span>
+                    <Check className="w-4 h-4 text-emerald-400" />
                   </button>
                 ) : (
                   <button
                     type="button"
                     onClick={onStartDownloadWithFeedback}
-                    className="flex items-center gap-2 px-4 py-3 rounded-full bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 text-white font-semibold text-xs transition-all cursor-pointer shadow-sm group"
-                    title="Baixar todas as faixas deste álbum para ouvir offline sem internet"
+                    aria-label="Baixar álbum"
+                    className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 text-white transition-all cursor-pointer shadow-sm group"
+                    title={
+                      downloadedCount > 0
+                        ? `Baixar as ${totalDownloadable - downloadedCount} faixas restantes para ouvir offline`
+                        : "Baixar álbum para ouvir offline"
+                    }
                   >
                     <Download className="w-4 h-4 text-[var(--accent-text)] group-hover:scale-110 transition-transform" />
-                    <span>
-                      {downloadedCount > 0
-                        ? `Baixar Restantes (${totalDownloadable - downloadedCount})`
-                        : "Baixar Álbum"}
-                    </span>
                   </button>
-                )
-              )}
+                ))}
 
               {onTogglePinAlbum && (
                 <button
@@ -401,14 +399,13 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
                   onClick={(e) => onTogglePinAlbum(album.id, e)}
                   title={isPinned ? "Desafixar álbum da barra lateral" : "Fixar álbum na barra lateral"}
                   aria-label={isPinned ? "Desafixar álbum" : "Fixar álbum"}
-                  className={`flex items-center gap-2 px-4 py-3 rounded-full active:scale-95 border font-semibold text-xs transition-all cursor-pointer ${
+                  className={`w-10 h-10 flex items-center justify-center rounded-full active:scale-95 border transition-all cursor-pointer ${
                     isPinned
                       ? "bg-[var(--accent-subtle)] border-[var(--accent-border)] text-[var(--accent-text)] shadow-sm"
                       : "bg-white/5 hover:bg-white/10 border-white/10 text-white"
                   }`}
                 >
                   <Pin className={`w-4 h-4 ${isPinned ? "fill-current text-[var(--accent-text)]" : ""}`} />
-                  <span className="hidden sm:inline">{isPinned ? "Fixado" : "Fixar"}</span>
                 </button>
               )}
 
@@ -416,7 +413,7 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
                 onClick={handleCopyLink}
                 title="Copiar link do YouTube Music"
                 aria-label="Copiar link do álbum"
-                className="p-3 rounded-full bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 text-[#8c91a4] hover:text-white transition-all cursor-pointer"
+                className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 text-[#8c91a4] hover:text-white transition-all cursor-pointer"
               >
                 {isCopied ? (
                   <Check className="w-4 h-4 text-emerald-400" />
@@ -533,18 +530,32 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
                     </div>
                   </div>
 
-                  {/* Duração e Menu de Contexto */}
-                  <div className="flex items-center gap-3 shrink-0 pl-3">
-                    <span className="text-xs font-mono text-[#71778c]">
+                  {/* Ações Rápidas de 1 Clique no Hover & Duração */}
+                  <div className="flex items-center gap-1.5 shrink-0 pl-3">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        triggerPlayNext?.(track);
+                      }}
+                      title="Tocar a seguir na fila"
+                      aria-label="Tocar a seguir"
+                      className="p-1.5 rounded-lg text-[#71778c] hover:text-white hover:bg-white/10 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all cursor-pointer"
+                    >
+                      <ListPlus className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="text-xs font-mono text-[#71778c] min-w-[36px] text-right">
                       {track.duration || "--:--"}
                     </span>
                     <button
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         triggerTrackContextMenu(e, track);
                       }}
+                      title="Mais opções da música"
                       aria-label="Mais opções"
-                      className="p-1 rounded-lg text-[#71778c] hover:text-white hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                      className="p-1.5 rounded-lg text-[#71778c] hover:text-white hover:bg-white/10 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all cursor-pointer"
                     >
                       <MoreVertical className="w-3.5 h-3.5" />
                     </button>

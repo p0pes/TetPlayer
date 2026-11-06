@@ -357,7 +357,10 @@ export const DownloadsService = {
     return activePlaylistBatches.get(playlistId);
   },
 
-  getPlaylistDownloadStats(tracks: Track[] = []): {
+  getPlaylistDownloadStats(
+    tracks: Track[] = [],
+    playlistId?: string | null
+  ): {
     total: number;
     downloaded: number;
     percent: number;
@@ -374,7 +377,9 @@ export const DownloadsService = {
       }
     }
     const percent = total > 0 ? Math.round((downloaded / total) * 100) : 0;
-    const isAllDownloaded = total > 0 && downloaded === total;
+    const isMarkedOffline = Boolean(playlistId && downloadedCollectionIds.has(playlistId));
+    const isAllDownloaded =
+      total > 0 && (downloaded === total || (isMarkedOffline && downloaded > 0));
     return { total, downloaded, percent, isAllDownloaded };
   },
 
@@ -473,9 +478,34 @@ export const DownloadsService = {
       notify();
       return 0;
     }
+
+    // Protege faixas que também pertencem a outras coleções baixadas offline quando playlistId é informado
+    const sharedTrackIds = new Set<string>();
+    if (playlistId) {
+      try {
+        for (const otherId of downloadedCollectionIds) {
+          if (otherId === playlistId) continue;
+          const otherPlTracks = LocalCacheService.getCachedPlaylistTracks(otherId);
+          if (otherPlTracks) {
+            for (const t of otherPlTracks) {
+              if (t?.id) sharedTrackIds.add(t.id);
+            }
+          }
+          const otherAlDetail = LocalCacheService.getCachedAlbumDetail(otherId);
+          if (otherAlDetail?.tracks) {
+            for (const t of otherAlDetail.tracks) {
+              if (t?.id) sharedTrackIds.add(t.id);
+            }
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     let removed = 0;
     for (const track of tracks) {
-      if (track?.id && downloadedIds.has(track.id)) {
+      if (track?.id && downloadedIds.has(track.id) && !sharedTrackIds.has(track.id)) {
         const ok = await this.removeDownload(track.id);
         if (ok) removed++;
       }
@@ -535,13 +565,13 @@ export function useTrackDownload(track?: Track | null) {
 }
 
 export function usePlaylistDownload(playlistId?: string | null, tracks: Track[] = []) {
-  const [stats, setStats] = useState(() => DownloadsService.getPlaylistDownloadStats(tracks));
+  const [stats, setStats] = useState(() => DownloadsService.getPlaylistDownloadStats(tracks, playlistId));
   const [isDownloading, setIsDownloading] = useState(() => DownloadsService.isPlaylistDownloading(playlistId));
   const [batchInfo, setBatchInfo] = useState(() => DownloadsService.getPlaylistBatch(playlistId));
 
   useEffect(() => {
     const update = () => {
-      setStats(DownloadsService.getPlaylistDownloadStats(tracks));
+      setStats(DownloadsService.getPlaylistDownloadStats(tracks, playlistId));
       setIsDownloading(DownloadsService.isPlaylistDownloading(playlistId));
       setBatchInfo(DownloadsService.getPlaylistBatch(playlistId));
     };

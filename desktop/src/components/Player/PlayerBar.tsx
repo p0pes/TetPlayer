@@ -1,7 +1,5 @@
 import { memo } from "react";
 import {
-  ChevronUp,
-  ChevronDown,
   Music,
   Shuffle,
   SkipBack,
@@ -47,6 +45,7 @@ export const PlayerBar = memo(function PlayerBar() {
     togglePlayPause,
     handleSeekTo,
     handleVolumeChange,
+    setVolume,
     toggleMute,
     toggleShowQueue,
     toggleShowLyrics,
@@ -54,6 +53,14 @@ export const PlayerBar = memo(function PlayerBar() {
 
   const { isLiked, toggleLike } = useLikedTrack(currentTrack);
   const isDrawerOpen = isNowPlayingOpen || showLyrics;
+
+  const handleVolumeWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const step = e.deltaY < 0 ? 0.05 : -0.05;
+    const baseVol = isMuted ? 0 : volume;
+    const nextVol = Math.min(1, Math.max(0, Number((baseVol + step).toFixed(2))));
+    setVolume(nextVol);
+  };
 
   return (
     <footer className="h-20 shrink-0 border-t border-[#1f232e] bg-[#0e1017]/95 backdrop-blur-md px-3 sm:px-4 md:px-6 flex items-center justify-between gap-2 sm:gap-4 md:gap-6 z-40">
@@ -267,52 +274,60 @@ export const PlayerBar = memo(function PlayerBar() {
         />
       </div>
 
-      {/* Volume, Fila, Letras & Botão da Gaveta na Extrema Direita */}
-      <div className="flex items-center justify-end gap-1.5 sm:gap-2 md:gap-2.5 w-[28%] min-w-0 max-w-[310px]">
-        {/* Botão Fila de Reprodução */}
+      {/* Fila, Letras, Visualizador & Volume (100% Iconográfico + Scroll 0-Cliques) */}
+      <div className="flex items-center justify-end gap-1.5 sm:gap-2 w-[28%] min-w-0 max-w-[280px]">
+        {/* Visualizador de Áudio Mini Silencioso (Sem Rótulo Textual) */}
+        <div
+          title={isPlaying ? "Reproduzindo áudio" : "Áudio em pausa"}
+          className="hidden 2xl:flex items-center justify-center px-2 py-1.5 rounded-lg bg-[#141724] border border-[#212638] shrink-0"
+        >
+          <SpectrumVisualizer isPlaying={isPlaying} track={currentTrack} variant="mini" barCount={4} />
+        </div>
+
+        {/* Botão Fila de Reprodução (Somente-Ícone c/ Ponto Luminoso) */}
         <button
           onClick={toggleShowQueue}
           disabled={!currentTrack}
           aria-label="Exibir fila de reprodução"
           aria-pressed={isDrawerOpen && nowPlayingTab === "queue"}
           title="Fila de Reprodução [Q]"
-          className={`p-1.5 sm:p-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-medium disabled:opacity-30 shrink-0 ${
+          className={`p-2 rounded-lg transition-all cursor-pointer relative disabled:opacity-30 shrink-0 ${
             isDrawerOpen && nowPlayingTab === "queue"
-              ? "bg-[var(--accent)] text-white shadow-lg shadow-[var(--accent-glow)] border border-[var(--accent-border)]"
+              ? "text-[var(--accent-text)] bg-[var(--accent-subtle)] border border-[var(--accent-border)] shadow-[0_0_10px_var(--accent-glow)]"
               : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
           }`}
         >
           <ListMusic className="w-4 h-4 shrink-0" />
-          <span className="hidden xl:inline">Fila</span>
+          {isDrawerOpen && nowPlayingTab === "queue" && (
+            <span className="w-1 h-1 rounded-full bg-[var(--accent)] absolute bottom-1 left-1/2 -translate-x-1/2" />
+          )}
         </button>
 
-        {/* Botão Letras */}
+        {/* Botão Letras Sincronizadas (Somente-Ícone c/ Ponto Luminoso) */}
         <button
           onClick={toggleShowLyrics}
           disabled={!currentTrack}
           aria-label="Exibir letras sincronizadas"
           aria-pressed={isDrawerOpen && nowPlayingTab === "lyrics"}
           title="Letras Sincronizadas [L]"
-          className={`p-1.5 sm:p-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-medium disabled:opacity-30 shrink-0 ${
+          className={`p-2 rounded-lg transition-all cursor-pointer relative disabled:opacity-30 shrink-0 ${
             isDrawerOpen && nowPlayingTab === "lyrics"
-              ? "bg-[var(--accent)] text-white shadow-lg shadow-[var(--accent-glow)] border border-[var(--accent-border)]"
+              ? "text-[var(--accent-text)] bg-[var(--accent-subtle)] border border-[var(--accent-border)] shadow-[0_0_10px_var(--accent-glow)]"
               : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
           }`}
         >
           <Mic2 className="w-4 h-4 shrink-0" />
-          <span className="hidden xl:inline">Letras</span>
+          {isDrawerOpen && nowPlayingTab === "lyrics" && (
+            <span className="w-1 h-1 rounded-full bg-[var(--accent)] absolute bottom-1 left-1/2 -translate-x-1/2" />
+          )}
         </button>
 
-        {/* Visualizador de Áudio Mini & Status Badge (Sugestão 3.2) */}
-        <div className="hidden 2xl:flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[#141724] border border-[#212638] shrink-0">
-          <SpectrumVisualizer isPlaying={isPlaying} track={currentTrack} variant="mini" barCount={4} />
-          <span className="text-[10px] font-mono text-emerald-400">
-            {isPlaying ? "Tocando" : "Pausa"}
-          </span>
-        </div>
-
-        {/* Volume */}
-        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+        {/* Volume (Com suporte a Scroll do Mouse em 0 Cliques) */}
+        <div
+          onWheel={handleVolumeWheel}
+          title={`Volume: ${Math.round((isMuted ? 0 : volume) * 100)}% (Role o mouse para ajustar)`}
+          className="flex items-center gap-1 sm:gap-1.5 shrink-0 py-1"
+        >
           <button
             onClick={toggleMute}
             aria-label={isMuted ? "Desativar mudo" : "Ativar mudo"}
@@ -332,27 +347,9 @@ export const PlayerBar = memo(function PlayerBar() {
             aria-valuemin={0}
             aria-valuemax={1}
             aria-valuenow={isMuted ? 0 : volume}
-            className="w-14 sm:w-16 md:w-20 h-1 bg-[#232733] rounded-full accent-[var(--accent)] cursor-pointer"
+            className="w-16 sm:w-20 md:w-24 h-1 bg-[#232733] rounded-full accent-[var(--accent)] cursor-pointer"
           />
         </div>
-
-        {/* Seta para Abrir / Recolher a Gaveta na Extrema Direita */}
-        <button
-          onClick={toggleNowPlaying}
-          aria-label={isDrawerOpen ? "Recolher gaveta de reprodução" : "Abrir gaveta de reprodução"}
-          title={isDrawerOpen ? "Recolher gaveta [Shift+Up / Esc]" : "Abrir gaveta de reprodução (Fila & Letras) [Shift+Up]"}
-          className={`p-1.5 sm:p-2 rounded-xl border transition-all cursor-pointer shrink-0 ml-0.5 sm:ml-1 ${
-            isDrawerOpen
-              ? "bg-[var(--accent)] text-white border-[var(--accent-border)] shadow-lg shadow-[var(--accent-glow)]"
-              : "bg-[#171a24] text-[#8c91a4] hover:text-white hover:bg-[#202534] border-[#252a3a]"
-          }`}
-        >
-          {isDrawerOpen ? (
-            <ChevronDown className="w-4 h-4 transition-transform" />
-          ) : (
-            <ChevronUp className="w-4 h-4 transition-transform group-hover:-translate-y-0.5" />
-          )}
-        </button>
       </div>
     </footer>
   );

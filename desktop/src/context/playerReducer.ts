@@ -193,7 +193,11 @@ export function playerReducer(state: QueueState, action: QueueAction): QueueStat
 
       const removedTrack = state.activeQueue[index];
       const newActiveQueue = state.activeQueue.filter((_, i) => i !== index);
-      const newOriginalQueue = state.originalQueue.filter((t) => t.id !== removedTrack.id);
+      const origRemoveIdx = state.originalQueue.findIndex((t) => t.id === removedTrack.id);
+      const newOriginalQueue =
+        origRemoveIdx !== -1
+          ? state.originalQueue.filter((_, i) => i !== origRemoveIdx)
+          : [...state.originalQueue];
 
       let newCurrentIndex = state.currentQueueIndex;
       let newCurrentTrack = state.currentTrack;
@@ -470,12 +474,21 @@ export function playerReducer(state: QueueState, action: QueueAction): QueueStat
       const [movedItem] = newActiveQueue.splice(fromIndex, 1);
       newActiveQueue.splice(toIndex, 0, movedItem);
 
-      // Recalcula o índice atual baseado no ID da faixa tocando
+      // Recalcula o índice atual matematicamente (suporta faixas duplicadas na fila)
       let newCurrentIndex = state.currentQueueIndex;
-      if (state.currentTrack) {
-        const foundIdx = newActiveQueue.findIndex((t) => t.id === state.currentTrack?.id);
-        if (foundIdx !== -1) {
-          newCurrentIndex = foundIdx;
+      if (state.currentQueueIndex !== -1) {
+        if (fromIndex === state.currentQueueIndex) {
+          newCurrentIndex = toIndex;
+        } else if (
+          fromIndex < state.currentQueueIndex &&
+          toIndex >= state.currentQueueIndex
+        ) {
+          newCurrentIndex = state.currentQueueIndex - 1;
+        } else if (
+          fromIndex > state.currentQueueIndex &&
+          toIndex <= state.currentQueueIndex
+        ) {
+          newCurrentIndex = state.currentQueueIndex + 1;
         }
       }
 

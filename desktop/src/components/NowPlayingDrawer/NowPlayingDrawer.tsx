@@ -3,14 +3,12 @@ import {
   ListMusic,
   Mic2,
   Sliders,
-  Heart,
 } from "lucide-react";
 import { usePlayer } from "../../context/PlayerContext";
 import { QueueView } from "../QueueView/QueueView";
 import { LyricsView } from "../LyricsView/LyricsView";
 import { SpectrumVisualizer } from "../Visualizer/SpectrumVisualizer";
 import { MotionCover } from "./MotionCover";
-import { useLikedTrack } from "../../services/likes";
 
 export function NowPlayingDrawer() {
   const {
@@ -23,8 +21,6 @@ export function NowPlayingDrawer() {
     isPlaying,
     isDrawerClosing,
   } = usePlayer();
-
-  const { isLiked, toggleLike } = useLikedTrack(currentTrack);
 
   const queueBtnRef = useRef<HTMLButtonElement>(null);
   const lyricsBtnRef = useRef<HTMLButtonElement>(null);
@@ -46,22 +42,10 @@ export function NowPlayingDrawer() {
         isDrawerClosing ? "animate-drawer-out pointer-events-none" : "animate-drawer-in"
       }`}
     >
-      {/* Header da Gaveta: Tabs (Fila / Letras), Crossfade */}
+      {/* Header Minimalista da Gaveta: Tabs (Fila / Letras) Centralizadas + Crossfade */}
       <div className="h-14 px-3 sm:px-4 md:px-6 border-b border-[#1f232e] flex items-center justify-between gap-2 sm:gap-4 shrink-0 bg-[#0e1017]/80 backdrop-blur-md z-20">
-        {/* Esquerda: Identificador da faixa atual (Item 120: layout desobstruído) */}
-        <div className="flex items-center gap-2 sm:gap-3 w-[28%] min-w-0 max-w-[260px]">
-          <span className="text-[10px] font-bold text-[var(--accent-text)] uppercase tracking-wider bg-[var(--accent-subtle)] border border-[var(--accent-border)] px-2 py-0.5 rounded-md hidden xl:inline-block shrink-0">
-            Reproduzindo Agora
-          </span>
-          <div key={currentTrack?.id || "empty-drawer-head"} className="min-w-0 flex-1 animate-view-fade">
-            <p className="text-xs font-semibold text-white truncate">
-              {currentTrack?.title || "Nenhuma faixa selecionada"}
-            </p>
-            <p className="text-[11px] text-[#8c91a4] truncate">
-              {currentTrack?.artist || "TetPlayer"}
-            </p>
-          </div>
-        </div>
+        {/* Esquerda: Espaçador simétrico (Evita triplicar título/artista na mesma tela) */}
+        <div className="w-[28%] min-w-0 max-w-[260px] hidden sm:block" />
 
         {/* Centro: Tabs com Semântica WAI-ARIA & Indicador Deslizante Fluido */}
         <div className="flex-1 flex items-center justify-center min-w-0 px-1 sm:px-2">
@@ -211,43 +195,8 @@ export function NowPlayingDrawer() {
               </p>
             )}
 
-            {/* Badges de Qualidade e Crossfade */}
-            <div className="mt-3 flex items-center justify-center gap-2">
-              <span className="text-[10px] font-mono uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-[#c4c8d8]">
-                {currentTrack?.duration || "Streaming HD"}
-              </span>
-              {crossfadeSeconds > 0 && (
-                <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-[var(--accent-subtle)] border border-[var(--accent-border)] text-[var(--accent-text)]">
-                  Crossfade {crossfadeSeconds}s
-                </span>
-              )}
-            </div>
-
-            {/* Ações da Faixa Atual (Curtir e Download Offline) — Ergonomia Premium (Item 120) */}
-            {currentTrack && (
-              <div className="mt-3.5 flex items-center justify-center gap-2">
-                <button
-                  type="button"
-                  onClick={toggleLike}
-                  title={isLiked ? "Remover dos favoritos (Descurtir)" : "Adicionar às Músicas Curtidas"}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                    isLiked
-                      ? "bg-[var(--accent-subtle)] border-[var(--accent-border)] text-[var(--accent-text)] shadow-sm shadow-[var(--accent-glow)]"
-                      : "bg-[#141722] border-[#232735] text-[#8c91a4] hover:text-white hover:bg-white/5"
-                  }`}
-                >
-                  <Heart
-                    className={`w-3.5 h-3.5 transition-transform ${
-                      isLiked ? "fill-current scale-105" : ""
-                    }`}
-                  />
-                  <span>{isLiked ? "Curtida" : "Curtir"}</span>
-                </button>
-              </div>
-            )}
-
             {/* Visualizador de Espectro Dinâmico */}
-            <div className="mt-4 w-full max-w-[280px] mx-auto">
+            <div className="mt-5 w-full max-w-[280px] mx-auto">
               <SpectrumVisualizer isPlaying={isPlaying} track={currentTrack} variant="full" barCount={16} />
             </div>
           </div>

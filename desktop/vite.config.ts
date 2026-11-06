@@ -8,6 +8,19 @@ const host = process.env.TAURI_DEV_HOST;
 // https://vite.dev/config/
 export default defineConfig(() => ({
   plugins: [react(), tailwindcss()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules")) {
+            if (id.includes("lucide-react")) return "vendor-icons";
+            if (id.includes("@tauri-apps") || id.includes("@tanstack")) return "vendor-tauri";
+            return "vendor-react";
+          }
+        },
+      },
+    },
+  },
   test: {
     globals: true,
     environment: "jsdom",
@@ -26,10 +39,10 @@ export default defineConfig(() => ({
     host: host || false,
     hmr: host
       ? {
-          protocol: "ws",
-          host,
-          port: 1421,
-        }
+        protocol: "ws",
+        host,
+        port: 1421,
+      }
       : undefined,
     watch: {
       // 3. tell Vite to ignore watching `src-tauri`

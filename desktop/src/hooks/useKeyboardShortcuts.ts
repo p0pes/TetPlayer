@@ -130,20 +130,20 @@ export function useKeyboardShortcuts({
           break;
         case "KeyL":
           e.preventDefault();
-          if (h.isNowPlayingOpen && h.nowPlayingTab === "lyrics") {
-            h.closeNowPlaying();
-          } else {
-            h.openNowPlaying("lyrics");
-          }
-          break;
+            if (h.isNowPlayingOpen && h.nowPlayingTab === "lyrics") {
+              h.closeNowPlaying();
+            } else {
+              h.openNowPlaying("lyrics");
+            }
+            break;
         case "KeyQ":
           e.preventDefault();
-          if (h.isNowPlayingOpen && h.nowPlayingTab === "queue") {
-            h.closeNowPlaying();
-          } else {
-            h.openNowPlaying("queue");
-          }
-          break;
+            if (h.isNowPlayingOpen && h.nowPlayingTab === "queue") {
+              h.closeNowPlaying();
+            } else {
+              h.openNowPlaying("queue");
+            }
+            break;
         case "KeyS":
           h.toggleShuffle();
           break;
@@ -151,15 +151,15 @@ export function useKeyboardShortcuts({
           h.cycleRepeatMode();
           break;
         case "Escape":
-          if (h.isNowPlayingOpen) {
-            e.preventDefault();
-            h.closeNowPlaying();
+            if (h.isNowPlayingOpen) {
+              e.preventDefault();
+              h.closeNowPlaying();
+            }
+            break;
           }
-          break;
-      }
-    };
+      };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+      window.addEventListener("keydown", handleKeyDown);
+      return () => window.removeEventListener("keydown", handleKeyDown);
+}, []);
 }

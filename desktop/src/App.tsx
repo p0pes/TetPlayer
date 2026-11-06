@@ -15,7 +15,6 @@ import {
   X,
   Plus,
   RefreshCw,
-  WifiOff,
 } from "lucide-react";
 import { Playlist, Track, AuthSession, ActiveTab, Album, AlbumDetail, ArtistDetail } from "./types";
 import { LocalCacheService } from "./services/cache";
@@ -37,6 +36,7 @@ import { MiniPlayer } from "./components/MiniPlayer/MiniPlayer";
 import { UpdateInfo, checkForAppUpdates } from "./services/updater";
 import { UpdateModal } from "./components/UpdateModal/UpdateModal";
 import { SettingsModal } from "./components/SettingsModal/SettingsModal";
+import { CommandPalette } from "./components/CommandPalette/CommandPalette";
 import { CreatePlaylistModal } from "./components/Modals/CreatePlaylistModal";
 import { AddToPlaylistModal } from "./components/Modals/AddToPlaylistModal";
 import { EditPlaylistModal } from "./components/Modals/EditPlaylistModal";
@@ -54,7 +54,7 @@ import { useNetworkStatus } from "./services/network";
 export default function App() {
   useEffect(() => {
     // Revela a janela apenas quando a interface inicial já estiver montada
-    invoke("show_main_window").catch(() => {});
+    invoke("show_main_window").catch(() => { });
 
     if (import.meta.env.DEV) {
       PerformanceTelemetry.start();
@@ -143,16 +143,21 @@ function AppContent({
     nowPlayingTab,
     showLyrics,
     closeNowPlaying,
+    openNowPlaying,
     errorMessage,
     setErrorMessage,
     playTrackWithQueue,
     handleAddTracksToQueue,
     togglePlayPause,
+    handleNextTrack,
+    isShuffle,
+    toggleShuffle,
     isPlaying,
     loadingTrackId,
     mainScrollRef,
     playlistScrollPosRef,
     isMiniPlayer,
+    toggleMiniPlayer,
   } = usePlayer();
 
   // Histórico de Navegação Voltar / Avançar (Item 4.2)
@@ -194,6 +199,9 @@ function AppContent({
   const [activeTab, setActiveTab] = useState<ActiveTab>("library");
   const [librarySection, setLibrarySection] = useState<"all" | "playlists" | "albums">("all");
   const [librarySearchQuery, setLibrarySearchQuery] = useState("");
+  const [isLibrarySearchOpen, setIsLibrarySearchOpen] = useState(false);
+  const librarySearchInputRef = useRef<HTMLInputElement>(null);
+  const [isHeaderScrolled, setIsHeaderScrolled] = useState(false);
   const [librarySortBy, setLibrarySortBy] = useState<LibrarySortOption>("recent");
   const [isLibrarySortOpen, setIsLibrarySortOpen] = useState(false);
   const librarySortDropdownRef = useRef<HTMLDivElement>(null);
@@ -236,8 +244,9 @@ function AppContent({
     };
   }, [isLibrarySortOpen]);
 
-  // Configurações & Aurora Glow (Aba de Configurações)
+  // Configurações & Aurora Glow (Aba de Configurações) + Paleta de Comandos (Ctrl+K)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [auroraIntensity, setAuroraIntensity] = useState<number>(() => {
     return SettingsService.getSetting("auroraGlowIntensity");
   });
@@ -251,12 +260,15 @@ function AppContent({
     });
   }, []);
 
-  // Atalho Global para abrir Configurações (Ctrl + , ou Cmd + ,)
+  // Atalhos Globais para Configurações (Ctrl + ,) e Command Palette (Ctrl + K)
   useEffect(() => {
     function handleGlobalKeyDown(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key === ",") {
         e.preventDefault();
         setIsSettingsOpen((prev) => !prev);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setIsCommandPaletteOpen((prev) => !prev);
       }
     }
     window.addEventListener("keydown", handleGlobalKeyDown);
@@ -324,6 +336,8 @@ function AppContent({
 
   // Busca
   const [searchQuery, setSearchQuery] = useState("");
+  const searchQueryRef = useRef("");
+  searchQueryRef.current = searchQuery;
   const [searchResults, setSearchResults] = useState<Track[]>([]);
   const [searchAlbums, setSearchAlbums] = useState<Album[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -524,14 +538,21 @@ function AppContent({
   }, [loadPlaylists, loadAlbums, setErrorMessage]);
 
   // Selecionar Playlist com Stale-While-Revalidate e tolerância offline
-  const handleSelectPlaylist = useCallback(async (playlist: Playlist) => {
+  const handleSelectPlaylist = useCallback(async (playlist: Playlist, optimisticTracks?: Track[]) => {
     if (!selectedPlaylistRef.current && !selectedAlbumRef.current && !selectedArtist) {
       libraryScrollPosRef.current = mainScrollRef.current?.scrollTop || 0;
     }
     activePlaylistRequestIdRef.current = playlist.id;
     playlistScrollPosRef.current = 0;
+    setIsHeaderScrolled(false);
     if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
-    pushHistoryEntry({ tab: "library", playlist, album: null, artist: null, searchQuery });
+    pushHistoryEntry({
+      tab: "library",
+      playlist,
+      album: null,
+      artist: null,
+      searchQuery: searchQueryRef.current,
+    });
     setSelectedPlaylist(playlist);
     setSelectedAlbum(null);
     setAlbumDetail(null);
@@ -541,7 +562,7 @@ function AppContent({
     closeNowPlaying();
 
     // Exibe faixas em cache instantaneamente (0ms) se existirem
-    const cachedTracks = LocalCacheService.getCachedPlaylistTracks(playlist.id);
+    const cachedTracks = optimisticTracks || LocalCacheService.getCachedPlaylistTracks(playlist.id);
     if (cachedTracks && cachedTracks.length > 0) {
       setPlaylistTracks(cachedTracks);
     } else {
@@ -556,8 +577,13 @@ function AppContent({
         playlistId: playlist.id,
       });
       if (activePlaylistRequestIdRef.current === playlist.id) {
-        setPlaylistTracks(tracks);
-        LocalCacheService.saveCachedPlaylistTracks(playlist.id, tracks);
+        // Se foi recém-criada com faixas otimistas e o YTM ainda não indexou todas, preserva as otimistas
+        const finalTracks =
+          optimisticTracks && optimisticTracks.length > (tracks?.length || 0)
+            ? optimisticTracks
+            : tracks;
+        setPlaylistTracks(finalTracks);
+        LocalCacheService.saveCachedPlaylistTracks(playlist.id, finalTracks);
       }
     } catch (err) {
       if (activePlaylistRequestIdRef.current === playlist.id) {
@@ -572,7 +598,7 @@ function AppContent({
         setIsLoadingPlaylistTracks(false);
       }
     }
-  }, [mainScrollRef, playlistScrollPosRef, setErrorMessage, closeNowPlaying, selectedArtist]);
+  }, [mainScrollRef, playlistScrollPosRef, setErrorMessage, closeNowPlaying, selectedArtist, pushHistoryEntry]);
 
   // Selecionar Álbum com Stale-While-Revalidate (0ms instant display)
   const handleSelectAlbum = useCallback(async (album: Album) => {
@@ -581,8 +607,15 @@ function AppContent({
     }
     activeAlbumRequestIdRef.current = album.id;
     playlistScrollPosRef.current = 0;
+    setIsHeaderScrolled(false);
     if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
-    pushHistoryEntry({ tab: "library", playlist: null, album, artist: null, searchQuery });
+    pushHistoryEntry({
+      tab: "library",
+      playlist: null,
+      album,
+      artist: null,
+      searchQuery: searchQueryRef.current,
+    });
     setSelectedAlbum(album);
     setSelectedPlaylist(null);
     setSelectedArtist(null);
@@ -627,14 +660,14 @@ function AppContent({
           detail.title && detail.title !== "Álbum"
             ? detail.title
             : album.title && album.title !== "Álbum"
-            ? album.title
-            : detail.title,
+              ? album.title
+              : detail.title,
         artist:
           detail.artist && detail.artist !== "Artista"
             ? detail.artist
             : album.artist && album.artist !== "Artista"
-            ? album.artist
-            : detail.artist,
+              ? album.artist
+              : detail.artist,
       };
       setAlbumDetail(enrichedDetail);
       LocalCacheService.saveCachedAlbumDetail(album.id, enrichedDetail);
@@ -651,7 +684,7 @@ function AppContent({
         setIsLoadingAlbumDetail(false);
       }
     }
-  }, [mainScrollRef, playlistScrollPosRef, setErrorMessage, closeNowPlaying, selectedArtist]);
+  }, [mainScrollRef, playlistScrollPosRef, setErrorMessage, closeNowPlaying, selectedArtist, pushHistoryEntry]);
 
   // Selecionar Artista com Stale-While-Revalidate (0ms instant display)
   const handleSelectArtist = useCallback(
@@ -662,8 +695,20 @@ function AppContent({
       }
       const cacheKey = artist.id || artist.name.trim().toLowerCase();
       activeArtistRequestIdRef.current = cacheKey;
+      playlistScrollPosRef.current = 0;
+      setIsHeaderScrolled(false);
       if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
+      pushHistoryEntry({
+        tab: "library",
+        playlist: null,
+        album: null,
+        artist,
+        searchQuery: searchQueryRef.current,
+      });
       setSelectedArtist(artist);
+      setSelectedPlaylist(null);
+      setSelectedAlbum(null);
+      setAlbumDetail(null);
       setActiveTab("library");
       closeNowPlaying();
 
@@ -702,7 +747,7 @@ function AppContent({
         }
       }
     },
-    [mainScrollRef, setErrorMessage, closeNowPlaying, selectedArtist]
+    [mainScrollRef, playlistScrollPosRef, setErrorMessage, closeNowPlaying, selectedArtist, pushHistoryEntry]
   );
 
   // Escuta evento de abertura de perfil do artista
@@ -736,13 +781,13 @@ function AppContent({
         const targetAlbum: Album = existing
           ? { ...existing, artwork_url: existing.artwork_url || artworkUrl }
           : {
-              id: albumId,
-              title: albumTitle || "Álbum",
-              artist: artist || "Artista",
-              year: "",
-              artwork_url: artworkUrl || "",
-              album_type: "album",
-            };
+            id: albumId,
+            title: albumTitle || "Álbum",
+            artist: artist || "Artista",
+            year: "",
+            artwork_url: artworkUrl || "",
+            album_type: "album",
+          };
         handleSelectAlbum(targetAlbum);
       } else if (albumTitle) {
         try {
@@ -819,23 +864,31 @@ function AppContent({
           const tracksToAdd = [...pendingTracksForNewPlaylist];
           setPendingTracksForNewPlaylist(null);
           setCreatePlaylistInitialTitle("");
+          LocalCacheService.saveCachedPlaylistTracks(newPlaylist.id, tracksToAdd);
           showPlaylistToast(`Adicionando ${tracksToAdd.length} faixas à nova playlist...`);
-          for (const t of tracksToAdd) {
-            try {
-              await invoke("add_track_to_playlist", {
-                playlistId: newPlaylist.id,
-                videoId: t.id,
-              });
-            } catch (addErr) {
-              console.error("Erro ao adicionar faixa na playlist recém-criada:", addErr);
-            }
+
+          const batchSize = 3;
+          for (let i = 0; i < tracksToAdd.length; i += batchSize) {
+            const batch = tracksToAdd.slice(i, i + batchSize);
+            await Promise.all(
+              batch.map((t) =>
+                invoke("add_track_to_playlist", {
+                  playlistId: newPlaylist.id,
+                  videoId: t.id,
+                }).catch((addErr) => {
+                  console.error("Erro ao adicionar faixa na playlist recém-criada:", addErr);
+                })
+              )
+            );
           }
+
           LocalCacheService.saveCachedPlaylistTracks(newPlaylist.id, tracksToAdd);
           showPlaylistToast(`Playlist "${title}" criada com ${tracksToAdd.length} faixas do álbum!`);
+          handleSelectPlaylist(newPlaylist, tracksToAdd);
         } else {
           showPlaylistToast(`Playlist "${title}" criada com sucesso no YouTube Music!`);
+          handleSelectPlaylist(newPlaylist);
         }
-        handleSelectPlaylist(newPlaylist);
       } catch (err) {
         setErrorMessage(`Erro ao criar playlist: ${String(err)}`);
         throw err;
@@ -1085,18 +1138,27 @@ function AppContent({
       }
     };
 
+    const handleToastEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ message: string }>;
+      if (customEvent.detail?.message) {
+        showPlaylistToast(customEvent.detail.message);
+      }
+    };
+
     window.addEventListener("tetplayer:open-add-to-playlist", handleOpenAddToPlaylist);
     window.addEventListener("tetplayer:open-add-tracks-to-playlist", handleOpenAddTracksToPlaylist);
     window.addEventListener("tetplayer:remove-from-playlist", handleRemoveFromPlaylist);
     window.addEventListener("tetplayer:collection-context-menu", handleCollectionContextMenu);
+    window.addEventListener("tetplayer:toast", handleToastEvent);
 
     return () => {
       window.removeEventListener("tetplayer:open-add-to-playlist", handleOpenAddToPlaylist);
       window.removeEventListener("tetplayer:open-add-tracks-to-playlist", handleOpenAddTracksToPlaylist);
       window.removeEventListener("tetplayer:remove-from-playlist", handleRemoveFromPlaylist);
       window.removeEventListener("tetplayer:collection-context-menu", handleCollectionContextMenu);
+      window.removeEventListener("tetplayer:toast", handleToastEvent);
     };
-  }, [handleRemoveTrackFromPlaylist]);
+  }, [handleRemoveTrackFromPlaylist, showPlaylistToast]);
 
   const handleSearch = useCallback(async (e?: React.FormEvent, customQuery?: string) => {
     if (e) e.preventDefault();
@@ -1125,39 +1187,68 @@ function AppContent({
   }, [searchQuery, setErrorMessage]);
 
   const handleBackToPlaylists = useCallback(() => {
-    pushHistoryEntry({ tab: "library", playlist: null, album: null, artist: null, searchQuery });
+    pushHistoryEntry({
+      tab: "library",
+      playlist: null,
+      album: null,
+      artist: null,
+      searchQuery: searchQueryRef.current,
+    });
     playlistScrollPosRef.current = 0;
+    setIsHeaderScrolled((libraryScrollPosRef.current || 0) > 120);
     setSelectedPlaylist(null);
     closeNowPlaying();
     requestAnimationFrame(() => {
       if (mainScrollRef.current) mainScrollRef.current.scrollTop = libraryScrollPosRef.current;
     });
-  }, [mainScrollRef, playlistScrollPosRef, closeNowPlaying]);
+  }, [mainScrollRef, playlistScrollPosRef, closeNowPlaying, pushHistoryEntry]);
 
   const handleBackToAlbums = useCallback(() => {
-    pushHistoryEntry({ tab: "library", playlist: null, album: null, artist: null, searchQuery });
+    pushHistoryEntry({
+      tab: "library",
+      playlist: null,
+      album: null,
+      artist: null,
+      searchQuery: searchQueryRef.current,
+    });
     playlistScrollPosRef.current = 0;
+    setIsHeaderScrolled((libraryScrollPosRef.current || 0) > 120);
     setSelectedAlbum(null);
     setAlbumDetail(null);
     closeNowPlaying();
     requestAnimationFrame(() => {
       if (mainScrollRef.current) mainScrollRef.current.scrollTop = libraryScrollPosRef.current;
     });
-  }, [mainScrollRef, playlistScrollPosRef, closeNowPlaying]);
+  }, [mainScrollRef, playlistScrollPosRef, closeNowPlaying, pushHistoryEntry]);
 
   const handleBackFromArtist = useCallback(() => {
-    pushHistoryEntry({ tab: "library", playlist: null, album: null, artist: null, searchQuery });
+    pushHistoryEntry({
+      tab: "library",
+      playlist: null,
+      album: null,
+      artist: null,
+      searchQuery: searchQueryRef.current,
+    });
+    playlistScrollPosRef.current = 0;
+    setIsHeaderScrolled((libraryScrollPosRef.current || 0) > 120);
     setSelectedArtist(null);
     setArtistDetail(null);
     closeNowPlaying();
     requestAnimationFrame(() => {
       if (mainScrollRef.current) mainScrollRef.current.scrollTop = libraryScrollPosRef.current;
     });
-  }, [mainScrollRef, closeNowPlaying]);
+  }, [mainScrollRef, playlistScrollPosRef, closeNowPlaying, pushHistoryEntry]);
 
   const handleSidebarTabChange = useCallback((tab: ActiveTab) => {
-    pushHistoryEntry({ tab, playlist: null, album: null, artist: null, searchQuery });
+    pushHistoryEntry({
+      tab,
+      playlist: null,
+      album: null,
+      artist: null,
+      searchQuery: searchQueryRef.current,
+    });
     playlistScrollPosRef.current = 0;
+    setIsHeaderScrolled(false);
     setActiveTab(tab);
     setSelectedArtist(null);
     setArtistDetail(null);
@@ -1167,7 +1258,7 @@ function AppContent({
       setAlbumDetail(null);
     }
     closeNowPlaying();
-  }, [playlistScrollPosRef, closeNowPlaying]);
+  }, [playlistScrollPosRef, closeNowPlaying, pushHistoryEntry]);
 
   // Navegação Determinística do Histórico (Item 114 - Resolução de Desync)
   const navigateToHistoryEntry = useCallback(
@@ -1522,7 +1613,7 @@ function AppContent({
           return;
         }
 
-        const stats = DownloadsService.getPlaylistDownloadStats(tracks);
+        const stats = DownloadsService.getPlaylistDownloadStats(tracks, id);
         if (stats.isAllDownloaded) {
           await DownloadsService.downloadPlaylist(id, tracks);
           showPlaylistToast(`Todas as faixas de "${title}" já estão baixadas offline!`);
@@ -1574,18 +1665,16 @@ function AppContent({
 
   return (
     <div
-      className={`w-screen h-screen select-none overflow-hidden relative ${
-        isMiniPlayer ? "bg-transparent" : "bg-[#0b0c10]"
-      }`}
+      className={`w-screen h-screen select-none overflow-hidden relative ${isMiniPlayer ? "bg-transparent" : "bg-[#0b0c10]"
+        }`}
     >
       {/* Modo Mini Player Flutuante (Sugestão 2.1) */}
       {isMiniPlayer && <MiniPlayer />}
 
       {/* Interface Completa do TetPlayer (oculta visualmente quando em modo mini player sem recarregar o DOM) */}
       <div
-        className={`flex-col h-full w-full bg-[#0b0c10] text-[#e0e2ec] overflow-hidden relative ${
-          isMiniPlayer ? "hidden" : "flex"
-        }`}
+        className={`flex-col h-full w-full bg-[#0b0c10] text-[#e0e2ec] overflow-hidden relative ${isMiniPlayer ? "hidden" : "flex"
+          }`}
       >
         {/* Fundo Dinâmico Aurora de Alta Resolução */}
         <div
@@ -1604,6 +1693,7 @@ function AppContent({
           activeTab={activeTab}
           selectedPlaylist={selectedPlaylist}
           selectedAlbum={selectedAlbum}
+          selectedArtist={selectedArtist}
           currentTrack={currentTrack}
           isNowPlayingOpen={isNowPlayingOpen}
           nowPlayingTab={nowPlayingTab}
@@ -1612,6 +1702,8 @@ function AppContent({
           canGoForward={historyIndex < historyStack.length - 1}
           onGoBack={handleGoBack}
           onGoForward={handleGoForward}
+          isHeaderScrolled={isHeaderScrolled}
+          onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
         />
 
         {/* Corpo Principal (Sidebar + Conteúdo Central) */}
@@ -1680,29 +1772,15 @@ function AppContent({
               </div>
             )}
 
-            {/* Banner Informativo de Modo Offline */}
-            {!isOnline && (
-              <div
-                role="status"
-                aria-live="polite"
-                className="bg-amber-950/50 border-b border-amber-500/30 px-4 py-2 flex items-center justify-between text-xs text-amber-200 z-30 shrink-0"
-              >
-                <div className="flex items-center gap-2">
-                  <WifiOff className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span className="font-semibold">Modo offline (sem conexão com a internet)</span>
-                  <span className="text-amber-300/70 hidden sm:inline">
-                    • Exibindo apenas playlists e álbuns baixados no disco
-                  </span>
-                </div>
-              </div>
-            )}
-
             {/* Conteúdo com Scroll da Playlist, Busca ou TetStats */}
             <main
               ref={mainScrollRef as React.RefObject<HTMLDivElement>}
               inert={isNowPlayingOpen && !isDrawerClosing ? true : undefined}
               onScroll={(e) => {
-                playlistScrollPosRef.current = e.currentTarget.scrollTop;
+                const top = e.currentTarget.scrollTop;
+                playlistScrollPosRef.current = top;
+                const scrolled = top > 120;
+                setIsHeaderScrolled((prev) => (prev !== scrolled ? scrolled : prev));
               }}
               className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar block"
             >
@@ -1712,466 +1790,458 @@ function AppContent({
                     ? selectedArtist
                       ? `artist-${selectedArtist.id || selectedArtist.name}`
                       : selectedPlaylist
-                      ? `playlist-${selectedPlaylist.id}`
-                      : selectedAlbum
-                      ? `album-${selectedAlbum.id}`
-                      : `library-${librarySection}`
+                        ? `playlist-${selectedPlaylist.id}`
+                        : selectedAlbum
+                          ? `album-${selectedAlbum.id}`
+                          : `library-${librarySection}`
                     : activeTab
                 }
                 className="animate-view-fade space-y-6"
               >
-              {activeTab === "library" && (
-                <>
-                  {selectedArtist ? (
-                    <ArtistDetailView
-                      artistName={selectedArtist.name}
-                      artistId={selectedArtist.id}
-                      artistDetail={artistDetail}
-                      isLoading={isLoadingArtistDetail}
-                      currentTrack={currentTrack}
-                      isPlaying={isPlaying}
-                      loadingTrackId={loadingTrackId}
-                      onBack={handleBackFromArtist}
-                      onPlayArtistTracks={handlePlayAlbum}
-                      onPlayTrack={(track, idx, customQueue) =>
-                        playTrackWithQueue(
-                          track,
-                          customQueue || artistDetail?.tracks || [track],
-                          idx,
-                          artistDetail?.id || selectedArtist.id
-                        )
-                      }
-                      onTogglePlayPause={togglePlayPause}
-                      onSelectAlbum={handleSelectAlbum}
-                      onPlayAlbumQuick={handlePlayAlbumQuick}
-                      pinnedAlbumIds={pinnedPlaylistIds}
-                      onTogglePinAlbum={handleTogglePinPlaylist}
-                    />
-                  ) : selectedPlaylist ? (
-                    <PlaylistDetailView
-                      playlist={selectedPlaylist}
-                      tracks={playlistTracks}
-                      isLoadingTracks={isLoadingPlaylistTracks}
-                      currentTrack={currentTrack}
-                      isPlaying={isPlaying}
-                      loadingTrackId={loadingTrackId}
-                      onBack={handleBackToPlaylists}
-                      onEditPlaylist={(pl) => setEditingPlaylist(pl)}
-                      onDeletePlaylist={(pl) => setDeletingPlaylist(pl)}
-                      onReorderTrack={handleReorderPlaylistTrack}
-                      onPlayPlaylist={(customTracks) => {
-                        const queue = customTracks && customTracks.length > 0 ? customTracks : playlistTracks;
-                        if (queue.length > 0) {
-                          markPlaylistListened(selectedPlaylist.id);
+                {activeTab === "library" && (
+                  <>
+                    {selectedArtist ? (
+                      <ArtistDetailView
+                        artistName={selectedArtist.name}
+                        artistId={selectedArtist.id}
+                        artistDetail={artistDetail}
+                        isLoading={isLoadingArtistDetail}
+                        currentTrack={currentTrack}
+                        isPlaying={isPlaying}
+                        loadingTrackId={loadingTrackId}
+                        onBack={handleBackFromArtist}
+                        onPlayArtistTracks={handlePlayAlbum}
+                        onPlayTrack={(track, idx, customQueue) =>
                           playTrackWithQueue(
-                            queue[0],
-                            queue,
-                            0,
-                            selectedPlaylist.id
-                          );
+                            track,
+                            customQueue || artistDetail?.tracks || [track],
+                            idx,
+                            artistDetail?.id || selectedArtist.id
+                          )
                         }
-                      }}
-                      onPlayTrack={(track, idx, customQueue) =>
-                        playTrackWithQueue(
-                          track,
-                          customQueue || playlistTracks,
-                          idx,
-                          selectedPlaylist.id
-                        )
-                      }
-                      onTogglePlayPause={togglePlayPause}
-                      scrollRef={mainScrollRef}
-                    />
-                  ) : selectedAlbum ? (
-                    <AlbumDetailView
-                      album={selectedAlbum}
-                      albumDetail={albumDetail}
-                      isLoading={isLoadingAlbumDetail}
-                      currentTrack={currentTrack}
-                      isPlaying={isPlaying}
-                      loadingTrackId={loadingTrackId}
-                      onBack={handleBackToAlbums}
-                      onPlayAlbum={handlePlayAlbum}
-                      onPlayTrack={handlePlayAlbumTrack}
-                      onTogglePlayPause={togglePlayPause}
-                      onSelectRelatedAlbum={handleSelectAlbum}
-                      onPlayAlbumQuick={handlePlayAlbumQuick}
-                      pinnedAlbumIds={pinnedPlaylistIds}
-                      onTogglePinAlbum={handleTogglePinPlaylist}
-                    />
-                  ) : (
-                    <div className="space-y-6">
-                      {/* Barra de Ferramentas Unificada da Biblioteca (Eixo 2) */}
-                      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 pb-3 border-b border-white/5">
-                        {/* Segmented Control: Tudo | Playlists | Álbuns (Animação de Slide 144 FPS) */}
-                        <div className="relative inline-flex items-center p-1 bg-[#12141f] border border-[#272c3f] rounded-xl select-none self-start">
-                          <div
-                            className="absolute top-1 bottom-1 w-32 rounded-lg bg-[var(--accent)] shadow-md shadow-[var(--accent-glow)] transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] pointer-events-none"
-                            style={{
-                              transform:
-                                librarySection === "all"
-                                  ? "translate3d(0px, 0, 0)"
-                                  : librarySection === "playlists"
-                                  ? "translate3d(128px, 0, 0)"
-                                  : "translate3d(256px, 0, 0)",
-                            }}
-                          />
-
-                          <button
-                            type="button"
-                            onClick={() => setLibrarySection("all")}
-                            className={`relative z-10 w-32 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold transition-colors duration-200 cursor-pointer ${
-                              librarySection === "all"
-                                ? "text-white font-bold"
-                                : "text-[#8c91a4] hover:text-white"
-                            }`}
-                          >
-                            <LayoutGrid className="w-3.5 h-3.5" />
-                            <span>Tudo</span>
-                            <span
-                              className={`text-[10px] px-1.5 py-0.5 rounded-full transition-colors ${
-                                librarySection === "all"
-                                  ? "bg-white/20 text-white font-bold"
-                                  : "bg-white/5 text-[#8c91a4]"
-                              }`}
-                            >
-                              {displayedPlaylists.length + displayedAlbums.length}
-                            </span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setLibrarySection("playlists")}
-                            className={`relative z-10 w-32 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold transition-colors duration-200 cursor-pointer ${
-                              librarySection === "playlists"
-                                ? "text-white font-bold"
-                                : "text-[#8c91a4] hover:text-white"
-                            }`}
-                          >
-                            <ListMusic className="w-3.5 h-3.5" />
-                            <span>Playlists</span>
-                            <span
-                              className={`text-[10px] px-1.5 py-0.5 rounded-full transition-colors ${
-                                librarySection === "playlists"
-                                  ? "bg-white/20 text-white font-bold"
-                                  : "bg-white/5 text-[#8c91a4]"
-                              }`}
-                            >
-                              {displayedPlaylists.length}
-                            </span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setLibrarySection("albums")}
-                            className={`relative z-10 w-32 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold transition-colors duration-200 cursor-pointer ${
-                              librarySection === "albums"
-                                ? "text-white font-bold"
-                                : "text-[#8c91a4] hover:text-white"
-                            }`}
-                          >
-                            <Disc3 className="w-3.5 h-3.5" />
-                            <span>Álbuns</span>
-                            <span
-                              className={`text-[10px] px-1.5 py-0.5 rounded-full transition-colors ${
-                                librarySection === "albums"
-                                  ? "bg-white/20 text-white font-bold"
-                                  : "bg-white/5 text-[#8c91a4]"
-                              }`}
-                            >
-                              {displayedAlbums.length}
-                            </span>
-                          </button>
-                        </div>
-
-                        {/* Controles Unificados: Busca Instantânea + Ordenação Customizada + Densidade + Ações */}
-                        <div className="flex items-center gap-2.5 flex-wrap">
-                          {/* Busca Instantânea Unificada */}
-                          <div className="relative flex-1 sm:flex-initial sm:w-56">
-                            <Search className="w-3.5 h-3.5 text-[#63697e] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                            <input
-                              type="text"
-                              value={librarySearchQuery}
-                              onChange={(e) => setLibrarySearchQuery(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Escape") setLibrarySearchQuery("");
+                        onTogglePlayPause={togglePlayPause}
+                        onSelectAlbum={handleSelectAlbum}
+                        onPlayAlbumQuick={handlePlayAlbumQuick}
+                        pinnedAlbumIds={pinnedPlaylistIds}
+                        onTogglePinAlbum={handleTogglePinPlaylist}
+                      />
+                    ) : selectedPlaylist ? (
+                      <PlaylistDetailView
+                        playlist={selectedPlaylist}
+                        tracks={playlistTracks}
+                        isLoadingTracks={isLoadingPlaylistTracks}
+                        currentTrack={currentTrack}
+                        isPlaying={isPlaying}
+                        loadingTrackId={loadingTrackId}
+                        onBack={handleBackToPlaylists}
+                        onEditPlaylist={(pl) => setEditingPlaylist(pl)}
+                        onDeletePlaylist={(pl) => setDeletingPlaylist(pl)}
+                        onReorderTrack={handleReorderPlaylistTrack}
+                        onPlayPlaylist={(customTracks) => {
+                          const queue = customTracks && customTracks.length > 0 ? customTracks : playlistTracks;
+                          if (queue.length > 0) {
+                            markPlaylistListened(selectedPlaylist.id);
+                            playTrackWithQueue(
+                              queue[0],
+                              queue,
+                              0,
+                              selectedPlaylist.id
+                            );
+                          }
+                        }}
+                        onPlayTrack={(track, idx, customQueue) =>
+                          playTrackWithQueue(
+                            track,
+                            customQueue || playlistTracks,
+                            idx,
+                            selectedPlaylist.id
+                          )
+                        }
+                        onTogglePlayPause={togglePlayPause}
+                        scrollRef={mainScrollRef}
+                      />
+                    ) : selectedAlbum ? (
+                      <AlbumDetailView
+                        album={selectedAlbum}
+                        albumDetail={albumDetail}
+                        isLoading={isLoadingAlbumDetail}
+                        currentTrack={currentTrack}
+                        isPlaying={isPlaying}
+                        loadingTrackId={loadingTrackId}
+                        onBack={handleBackToAlbums}
+                        onPlayAlbum={handlePlayAlbum}
+                        onPlayTrack={handlePlayAlbumTrack}
+                        onTogglePlayPause={togglePlayPause}
+                        onSelectRelatedAlbum={handleSelectAlbum}
+                        onPlayAlbumQuick={handlePlayAlbumQuick}
+                        pinnedAlbumIds={pinnedPlaylistIds}
+                        onTogglePinAlbum={handleTogglePinPlaylist}
+                      />
+                    ) : (
+                      <div className="space-y-6">
+                        {/* Barra de Ferramentas Unificada da Biblioteca (Eixo 2) */}
+                        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 pb-3 border-b border-white/5">
+                          {/* Segmented Control Limpo: Tudo | Playlists | Álbuns (Animação de Slide 144 FPS) */}
+                          <div className="relative inline-flex items-center p-1 bg-[#12141f] border border-[#272c3f] rounded-xl select-none self-start">
+                            <div
+                              className="absolute top-1 bottom-1 w-24 rounded-lg bg-[var(--accent)] shadow-md shadow-[var(--accent-glow)] transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] pointer-events-none"
+                              style={{
+                                transform:
+                                  librarySection === "all"
+                                    ? "translate3d(0px, 0, 0)"
+                                    : librarySection === "playlists"
+                                      ? "translate3d(96px, 0, 0)"
+                                      : "translate3d(192px, 0, 0)",
                               }}
-                              placeholder={
-                                librarySection === "playlists"
-                                  ? "Filtrar playlists..."
-                                  : librarySection === "albums"
-                                  ? "Filtrar álbuns ou artistas..."
-                                  : "Filtrar playlists e álbuns..."
-                              }
-                              aria-label="Filtrar na biblioteca"
-                              className="w-full bg-[#131622] border border-[#232738] focus:border-[var(--accent)] rounded-xl pl-8 pr-7 py-1.5 text-xs text-white placeholder-[#63697e] outline-none transition-colors"
                             />
-                            {librarySearchQuery && (
-                              <button
-                                type="button"
-                                onClick={() => setLibrarySearchQuery("")}
-                                aria-label="Limpar busca da biblioteca"
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-[#63697e] hover:text-white p-0.5 cursor-pointer"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
 
-                          {/* Seletor de Ordenação Customizado da Biblioteca */}
-                          <div
-                            ref={librarySortDropdownRef}
-                            className="relative flex items-center gap-1.5"
-                          >
-                            <ArrowUpDown className="w-3.5 h-3.5 text-[#71778c] shrink-0" />
                             <button
                               type="button"
-                              onClick={() => setIsLibrarySortOpen((prev) => !prev)}
-                              aria-label="Ordenar biblioteca por"
-                              aria-expanded={isLibrarySortOpen}
-                              aria-haspopup="listbox"
-                              className={`flex items-center justify-between gap-2 min-w-[155px] bg-[#131622] hover:bg-[#191d2c] border rounded-xl px-3 py-1.5 text-xs font-medium text-white transition-all cursor-pointer select-none ${
-                                isLibrarySortOpen
-                                  ? "border-[var(--accent)] ring-1 ring-[var(--accent-glow)]/40"
-                                  : "border-[#232738] hover:border-[#323850]"
-                              }`}
-                            >
-                              <span className="truncate">
-                                {(
-                                  [
-                                    { value: "recent", label: "Recentes / Padrão" },
-                                    { value: "title", label: "Título (A-Z)" },
-                                    { value: "artist", label: "Artista / Autor (A-Z)" },
-                                    { value: "count_desc", label: "Mais faixas / Ano" },
-                                  ] as const
-                                ).find((o) => o.value === librarySortBy)?.label ||
-                                  "Recentes / Padrão"}
-                              </span>
-                              <ChevronDown
-                                className={`w-3.5 h-3.5 text-[#8c91a4] transition-transform duration-200 shrink-0 ${
-                                  isLibrarySortOpen
-                                    ? "rotate-180 text-[var(--accent-text)]"
-                                    : ""
+                              onClick={() => setLibrarySection("all")}
+                              title={`Tudo (${displayedPlaylists.length + displayedAlbums.length} itens)`}
+                              className={`relative z-10 w-24 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold transition-colors duration-200 cursor-pointer ${librarySection === "all"
+                                  ? "text-white font-bold"
+                                  : "text-[#8c91a4] hover:text-white"
                                 }`}
-                              />
-                            </button>
-
-                            {isLibrarySortOpen && (
-                              <div
-                                role="listbox"
-                                aria-label="Opções de ordenação da biblioteca"
-                                className="absolute right-0 top-full mt-1.5 z-50 min-w-[205px] bg-[#12141f]/95 backdrop-blur-2xl border border-[#272c3f] rounded-2xl shadow-2xl p-1.5 flex flex-col gap-0.5 select-none animate-in fade-in zoom-in-95 duration-100"
-                              >
-                                {(
-                                  [
-                                    { value: "recent", label: "Recentes / Padrão" },
-                                    { value: "title", label: "Título (A-Z)" },
-                                    { value: "artist", label: "Artista / Autor (A-Z)" },
-                                    { value: "count_desc", label: "Mais faixas / Ano" },
-                                  ] as const
-                                ).map((opt) => {
-                                  const isSelected = librarySortBy === opt.value;
-                                  return (
-                                    <button
-                                      key={opt.value}
-                                      type="button"
-                                      role="option"
-                                      aria-selected={isSelected}
-                                      onClick={() => {
-                                        setLibrarySortBy(opt.value);
-                                        setIsLibrarySortOpen(false);
-                                      }}
-                                      className={`flex items-center justify-between gap-3 px-3 py-1.5 rounded-xl text-xs font-medium transition-all cursor-pointer text-left ${
-                                        isSelected
-                                          ? "bg-[var(--accent-subtle)] text-white border border-[var(--accent-border)] font-semibold shadow-sm"
-                                          : "text-[#c4c8d8] hover:text-white hover:bg-white/5 border border-transparent"
-                                      }`}
-                                    >
-                                      <span>{opt.label}</span>
-                                      {isSelected && (
-                                        <Check className="w-3.5 h-3.5 text-[var(--accent-text)] shrink-0" />
-                                      )}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Alternador de Densidade da Grade: Confortável vs Compacto */}
-                          <div
-                            role="group"
-                            aria-label="Densidade da grade"
-                            className="inline-flex items-center p-0.5 bg-[#131622] border border-[#232738] rounded-xl"
-                          >
-                            <button
-                              type="button"
-                              onClick={() => handleSetLibraryDensity("comfortable")}
-                              title="Grade Padrão (Cards maiores)"
-                              aria-label="Grade padrão"
-                              aria-pressed={libraryDensity === "comfortable"}
-                              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                                libraryDensity === "comfortable"
-                                  ? "bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] shadow-sm"
-                                  : "text-[#71778c] hover:text-white border border-transparent"
-                              }`}
                             >
                               <LayoutGrid className="w-3.5 h-3.5" />
+                              <span>Tudo</span>
                             </button>
+
                             <button
                               type="button"
-                              onClick={() => handleSetLibraryDensity("compact")}
-                              title="Grade Compacta (Mais itens por linha)"
-                              aria-label="Grade compacta"
-                              aria-pressed={libraryDensity === "compact"}
-                              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                                libraryDensity === "compact"
-                                  ? "bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] shadow-sm"
-                                  : "text-[#71778c] hover:text-white border border-transparent"
-                              }`}
+                              onClick={() => setLibrarySection("playlists")}
+                              title={`Playlists (${displayedPlaylists.length})`}
+                              className={`relative z-10 w-24 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold transition-colors duration-200 cursor-pointer ${librarySection === "playlists"
+                                  ? "text-white font-bold"
+                                  : "text-[#8c91a4] hover:text-white"
+                                }`}
                             >
-                              <Grid3x3 className="w-3.5 h-3.5" />
+                              <ListMusic className="w-3.5 h-3.5" />
+                              <span>Playlists</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setLibrarySection("albums")}
+                              title={`Álbuns (${displayedAlbums.length})`}
+                              className={`relative z-10 w-24 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold transition-colors duration-200 cursor-pointer ${librarySection === "albums"
+                                  ? "text-white font-bold"
+                                  : "text-[#8c91a4] hover:text-white"
+                                }`}
+                            >
+                              <Disc3 className="w-3.5 h-3.5" />
+                              <span>Álbuns</span>
                             </button>
                           </div>
 
-                          {/* Botão Criar Nova Playlist */}
-                          <button
-                            type="button"
-                            onClick={() => setIsCreatePlaylistOpen(true)}
-                            title="Criar nova playlist no YouTube Music"
-                            aria-label="Nova playlist"
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--accent-subtle)] border border-[var(--accent-border)] text-[var(--accent-text)] hover:opacity-90 text-xs font-semibold cursor-pointer transition-all shadow-sm"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">Nova Playlist</span>
-                          </button>
+                          {/* Controles Unificados: Busca Retrátil (1 Clique) + Ordenação Compacta + Densidade + Ícones */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {/* Busca Retrátil por Ícone (6.2.C.2) */}
+                            {isLibrarySearchOpen || librarySearchQuery ? (
+                              <div className="relative flex-1 sm:flex-initial sm:w-52 animate-in fade-in duration-150">
+                                <Search className="w-3.5 h-3.5 text-[#63697e] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                <input
+                                  ref={librarySearchInputRef}
+                                  type="text"
+                                  value={librarySearchQuery}
+                                  onChange={(e) => setLibrarySearchQuery(e.target.value)}
+                                  onBlur={() => {
+                                    if (!librarySearchQuery.trim()) {
+                                      setIsLibrarySearchOpen(false);
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Escape") {
+                                      setLibrarySearchQuery("");
+                                      setIsLibrarySearchOpen(false);
+                                    }
+                                  }}
+                                  placeholder={
+                                    librarySection === "playlists"
+                                      ? "Filtrar playlists..."
+                                      : librarySection === "albums"
+                                        ? "Filtrar álbuns ou artistas..."
+                                        : "Filtrar biblioteca..."
+                                  }
+                                  aria-label="Filtrar na biblioteca"
+                                  className="w-full bg-[#131622] border border-[var(--accent)] rounded-xl pl-8 pr-7 py-1.5 text-xs text-white placeholder-[#63697e] outline-none transition-colors"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setLibrarySearchQuery("");
+                                    setIsLibrarySearchOpen(false);
+                                  }}
+                                  aria-label="Limpar busca da biblioteca"
+                                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[#63697e] hover:text-white p-0.5 cursor-pointer"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsLibrarySearchOpen(true);
+                                  setTimeout(() => librarySearchInputRef.current?.focus(), 0);
+                                }}
+                                title="Filtrar playlists e álbuns"
+                                aria-label="Filtrar na biblioteca"
+                                className="w-8 h-8 flex items-center justify-center rounded-xl bg-[#131622] hover:bg-[#1a1e2c] border border-[#232738] text-[#8c91a4] hover:text-white transition-all cursor-pointer"
+                              >
+                                <Search className="w-3.5 h-3.5" />
+                              </button>
+                            )}
 
-                          {/* Botão Atualizar Biblioteca */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              loadPlaylists();
-                              loadAlbums();
-                            }}
-                            disabled={isLoadingPlaylists || isLoadingAlbums}
-                            title="Sincronizar playlists e álbuns"
-                            aria-label="Sincronizar biblioteca"
-                            className="p-2 rounded-xl bg-[#131622] hover:bg-[#1a1e2c] border border-[#232738] text-[#8c91a4] hover:text-white transition-all cursor-pointer disabled:opacity-50"
-                          >
-                            <RefreshCw
-                              className={`w-3.5 h-3.5 ${
-                                isLoadingPlaylists || isLoadingAlbums
-                                  ? "animate-spin text-[var(--accent)]"
-                                  : ""
-                              }`}
-                            />
-                          </button>
+                            {/* Seletor de Ordenação Compacto da Biblioteca */}
+                            <div
+                              ref={librarySortDropdownRef}
+                              className="relative flex items-center"
+                            >
+                              <button
+                                type="button"
+                                onClick={() => setIsLibrarySortOpen((prev) => !prev)}
+                                title="Ordenar biblioteca"
+                                aria-label="Ordenar biblioteca por"
+                                aria-expanded={isLibrarySortOpen}
+                                aria-haspopup="listbox"
+                                className={`flex items-center justify-between gap-2 bg-[#131622] hover:bg-[#191d2c] border rounded-xl px-2.5 py-1.5 text-xs font-medium text-white transition-all cursor-pointer select-none ${isLibrarySortOpen
+                                    ? "border-[var(--accent)] ring-1 ring-[var(--accent-glow)]/40"
+                                    : "border-[#232738] hover:border-[#323850]"
+                                  }`}
+                              >
+                                <ArrowUpDown className="w-3.5 h-3.5 text-[#8c91a4] shrink-0" />
+                                <span className="truncate">
+                                  {(
+                                    [
+                                      { value: "recent", label: "Recentes" },
+                                      { value: "title", label: "A–Z" },
+                                      { value: "artist", label: "Autor" },
+                                      { value: "count_desc", label: "Tamanho" },
+                                    ] as const
+                                  ).find((o) => o.value === librarySortBy)?.label ||
+                                    "Recentes"}
+                                </span>
+                                <ChevronDown
+                                  className={`w-3.5 h-3.5 text-[#8c91a4] transition-transform duration-200 shrink-0 ${isLibrarySortOpen
+                                      ? "rotate-180 text-[var(--accent-text)]"
+                                      : ""
+                                    }`}
+                                />
+                              </button>
+
+                              {isLibrarySortOpen && (
+                                <div
+                                  role="listbox"
+                                  aria-label="Opções de ordenação da biblioteca"
+                                  className="absolute right-0 top-full mt-1.5 z-50 min-w-[205px] bg-[#12141f]/95 backdrop-blur-2xl border border-[#272c3f] rounded-2xl shadow-2xl p-1.5 flex flex-col gap-0.5 select-none animate-in fade-in zoom-in-95 duration-100"
+                                >
+                                  {(
+                                    [
+                                      { value: "recent", label: "Recentes / Padrão" },
+                                      { value: "title", label: "Título (A-Z)" },
+                                      { value: "artist", label: "Artista / Autor (A-Z)" },
+                                      { value: "count_desc", label: "Mais faixas / Ano" },
+                                    ] as const
+                                  ).map((opt) => {
+                                    const isSelected = librarySortBy === opt.value;
+                                    return (
+                                      <button
+                                        key={opt.value}
+                                        type="button"
+                                        role="option"
+                                        aria-selected={isSelected}
+                                        onClick={() => {
+                                          setLibrarySortBy(opt.value);
+                                          setIsLibrarySortOpen(false);
+                                        }}
+                                        className={`flex items-center justify-between gap-3 px-3 py-1.5 rounded-xl text-xs font-medium transition-all cursor-pointer text-left ${isSelected
+                                            ? "bg-[var(--accent-subtle)] text-white border border-[var(--accent-border)] font-semibold shadow-sm"
+                                            : "text-[#c4c8d8] hover:text-white hover:bg-white/5 border border-transparent"
+                                          }`}
+                                      >
+                                        <span>{opt.label}</span>
+                                        {isSelected && (
+                                          <Check className="w-3.5 h-3.5 text-[var(--accent-text)] shrink-0" />
+                                        )}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Alternador de Densidade da Grade: Confortável vs Compacto */}
+                            <div
+                              role="group"
+                              aria-label="Densidade da grade"
+                              className="inline-flex items-center p-0.5 bg-[#131622] border border-[#232738] rounded-xl"
+                            >
+                              <button
+                                type="button"
+                                onClick={() => handleSetLibraryDensity("comfortable")}
+                                title="Grade Padrão (Cards maiores)"
+                                aria-label="Grade padrão"
+                                aria-pressed={libraryDensity === "comfortable"}
+                                className={`p-1.5 rounded-lg transition-all cursor-pointer ${libraryDensity === "comfortable"
+                                    ? "bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] shadow-sm"
+                                    : "text-[#71778c] hover:text-white border border-transparent"
+                                  }`}
+                              >
+                                <LayoutGrid className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleSetLibraryDensity("compact")}
+                                title="Grade Compacta (Mais itens por linha)"
+                                aria-label="Grade compacta"
+                                aria-pressed={libraryDensity === "compact"}
+                                className={`p-1.5 rounded-lg transition-all cursor-pointer ${libraryDensity === "compact"
+                                    ? "bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] shadow-sm"
+                                    : "text-[#71778c] hover:text-white border border-transparent"
+                                  }`}
+                              >
+                                <Grid3x3 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            {/* Botão Criar Nova Playlist (Somente-Ícone c/ Tooltip) */}
+                            <button
+                              type="button"
+                              onClick={() => setIsCreatePlaylistOpen(true)}
+                              title="Criar nova playlist no YouTube Music"
+                              aria-label="Nova playlist"
+                              className="w-8 h-8 flex items-center justify-center rounded-xl bg-[var(--accent-subtle)] border border-[var(--accent-border)] text-[var(--accent-text)] hover:opacity-90 cursor-pointer transition-all shadow-sm"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+
+                            {/* Botão Atualizar Biblioteca (Somente-Ícone c/ Tooltip) */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                loadPlaylists();
+                                loadAlbums();
+                              }}
+                              disabled={isLoadingPlaylists || isLoadingAlbums}
+                              title="Sincronizar playlists e álbuns"
+                              aria-label="Sincronizar biblioteca"
+                              className="w-8 h-8 flex items-center justify-center rounded-xl bg-[#131622] hover:bg-[#1a1e2c] border border-[#232738] text-[#8c91a4] hover:text-white transition-all cursor-pointer disabled:opacity-50"
+                            >
+                              <RefreshCw
+                                className={`w-3.5 h-3.5 ${isLoadingPlaylists || isLoadingAlbums
+                                    ? "animate-spin text-[var(--accent)]"
+                                    : ""
+                                  }`}
+                              />
+                            </button>
+                          </div>
                         </div>
+
+                        {librarySection === "all" ? (
+                          <LibraryOverview
+                            playlists={displayedPlaylists}
+                            isLoadingPlaylists={isLoadingPlaylists}
+                            albums={displayedAlbums}
+                            isLoadingAlbums={isLoadingAlbums}
+                            onRefreshAlbums={loadAlbums}
+                            pinnedIds={pinnedPlaylistIds}
+                            playlistHistory={playlistHistory}
+                            activeCollectionId={activeCollectionId}
+                            isPlaying={isPlaying}
+                            onSelectPlaylist={handleSelectPlaylist}
+                            onSelectAlbum={handleSelectAlbum}
+                            onPlayPlaylistQuick={handlePlayPlaylistQuick}
+                            onPlayAlbumQuick={handlePlayAlbumQuick}
+                            onTogglePin={handleTogglePinPlaylist}
+                            onTogglePlayPause={togglePlayPause}
+                            onCreatePlaylist={() => setIsCreatePlaylistOpen(true)}
+                            onSwitchSection={(sec) => setLibrarySection(sec)}
+                            searchQuery={librarySearchQuery}
+                            sortBy={librarySortBy}
+                            density={libraryDensity}
+                          />
+                        ) : librarySection === "playlists" ? (
+                          <PlaylistGridView
+                            playlists={displayedPlaylists}
+                            isLoadingPlaylists={isLoadingPlaylists}
+                            pinnedPlaylistIds={pinnedPlaylistIds}
+                            onSelectPlaylist={handleSelectPlaylist}
+                            onTogglePinPlaylist={handleTogglePinPlaylist}
+                            onCreatePlaylist={() => setIsCreatePlaylistOpen(true)}
+                            onPlayPlaylistQuick={handlePlayPlaylistQuick}
+                            activeCollectionId={activeCollectionId}
+                            isPlaying={isPlaying}
+                            onTogglePlayPause={togglePlayPause}
+                            playlistHistory={playlistHistory}
+                            searchQuery={librarySearchQuery}
+                            sortBy={librarySortBy}
+                            density={libraryDensity}
+                            hideHeader={true}
+                          />
+                        ) : (
+                          <AlbumGridView
+                            albums={displayedAlbums}
+                            isLoading={isLoadingAlbums}
+                            onRefresh={loadAlbums}
+                            onSelectAlbum={handleSelectAlbum}
+                            onPlayAlbumQuick={handlePlayAlbumQuick}
+                            pinnedAlbumIds={pinnedPlaylistIds}
+                            onTogglePinAlbum={handleTogglePinPlaylist}
+                            activeCollectionId={activeCollectionId}
+                            isPlaying={isPlaying}
+                            onTogglePlayPause={togglePlayPause}
+                            playlistHistory={playlistHistory}
+                            externalSearchQuery={librarySearchQuery}
+                            externalSortBy={librarySortBy}
+                            density={libraryDensity}
+                            hideToolbar={true}
+                          />
+                        )}
                       </div>
+                    )}
+                  </>
+                )}
 
-                      {librarySection === "all" ? (
-                        <LibraryOverview
-                          playlists={displayedPlaylists}
-                          isLoadingPlaylists={isLoadingPlaylists}
-                          albums={displayedAlbums}
-                          isLoadingAlbums={isLoadingAlbums}
-                          onRefreshAlbums={loadAlbums}
-                          pinnedIds={pinnedPlaylistIds}
-                          playlistHistory={playlistHistory}
-                          activeCollectionId={activeCollectionId}
-                          isPlaying={isPlaying}
-                          onSelectPlaylist={handleSelectPlaylist}
-                          onSelectAlbum={handleSelectAlbum}
-                          onPlayPlaylistQuick={handlePlayPlaylistQuick}
-                          onPlayAlbumQuick={handlePlayAlbumQuick}
-                          onTogglePin={handleTogglePinPlaylist}
-                          onTogglePlayPause={togglePlayPause}
-                          onCreatePlaylist={() => setIsCreatePlaylistOpen(true)}
-                          onSwitchSection={(sec) => setLibrarySection(sec)}
-                          searchQuery={librarySearchQuery}
-                          sortBy={librarySortBy}
-                          density={libraryDensity}
-                        />
-                      ) : librarySection === "playlists" ? (
-                        <PlaylistGridView
-                          playlists={displayedPlaylists}
-                          isLoadingPlaylists={isLoadingPlaylists}
-                          pinnedPlaylistIds={pinnedPlaylistIds}
-                          onSelectPlaylist={handleSelectPlaylist}
-                          onTogglePinPlaylist={handleTogglePinPlaylist}
-                          onCreatePlaylist={() => setIsCreatePlaylistOpen(true)}
-                          onPlayPlaylistQuick={handlePlayPlaylistQuick}
-                          activeCollectionId={activeCollectionId}
-                          isPlaying={isPlaying}
-                          onTogglePlayPause={togglePlayPause}
-                          playlistHistory={playlistHistory}
-                          searchQuery={librarySearchQuery}
-                          sortBy={librarySortBy}
-                          density={libraryDensity}
-                          hideHeader={true}
-                        />
-                      ) : (
-                        <AlbumGridView
-                          albums={displayedAlbums}
-                          isLoading={isLoadingAlbums}
-                          onRefresh={loadAlbums}
-                          onSelectAlbum={handleSelectAlbum}
-                          onPlayAlbumQuick={handlePlayAlbumQuick}
-                          pinnedAlbumIds={pinnedPlaylistIds}
-                          onTogglePinAlbum={handleTogglePinPlaylist}
-                          activeCollectionId={activeCollectionId}
-                          isPlaying={isPlaying}
-                          onTogglePlayPause={togglePlayPause}
-                          playlistHistory={playlistHistory}
-                          externalSearchQuery={librarySearchQuery}
-                          externalSortBy={librarySortBy}
-                          density={libraryDensity}
-                          hideToolbar={true}
-                        />
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
-
-              {activeTab === "search" && (
-                <SearchView
-                  searchQuery={searchQuery}
-                  setSearchQuery={(q) => {
-                    setSearchQuery(q);
-                    if (!q.trim()) {
-                      setSearchResults([]);
-                      setSearchAlbums([]);
-                      setHasSearched(false);
+                {activeTab === "search" && (
+                  <SearchView
+                    searchQuery={searchQuery}
+                    setSearchQuery={(q) => {
+                      setSearchQuery(q);
+                      if (!q.trim()) {
+                        setSearchResults([]);
+                        setSearchAlbums([]);
+                        setHasSearched(false);
+                      }
+                    }}
+                    onSearch={handleSearch}
+                    isSearching={isSearching}
+                    searchResults={searchResults}
+                    searchAlbums={searchAlbums}
+                    onSelectAlbum={handleSelectAlbum}
+                    onPlayAlbumQuick={handlePlayAlbumQuick}
+                    pinnedAlbumIds={pinnedPlaylistIds}
+                    onTogglePinAlbum={handleTogglePinPlaylist}
+                    currentTrack={currentTrack}
+                    isPlaying={isPlaying}
+                    loadingTrackId={loadingTrackId}
+                    onPlayTrack={(track, idx) =>
+                      playTrackWithQueue(track, searchResults, idx)
                     }
-                  }}
-                  onSearch={handleSearch}
-                  isSearching={isSearching}
-                  searchResults={searchResults}
-                  searchAlbums={searchAlbums}
-                  onSelectAlbum={handleSelectAlbum}
-                  onPlayAlbumQuick={handlePlayAlbumQuick}
-                  pinnedAlbumIds={pinnedPlaylistIds}
-                  onTogglePinAlbum={handleTogglePinPlaylist}
-                  currentTrack={currentTrack}
-                  isPlaying={isPlaying}
-                  loadingTrackId={loadingTrackId}
-                  onPlayTrack={(track, idx) =>
-                    playTrackWithQueue(track, searchResults, idx)
-                  }
-                  onTogglePlayPause={togglePlayPause}
-                  scrollRef={mainScrollRef}
-                  hasSearched={hasSearched}
-                />
-              )}
+                    onTogglePlayPause={togglePlayPause}
+                    scrollRef={mainScrollRef}
+                    hasSearched={hasSearched}
+                  />
+                )}
 
-              {activeTab === "stats" && (
-                <StatsView
-                  onPlayTrack={(track) =>
-                    playTrackWithQueue(track, [track], 0)
-                  }
-                />
-              )}
+                {activeTab === "stats" && (
+                  <StatsView
+                    onPlayTrack={(track) =>
+                      playTrackWithQueue(track, [track], 0)
+                    }
+                  />
+                )}
               </div>
             </main>
 
@@ -2202,6 +2272,32 @@ function AppContent({
         onGoogleLogin={handleGoogleLogin}
         onGoogleLogout={handleGoogleLogout}
         onForceAnonymous={handleGoogleLogout}
+      />
+
+      {/* Paleta de Comandos Rápidos (Spotlight Musical Ctrl+K) */}
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        playlists={displayedPlaylists}
+        albums={displayedAlbums}
+        isPlaying={isPlaying}
+        isShuffle={isShuffle}
+        onSelectPlaylist={handleSelectPlaylist}
+        onPlayPlaylistQuick={handlePlayPlaylistQuick}
+        onSelectAlbum={handleSelectAlbum}
+        onPlayAlbumQuick={handlePlayAlbumQuick}
+        onSearchCatalog={(q) => {
+          setSearchQuery(q);
+          handleSearch(undefined, q);
+        }}
+        onTogglePlayPause={togglePlayPause}
+        onNextTrack={handleNextTrack}
+        onToggleShuffle={toggleShuffle}
+        onToggleMiniPlayer={toggleMiniPlayer}
+        onOpenQueue={() => openNowPlaying("queue")}
+        onOpenLyrics={() => openNowPlaying("lyrics")}
+        onCreatePlaylist={() => setIsCreatePlaylistOpen(true)}
+        onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
       {/* Modais de Manipulação de Playlists (Sugestão 2.4) */}

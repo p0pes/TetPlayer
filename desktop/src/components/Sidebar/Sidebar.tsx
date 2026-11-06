@@ -158,6 +158,13 @@ const SidebarItemThumbnail = React.memo(function SidebarItemThumbnail({
           <ListMusic className="w-3.5 h-3.5 shrink-0" />
         )}
 
+        {/* Indicador Acústico sobre a Mini-Capa quando Ativa (6.2.B.3) */}
+        {isActivePlaying && (
+          <div className="absolute inset-0 bg-black/65 flex items-center justify-center group-hover:opacity-0 transition-opacity pointer-events-none">
+            <SubtleWaveIndicator isPlaying={isPlaying} />
+          </div>
+        )}
+
         {/* Overlay de Play Rápido no Hover sobre a Mini-Capa */}
         {onQuickPlay && (
           <button
@@ -718,17 +725,7 @@ export const Sidebar = React.memo(function Sidebar({
               <>
                 {/* Seção de Itens Fixados (Playlists + Álbuns com Drag & Drop Livre) */}
                 {pinnedItems.length > 0 && (
-                  <div ref={pinnedListRef} className="space-y-1 mb-2 relative">
-                    <div className="px-1.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[var(--accent-text)] flex items-center justify-between">
-                      <span className="flex items-center gap-1.5">
-                        <Pin className="w-2.5 h-2.5 fill-current" />
-                        <span>Fixados</span>
-                      </span>
-                      <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded-md bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] leading-tight">
-                        {pinnedItems.length}
-                      </span>
-                    </div>
-
+                  <div ref={pinnedListRef} className="space-y-1 mb-1.5 relative">
                     {pinnedItems.map((item, idx) => {
                       const isSelected = isItemSelected(item);
                       const isActivePlaying = activeCollectionId === item.id;
@@ -765,8 +762,8 @@ export const Sidebar = React.memo(function Sidebar({
                             <div className="absolute -bottom-0.5 left-2 right-2 h-0.5 bg-[var(--accent)] rounded-full pointer-events-none z-20 shadow-[0_0_8px_var(--accent)]" />
                           )}
 
-                          <div className="flex items-center gap-2 min-w-0 flex-1">
-                            {/* Grip Handle para Reordenação Drag & Drop */}
+                          <div className="flex items-center gap-2 min-w-0 flex-1 relative">
+                            {/* Grip Handle Progressivo no Hover (Mantém Capas 100% Alinhadas) */}
                             <div
                               onPointerDown={(e) => {
                                 if (e.button !== 0) return;
@@ -788,12 +785,12 @@ export const Sidebar = React.memo(function Sidebar({
                               }}
                               onClick={(e) => e.stopPropagation()}
                               title="Segure e arraste para reordenar"
-                              className="p-0.5 -ml-0.5 rounded text-[#4a5064] group-hover:text-[#8c91a4] hover:text-white cursor-grab active:cursor-grabbing shrink-0 touch-none transition-colors"
+                              className="absolute -left-1 z-20 p-0.5 rounded bg-[#0e1017]/90 text-[#8c91a4] hover:text-white opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing shrink-0 touch-none transition-opacity"
                             >
-                              <GripVertical className="w-3.5 h-3.5" />
+                              <GripVertical className="w-3 h-3" />
                             </div>
 
-                            {/* Mini-Capa 30x30px com Borda de Vinil p/ Álbuns e Play Rápido */}
+                            {/* Mini-Capa 30x30px Alinhada com o Restante da Lista */}
                             <SidebarItemThumbnail
                               item={item}
                               isSelected={isSelected}
@@ -825,17 +822,14 @@ export const Sidebar = React.memo(function Sidebar({
                             </div>
                           </div>
 
-                          {/* Indicador de Onda Sutil + Botão de Desafixar no Hover */}
+                          {/* Pin Sutil (Onda agora fica sobre a Mini-Capa) */}
                           <div className="flex items-center gap-1 shrink-0">
-                            {isActivePlaying && (
-                              <SubtleWaveIndicator isPlaying={isPlaying} />
-                            )}
                             <button
                               type="button"
                               onClick={(e) => togglePinItem(item.id, e)}
                               title="Desafixar do topo"
                               aria-label={`Desafixar ${item.title}`}
-                              className="p-1 rounded text-[var(--accent-text)] opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-white/10 transition-all cursor-pointer"
+                              className="p-1 rounded text-[var(--accent-text)]/70 group-hover:text-[var(--accent-text)] hover:bg-white/10 transition-all cursor-pointer"
                             >
                               <Pin className="w-3 h-3 fill-current" />
                             </button>
@@ -869,9 +863,7 @@ export const Sidebar = React.memo(function Sidebar({
                     )}
 
                     {unpinnedItems.length > 0 && (
-                      <div className="pt-2.5 pb-1 px-1.5 text-[10px] font-bold uppercase tracking-wider text-[#52586c] border-t border-[#1f232e]/60">
-                        Ouvidos Recentes
-                      </div>
+                      <div className="my-1.5 border-t border-white/5" />
                     )}
                   </div>
                 )}
@@ -924,9 +916,6 @@ export const Sidebar = React.memo(function Sidebar({
                       </div>
 
                       <div className="flex items-center gap-1 shrink-0">
-                        {isActivePlaying && (
-                          <SubtleWaveIndicator isPlaying={isPlaying} />
-                        )}
                         <button
                           type="button"
                           onClick={(e) => togglePinItem(item.id, e)}
@@ -946,11 +935,18 @@ export const Sidebar = React.memo(function Sidebar({
         </div>
       </div>
 
-      {/* Status de Autenticação / Sessão */}
-      <div className="pt-4 border-t border-[#1f232e] space-y-2 shrink-0">
-        <div className="bg-[#141722] rounded-xl p-3 border border-[#222738] space-y-2.5">
+      {/* Rodapé Compacto de Conta & Configurações (Linha Única) */}
+      <div className="pt-3 border-t border-[#1f232e] shrink-0">
+        <div className="bg-[#141722] rounded-xl px-2.5 py-2 border border-[#222738] space-y-2">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
+            <div
+              className="flex items-center gap-2 min-w-0"
+              title={
+                auth?.is_authenticated
+                  ? `${auth.user_name || "Conectado"}${auth.email ? ` (${auth.email})` : ""}`
+                  : "Modo Visitante"
+              }
+            >
               {auth?.is_authenticated && auth.avatar_url ? (
                 <img
                   src={upgradeArtworkQuality(auth.avatar_url, undefined, "thumb")}
@@ -967,26 +963,19 @@ export const Sidebar = React.memo(function Sidebar({
                   }`}
                 />
               )}
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold text-zinc-200 truncate">
-                  {auth?.is_authenticated
-                    ? auth.user_name || "Conectado via Google"
-                    : "Modo Anônimo"}
-                </p>
-                {auth?.is_authenticated && auth.email && (
-                  <p className="text-[10px] text-[#71778c] truncate">
-                    {auth.email}
-                  </p>
-                )}
-              </div>
+              <p className="text-[11px] font-semibold text-zinc-200 truncate">
+                {auth?.is_authenticated
+                  ? auth.user_name || "Conectado"
+                  : "Visitante"}
+              </p>
             </div>
-            <div className="flex items-center gap-1 shrink-0">
+            <div className="flex items-center gap-0.5 shrink-0">
               {onOpenSettings && (
                 <button
                   onClick={onOpenSettings}
                   title="Configurações do TetPlayer"
                   aria-label="Abrir configurações"
-                  className="text-[#71778c] hover:text-white transition-colors p-1 rounded-md hover:bg-white/5 cursor-pointer"
+                  className="text-[#71778c] hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/5 cursor-pointer"
                 >
                   <Settings className="w-3.5 h-3.5" />
                 </button>
@@ -996,7 +985,7 @@ export const Sidebar = React.memo(function Sidebar({
                 disabled={isCheckingAuth}
                 title="Revalidar sessão"
                 aria-label="Revalidar sessão"
-                className="text-[#71778c] hover:text-white transition-colors p-1 rounded-md hover:bg-white/5 cursor-pointer"
+                className="text-[#71778c] hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/5 cursor-pointer"
               >
                 <RefreshCw
                   className={`w-3 h-3 ${isCheckingAuth ? "animate-spin" : ""}`}

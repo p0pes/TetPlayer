@@ -97,18 +97,16 @@ export const AlbumCard = React.memo(function AlbumCard({
         })
       }
       data-testid="album-card"
-      className={`group flex flex-col ${
-        isCompact ? "p-2.5 rounded-xl" : "p-3 rounded-2xl"
-      } bg-[#11131b]/60 hover:bg-[#181b26] border transition-all duration-200 cursor-pointer select-none shadow-sm hover:shadow-xl hover:shadow-[var(--accent-glow)]/10 ${
-        isActivePlaying
+      className={`group flex flex-col ${isCompact ? "p-2.5 rounded-xl" : "p-3 rounded-2xl"
+        } bg-[#11131b]/60 hover:bg-[#161924]/90 border transition-colors duration-200 cursor-pointer select-none shadow-sm hover:shadow-lg hover:shadow-[var(--accent-glow)]/15 ${isActivePlaying
           ? "border-[var(--accent)] ring-1 ring-[var(--accent-glow)]/40 bg-[#161926]"
           : isPinned
-          ? "border-[var(--accent-border)] ring-1 ring-[var(--accent-subtle)]"
-          : "border-[#1d212e] hover:border-[var(--accent-border)]"
-      }`}
+            ? "border-[var(--accent-border)] ring-1 ring-[var(--accent-subtle)]"
+            : "border-[#1d212e] hover:border-[var(--accent-border)]"
+        }`}
     >
       {/* Capa com Proporção 1:1 e Botão de Play Flutuante */}
-      <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-[#161822] border border-white/5 shrink-0 shadow-md">
+      <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-[#161822] border border-white/5 group-hover:border-[var(--accent-border)]/50 transition-colors duration-200 shrink-0 shadow-md">
         {album.artwork_url && !hasImageError ? (
           <img
             src={upgradeArtworkQuality(album.artwork_url, undefined, "card")}
@@ -118,9 +116,8 @@ export const AlbumCard = React.memo(function AlbumCard({
             referrerPolicy="no-referrer"
             onLoad={() => setIsImageLoaded(true)}
             onError={() => setHasImageError(true)}
-            className={`w-full h-full object-cover transition-all duration-300 group-hover:scale-105 ${
-              isImageLoaded ? "opacity-100" : "opacity-0"
-            }`}
+            className={`w-full h-full object-cover transform-gpu transition-transform duration-300 ease-out group-hover:scale-[1.015] ${isImageLoaded ? "opacity-100" : "opacity-0"
+              }`}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#1c1f2e] to-[#12141d] text-[#63697e]">
@@ -157,11 +154,10 @@ export const AlbumCard = React.memo(function AlbumCard({
             }}
             title={isPinned ? "Desafixar álbum do topo" : "Fixar álbum no topo"}
             aria-label={isPinned ? `Desafixar ${album.title}` : `Fixar ${album.title}`}
-            className={`absolute top-2 right-2 z-10 p-2 rounded-full backdrop-blur-md transition-all cursor-pointer ${
-              isPinned
+            className={`absolute top-2 right-2 z-10 p-2 rounded-full backdrop-blur-md transition-all cursor-pointer ${isPinned
                 ? "bg-[var(--accent)] text-white shadow-lg shadow-[var(--accent-glow)] opacity-100"
                 : "bg-black/60 text-zinc-300 hover:text-white hover:bg-black/80 opacity-0 group-hover:opacity-100"
-            }`}
+              }`}
           >
             <Pin className={`w-3.5 h-3.5 ${isPinned ? "fill-current" : ""}`} />
           </button>
@@ -179,13 +175,11 @@ export const AlbumCard = React.memo(function AlbumCard({
               ? `Pausar álbum ${album.title}`
               : `Reproduzir álbum ${album.title}`
           }
-          className={`absolute bottom-2.5 right-2.5 ${
-            isCompact ? "w-8 h-8" : "w-10 h-10"
-          } rounded-full bg-[var(--accent)] text-white flex items-center justify-center shadow-lg shadow-black/50 hover:scale-105 active:scale-95 transition-all duration-200 z-10 cursor-pointer ${
-            isActivePlaying
+          className={`absolute bottom-2.5 right-2.5 ${isCompact ? "w-8 h-8" : "w-10 h-10"
+            } rounded-full bg-[var(--accent)] text-white flex items-center justify-center shadow-lg shadow-black/50 hover:scale-105 active:scale-95 transition-all duration-200 z-10 cursor-pointer ${isActivePlaying
               ? "opacity-100 translate-y-0"
               : "opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0"
-          }`}
+            }`}
         >
           {isActivePlaying && isPlaying ? (
             <Pause key="album-pause" className={`${isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} fill-current animate-icon-pop`} />
@@ -199,13 +193,11 @@ export const AlbumCard = React.memo(function AlbumCard({
       <div className={`${isCompact ? "mt-2" : "mt-3"} flex flex-col min-w-0`}>
         <h3
           title={album.title}
-          className={`${
-            isCompact ? "text-xs" : "text-xs sm:text-sm"
-          } font-bold truncate transition-colors ${
-            isActivePlaying
+          className={`${isCompact ? "text-xs" : "text-xs sm:text-sm"
+            } font-bold truncate transition-colors ${isActivePlaying
               ? "text-[var(--accent-text)]"
               : "text-white group-hover:text-[var(--accent-text)]"
-          }`}
+            }`}
         >
           {album.title}
         </h3>

@@ -1106,9 +1106,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </main>
         </div>
 
-        {/* Rodapé com botão de fechar */}
+        {/* Rodapé com versão instalada e botão de fechar */}
         <div className="h-12 px-6 border-t border-[#1f2434] bg-[#0c0e15] flex items-center justify-between shrink-0 text-xs text-[#71778c]">
-          <span>Pressione <kbd className="px-1.5 py-0.5 rounded bg-[#1a1e2d] text-white font-mono text-[10px]">Esc</kbd> para fechar</span>
+          <div className="flex items-center gap-2.5">
+            <span className="font-mono text-[11px] px-2 py-0.5 rounded-md bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] font-medium">
+              TetPlayer v{APP_VERSION}
+            </span>
+            <span className="hidden sm:inline">
+              • Pressione <kbd className="px-1.5 py-0.5 rounded bg-[#1a1e2d] text-white font-mono text-[10px]">Esc</kbd> para fechar
+            </span>
+          </div>
           <button
             type="button"
             onClick={requestClose}
