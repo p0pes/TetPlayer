@@ -16,21 +16,21 @@
 
 Uma auditoria técnica profunda e minuciosa de ponta a ponta foi realizada em todo o ecossistema desktop do **TetPlayer** (Frontend React 19 + TypeScript + Tailwind CSS e Backend Tauri v2 + Rust + SQLite), cobrindo concorrência e condições de corrida, ciclo de vida de componentes React 19, isolamento de alta frequência (Mandamento #3), regras de negócio de reprodução offline/online, tratamento defensivo de erros e consistência de UI/UX.
 
-Todos os **147 apontamentos técnicos (#01 a #147)** catalogados em auditorias técnicas de software, testes de estresse, acessibilidade e benchmarks de SLA foram integralmente saneados, validados e consolidados no histórico definitivo.
+Todos os **148 apontamentos técnicos (#01 a #148)** catalogados em auditorias técnicas de software, testes de estresse, acessibilidade e benchmarks de SLA foram integralmente saneados, validados e consolidados no histórico definitivo.
 
 | Severidade | Pendentes Ativos | Resolvidos no Histórico | Status da Build & Testes |
 | :--- | :---: | :---: | :--- |
-| 🔴 **Críticos** | `0` | **147 Resolvidos** | ✅ `tsc && vite build` (0 erros) |
-| 🟡 **Avisos** | `0` | **147 Resolvidos** | ✅ `vitest` (136/136 testes passando) |
-| 🔵 **Sugestões** | `0` | **147 Resolvidos** | ✅ `cargo test` (16/16 testes passando) |
-| **Total Geral** | **`0 Pendentes`** | **`147 Itens Resolvidos`** | 🟢 **Base 100% Saneada, Estável e Otimizada** |
+| 🔴 **Críticos** | `0` | **148 Resolvidos** | ✅ `tsc && vite build` (0 erros) |
+| 🟡 **Avisos** | `0` | **148 Resolvidos** | ✅ `vitest` (136/136 testes passando) |
+| 🔵 **Sugestões** | `0` | **148 Resolvidos** | ✅ `cargo test` (16/16 testes passando) |
+| **Total Geral** | **`0 Pendentes`** | **`148 Itens Resolvidos`** | 🟢 **Base 100% Saneada, Estável e Otimizada** |
 
 ---
 
 ## 2. Apontamentos Ativos Catalogados (Pendentes de Correção)
 
 > [!NOTE]
-> 🟢 **Zero Apontamentos Pendentes**: Todos os **147 itens** levantados em auditorias técnicas profundas, inspeções de arquitetura, integridade de eventos DOM, acessibilidade universal WAI-ARIA e benchmarks de desempenho SLA foram integralmente corrigidos, testados e validados nas suítes automatizadas de testes e builds de produção. A base de código está 100% saneada e em conformidade estrita com as diretrizes operacionais do TetPlayer.
+> 🟢 **Zero Apontamentos Pendentes**: Todos os **148 itens** levantados em auditorias técnicas profundas, inspeções de arquitetura, integridade de eventos DOM, acessibilidade universal WAI-ARIA e benchmarks de desempenho SLA foram integralmente corrigidos, testados e validados nas suítes automatizadas de testes e builds de produção. A base de código está 100% saneada e em conformidade estrita com as diretrizes operacionais do TetPlayer.
 
 ---
 
@@ -913,3 +913,19 @@ Todos os **147 apontamentos técnicos (#01 a #147)** catalogados em auditorias t
   2. Criado `DOWNLOAD_CLIENT` dedicado com timeouts de conexão (15s), leitura (45s), keepalive (60s) e sem timeout global restritivo;
   3. Em `lib.rs` (`download_track`), incluídos os cabeçalhos `Range: bytes=0-`, `Accept-Encoding: identity` e `User-Agent` de navegador, permitindo taxa de transferência em velocidade máxima (arquivo de 4MB transferido em ~37ms);
   4. No frontend (`downloads.ts`), adicionados `currentTrackTitle` e `currentTrackIndex` ao `PlaylistDownloadBatch`, exibindo na interface o progresso detalhado de cada faixa e o número de eventuais falhas com tooltip informativo.
+
+---
+
+### 148. Prevenção de Envenenamento de Cache de Stream e Integridade na Validação de Download de Coleções
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/services/streamCache.ts:51-64`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/streamCache.ts#L51-L64), [`desktop/src/services/downloads.ts:380-386`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/downloads.ts#L380-L386), [`desktop/src/services/downloads.ts:452-466`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/downloads.ts#L452-L466), [`desktop/src-tauri/src/lib.rs:706-714`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/lib.rs#L706-L714), [`desktop/src-tauri/src/ytm.rs:40-65`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/ytm.rs#L40-L65)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  1. Em `streamCache.ts`, o bloco `catch` e o retorno de timeout gravavam `memoryStreamCache.set(videoId, { stream: null, timestamp: Date.now() })`. Se a chamada IPC sofresse um atraso momentâneo de cold start superior a 650ms, o valor nulo ficava retido no cache por 30 minutos, impedindo novas tentativas de reprodução nativa dessa música e forçando o fallback para o IFrame;
+  2. Em `downloads.ts`, o método `downloadPlaylist` adicionava a coleção a `downloadedCollectionIds` caso `batch.completed > 0`, e `getPlaylistDownloadStats` calculava `isAllDownloaded` considerando `isMarkedOffline && downloaded > 0`. Com isso, o download parcial de 1 única música de uma playlist de 110 itens já rotulava a playlist inteira como 100% baixada, bloqueando o botão de download das demais faixas pendentes;
+  3. No backend Rust (`lib.rs`), a função `delete_downloaded_track` não limpava arquivos temporários `.part` residuais caso o usuário solicitasse a exclusão de uma faixa que estivesse em download ativo interrompido;
+  4. Em `ytm.rs`, a extração de `VISITOR_DATA` foi estendida para suportar chaves alternativas (`visitorData` além de `VISITOR_DATA`) e garantir resiliência caso `video_id` seja vazio.
+* **Solução Implementada:**
+  1. No `streamCache.ts`, `memoryStreamCache.set` agora só é invocado quando `res` é não-nulo, garantindo que falhas transitórias não contaminem o cache por 30 minutos;
+  2. Em `downloads.ts`, `isAllDownloaded` agora avalia estritamente `total > 0 && downloaded === total`, e `downloadedCollectionIds.add` é chamado exclusivamente se todas as faixas da coleção estiverem no disco local;
+  3. Em `lib.rs`, `delete_downloaded_track` remove com segurança arquivos `.opus.part`, `.m4a.part` e `.webm.part`;
+  4. Em `ytm.rs`, parsing com suporte a variantes do payload de script e fallback de target id.

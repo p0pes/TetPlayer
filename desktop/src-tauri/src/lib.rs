@@ -706,6 +706,9 @@ fn delete_downloaded_track(video_id: String) -> Result<bool, String> {
     let _ = std::fs::remove_file(music_dir.join(format!("{video_id}.opus")));
     let _ = std::fs::remove_file(music_dir.join(format!("{video_id}.m4a")));
     let _ = std::fs::remove_file(music_dir.join(format!("{video_id}.webm")));
+    let _ = std::fs::remove_file(music_dir.join(format!("{video_id}.opus.part")));
+    let _ = std::fs::remove_file(music_dir.join(format!("{video_id}.m4a.part")));
+    let _ = std::fs::remove_file(music_dir.join(format!("{video_id}.webm.part")));
 
     stats::delete_download_record(&video_id)
 }

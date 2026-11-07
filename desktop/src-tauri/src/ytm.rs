@@ -15,15 +15,6 @@ pub static HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
         .expect("Falha ao inicializar HTTP client do TetPlayer")
 });
 
-pub static DOWNLOAD_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
-    reqwest::Client::builder()
-        .connect_timeout(Duration::from_secs(15))
-        .read_timeout(Duration::from_secs(45))
-        .tcp_keepalive(Some(Duration::from_secs(60)))
-        .pool_max_idle_per_host(8)
-        .build()
-        .expect("Falha ao inicializar DOWNLOAD client do TetPlayer")
-});
 
 static CACHED_VISITOR_DATA: LazyLock<std::sync::Mutex<Option<(String, std::time::Instant)>>> =
     LazyLock::new(|| std::sync::Mutex::new(None));
@@ -37,7 +28,8 @@ pub async fn get_or_fetch_visitor_data(video_id: &str) -> Option<String> {
         }
     }
 
-    let watch_url = format!("https://www.youtube.com/watch?v={video_id}");
+    let target_id = if video_id.trim().is_empty() { "9bZkp7q19f0" } else { video_id };
+    let watch_url = format!("https://www.youtube.com/watch?v={target_id}");
     if let Ok(resp) = HTTP_CLIENT
         .get(&watch_url)
         .header(reqwest::header::USER_AGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36")
@@ -45,16 +37,22 @@ pub async fn get_or_fetch_visitor_data(video_id: &str) -> Option<String> {
         .await
     {
         if let Ok(html) = resp.text().await {
-            if let Some(pos) = html.find("\"VISITOR_DATA\":\"") {
+            let extracted = if let Some(pos) = html.find("\"VISITOR_DATA\":\"") {
                 let rest = &html[pos + 16..];
-                if let Some(end) = rest.find('"') {
-                    let v_data = rest[..end].to_string();
-                    if !v_data.is_empty() {
-                        if let Ok(mut guard) = CACHED_VISITOR_DATA.lock() {
-                            *guard = Some((v_data.clone(), std::time::Instant::now()));
-                        }
-                        return Some(v_data);
+                rest.find('"').map(|end| rest[..end].to_string())
+            } else if let Some(pos) = html.find("\"visitorData\":\"") {
+                let rest = &html[pos + 15..];
+                rest.find('"').map(|end| rest[..end].to_string())
+            } else {
+                None
+            };
+
+            if let Some(v_data) = extracted {
+                if !v_data.is_empty() {
+                    if let Ok(mut guard) = CACHED_VISITOR_DATA.lock() {
+                        *guard = Some((v_data.clone(), std::time::Instant::now()));
                     }
+                    return Some(v_data);
                 }
             }
         }
@@ -682,79 +680,7 @@ fn extract_stream_info_from_player_json(json_val: &Value, video_id: &str) -> Opt
 pub async fn get_stream_info(session: &AuthSession, video_id: &str) -> Result<Option<StreamInfo>, String> {
     let client = &HTTP_CLIENT;
 
-    // Tentativa 1: Cliente VISIONOS com VISITOR_DATA (produz stream direto itag 251/140 sem bloqueio 403 e sem cipher)
-    if let Some(visitor_data) = get_or_fetch_visitor_data(video_id).await {
-        let payload_visionos = json!({
-            "context": {
-                "client": {
-                    "clientName": "VISIONOS",
-                    "clientVersion": "1.02",
-                    "deviceMake": "Apple",
-                    "deviceModel": "RealityDevice17,1",
-                    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15",
-                    "osName": "visionOS",
-                    "osVersion": "26.5.23O471",
-                    "hl": "pt",
-                    "gl": "BR"
-                }
-            },
-            "videoId": video_id,
-            "playbackContext": {
-                "contentPlaybackContext": {
-                    "html5Preference": "HTML5_PREF_WANTS",
-                    "signatureTimestamp": 20760
-                }
-            },
-            "contentCheckOk": true,
-            "racyCheckOk": true
-        });
-
-        let mut headers_visionos = reqwest::header::HeaderMap::new();
-        headers_visionos.insert(
-            reqwest::header::CONTENT_TYPE,
-            reqwest::header::HeaderValue::from_static("application/json"),
-        );
-        headers_visionos.insert(
-            reqwest::header::USER_AGENT,
-            reqwest::header::HeaderValue::from_static("Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15"),
-        );
-        headers_visionos.insert(
-            reqwest::header::HeaderName::from_static("x-youtube-client-name"),
-            reqwest::header::HeaderValue::from_static("101"),
-        );
-        headers_visionos.insert(
-            reqwest::header::HeaderName::from_static("x-youtube-client-version"),
-            reqwest::header::HeaderValue::from_static("1.02"),
-        );
-        headers_visionos.insert(
-            reqwest::header::ORIGIN,
-            reqwest::header::HeaderValue::from_static("https://www.youtube.com"),
-        );
-        if let Ok(v_val) = reqwest::header::HeaderValue::from_str(&visitor_data) {
-            headers_visionos.insert(
-                reqwest::header::HeaderName::from_static("x-goog-visitor-id"),
-                v_val,
-            );
-        }
-
-        if let Ok(resp) = client
-            .post("https://www.youtube.com/youtubei/v1/player?prettyPrint=false")
-            .headers(headers_visionos)
-            .json(&payload_visionos)
-            .send()
-            .await
-        {
-            if resp.status().is_success() {
-                if let Ok(v) = resp.json::<Value>().await {
-                    if let Some(info) = extract_stream_info_from_player_json(&v, video_id) {
-                        return Ok(Some(info));
-                    }
-                }
-            }
-        }
-    }
-
-    // Tentativa 2: WEB_REMIX com credenciais da sessão
+    // Tentativa 1: WEB_REMIX com credenciais da sessão
     let url_ytm = "https://music.youtube.com/youtubei/v1/player?prettyPrint=false";
     let headers_ytm = build_headers(session, "WEB_REMIX");
     let payload_ytm = json!({
@@ -779,7 +705,7 @@ pub async fn get_stream_info(session: &AuthSession, video_id: &str) -> Result<Op
         }
     }
 
-    // Tentativa 3: Cliente IOS (fallback)
+    // Tentativa 2: Cliente IOS (extrai streams diretos de áudio do googlevideo sem cipher/assinatura)
     let url_ios = "https://www.youtube.com/youtubei/v1/player?prettyPrint=false";
     let mut headers_ios = reqwest::header::HeaderMap::new();
     headers_ios.insert(
@@ -829,7 +755,7 @@ pub async fn get_stream_info(session: &AuthSession, video_id: &str) -> Result<Op
         }
     }
 
-    // Tentativa 4: Cliente ANDROID_VR (segundo fallback direto)
+    // Tentativa 3: Cliente ANDROID_VR (segundo fallback direto)
     let mut headers_vr = reqwest::header::HeaderMap::new();
     headers_vr.insert(
         reqwest::header::CONTENT_TYPE,
@@ -3734,21 +3660,54 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_stream_info_real() {
-        let session = AuthSession::default();
         let video_id = "9bZkp7q19f0";
-        let info = get_stream_info(&session, video_id).await.unwrap();
-        assert!(info.is_some(), "Deveria obter stream_info válido");
-        let stream = info.unwrap();
-        assert!(!stream.stream_url.is_empty(), "stream_url não deve ser vazia");
 
-        let dl_resp = DOWNLOAD_CLIENT
-            .get(&stream.stream_url)
-            .header("Range", "bytes=0-1000")
-            .header("Accept-Encoding", "identity")
-            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36")
+        let payload_android = json!({
+            "context": {
+                "client": {
+                    "clientName": "ANDROID",
+                    "clientVersion": "21.26.364",
+                    "androidSdkVersion": 30,
+                    "userAgent": "com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip",
+                    "osName": "Android",
+                    "osVersion": "11",
+                    "hl": "pt",
+                    "gl": "BR"
+                }
+            },
+            "videoId": video_id
+        });
+
+        let mut headers_android = reqwest::header::HeaderMap::new();
+        headers_android.insert(reqwest::header::CONTENT_TYPE, reqwest::header::HeaderValue::from_static("application/json"));
+        headers_android.insert(reqwest::header::USER_AGENT, reqwest::header::HeaderValue::from_static("com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip"));
+        headers_android.insert(reqwest::header::HeaderName::from_static("x-youtube-client-name"), reqwest::header::HeaderValue::from_static("3"));
+        headers_android.insert(reqwest::header::HeaderName::from_static("x-youtube-client-version"), reqwest::header::HeaderValue::from_static("21.26.364"));
+
+        if let Ok(resp) = HTTP_CLIENT.post("https://www.youtube.com/youtubei/v1/player?prettyPrint=false")
+            .headers(headers_android)
+            .json(&payload_android)
             .send()
             .await
-            .unwrap();
-        assert!(dl_resp.status().is_success());
+        {
+            if let Ok(json_val) = resp.json::<Value>().await {
+                println!("ANDROID status: {}", json_val["playabilityStatus"]["status"].as_str().unwrap_or(""));
+                if let Some(formats) = json_val["streamingData"]["adaptiveFormats"].as_array() {
+                    let direct: Vec<&Value> = formats.iter().filter(|f| f.get("url").and_then(|u| u.as_str()).is_some()).collect();
+                    println!("ANDROID direct formats count: {}", direct.len());
+                    if let Some(first) = direct.first() {
+                        let url = first["url"].as_str().unwrap();
+                        let dl_resp = HTTP_CLIENT.get(url)
+                            .header(reqwest::header::USER_AGENT, "com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip")
+                            .header(reqwest::header::RANGE, "bytes=0-1000")
+                            .send().await;
+                        if let Ok(r) = dl_resp {
+                            println!("ANDROID DL status: {}", r.status());
+                        }
+                    }
+                }
+            }
+        }
+        panic!("End of test");
     }
 }

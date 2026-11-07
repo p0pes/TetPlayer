@@ -51,11 +51,12 @@ export async function fetchStreamInfoCached(
       });
 
       const res = await Promise.race([invokePromise, timeoutPromise]);
-      memoryStreamCache.set(videoId, { stream: res, timestamp: Date.now() });
+      if (res) {
+        memoryStreamCache.set(videoId, { stream: res, timestamp: Date.now() });
+      }
       return res;
     } catch (err) {
       console.warn("[StreamCache] Falha ao obter stream direto:", err);
-      memoryStreamCache.set(videoId, { stream: null, timestamp: Date.now() });
       return null;
     } finally {
       inFlightRequests.delete(videoId);

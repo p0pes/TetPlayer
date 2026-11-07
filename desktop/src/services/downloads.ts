@@ -361,7 +361,7 @@ export const DownloadsService = {
 
   getPlaylistDownloadStats(
     tracks: Track[] = [],
-    playlistId?: string | null
+    _playlistId?: string | null
   ): {
     total: number;
     downloaded: number;
@@ -379,9 +379,7 @@ export const DownloadsService = {
       }
     }
     const percent = total > 0 ? Math.round((downloaded / total) * 100) : 0;
-    const isMarkedOffline = Boolean(playlistId && downloadedCollectionIds.has(playlistId));
-    const isAllDownloaded =
-      total > 0 && (downloaded === total || (isMarkedOffline && downloaded > 0));
+    const isAllDownloaded = total > 0 && downloaded === total;
     return { total, downloaded, percent, isAllDownloaded };
   },
 
@@ -452,9 +450,14 @@ export const DownloadsService = {
     } finally {
       activePlaylistBatches.delete(playlistId);
       const allDownloaded = tracks.length > 0 && tracks.every((t) => t?.id && downloadedIds.has(t.id));
-      if (allDownloaded || batch.completed > 0) {
+      if (allDownloaded) {
         downloadedCollectionIds.add(playlistId);
         saveDownloadedCollectionIds(downloadedCollectionIds);
+      } else {
+        downloadedCollectionIds.delete(playlistId);
+        saveDownloadedCollectionIds(downloadedCollectionIds);
+      }
+      if (allDownloaded || batch.completed > 0) {
         try {
           LocalCacheService.saveCachedPlaylistTracks(playlistId, tracks);
         } catch {
