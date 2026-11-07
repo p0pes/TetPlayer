@@ -359,11 +359,17 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
                     type="button"
                     onClick={handleCancelAlbumDownload}
                     className="flex items-center gap-1.5 px-3.5 h-10 rounded-full bg-amber-950/60 hover:bg-amber-900/80 border border-amber-600/50 text-amber-200 text-xs font-semibold transition-all cursor-pointer shadow-sm group"
-                    title="Clique para cancelar o download das faixas deste álbum"
+                    title={
+                      batchInfo?.currentTrackTitle
+                        ? `Baixando faixa ${batchInfo.currentTrackIndex ?? 1} de ${batchInfo.total}: ${batchInfo.currentTrackTitle} (Clique para cancelar)`
+                        : "Clique para cancelar o download das faixas deste álbum"
+                    }
                   >
                     <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />
                     <span className="font-mono text-[11px]">
-                      {batchInfo?.completed ?? downloadedCount}/{totalDownloadable}
+                      {batchInfo
+                        ? `${batchInfo.completed}/${batchInfo.total}${batchInfo.failed > 0 ? ` (${batchInfo.failed} falha${batchInfo.failed > 1 ? "s" : ""})` : ""}`
+                        : `${downloadedCount}/${totalDownloadable}`}
                     </span>
                     <span className="text-[10px] opacity-70 group-hover:opacity-100 ml-0.5">✕</span>
                   </button>

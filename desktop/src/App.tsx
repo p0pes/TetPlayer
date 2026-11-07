@@ -1959,8 +1959,8 @@ function AppContent({
                               onClick={() => setLibrarySection("all")}
                               title={`Tudo (${displayedPlaylists.length + displayedAlbums.length} itens)`}
                               className={`relative z-10 w-24 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold transition-colors duration-200 cursor-pointer ${librarySection === "all"
-                                  ? "text-white font-bold"
-                                  : "text-[#8c91a4] hover:text-white"
+                                ? "text-white font-bold"
+                                : "text-[#8c91a4] hover:text-white"
                                 }`}
                             >
                               <LayoutGrid className="w-3.5 h-3.5" />
@@ -1972,8 +1972,8 @@ function AppContent({
                               onClick={() => setLibrarySection("playlists")}
                               title={`Playlists (${displayedPlaylists.length})`}
                               className={`relative z-10 w-24 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold transition-colors duration-200 cursor-pointer ${librarySection === "playlists"
-                                  ? "text-white font-bold"
-                                  : "text-[#8c91a4] hover:text-white"
+                                ? "text-white font-bold"
+                                : "text-[#8c91a4] hover:text-white"
                                 }`}
                             >
                               <ListMusic className="w-3.5 h-3.5" />
@@ -1985,8 +1985,8 @@ function AppContent({
                               onClick={() => setLibrarySection("albums")}
                               title={`Álbuns (${displayedAlbums.length})`}
                               className={`relative z-10 w-24 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold transition-colors duration-200 cursor-pointer ${librarySection === "albums"
-                                  ? "text-white font-bold"
-                                  : "text-[#8c91a4] hover:text-white"
+                                ? "text-white font-bold"
+                                : "text-[#8c91a4] hover:text-white"
                                 }`}
                             >
                               <Disc3 className="w-3.5 h-3.5" />
@@ -2066,8 +2066,8 @@ function AppContent({
                                 aria-expanded={isLibrarySortOpen}
                                 aria-haspopup="listbox"
                                 className={`flex items-center justify-between gap-2 bg-[#131622] hover:bg-[#191d2c] border rounded-xl px-2.5 py-1.5 text-xs font-medium text-white transition-all cursor-pointer select-none ${isLibrarySortOpen
-                                    ? "border-[var(--accent)] ring-1 ring-[var(--accent-glow)]/40"
-                                    : "border-[#232738] hover:border-[#323850]"
+                                  ? "border-[var(--accent)] ring-1 ring-[var(--accent-glow)]/40"
+                                  : "border-[#232738] hover:border-[#323850]"
                                   }`}
                               >
                                 <ArrowUpDown className="w-3.5 h-3.5 text-[#8c91a4] shrink-0" />
@@ -2084,8 +2084,8 @@ function AppContent({
                                 </span>
                                 <ChevronDown
                                   className={`w-3.5 h-3.5 text-[#8c91a4] transition-transform duration-200 shrink-0 ${isLibrarySortOpen
-                                      ? "rotate-180 text-[var(--accent-text)]"
-                                      : ""
+                                    ? "rotate-180 text-[var(--accent-text)]"
+                                    : ""
                                     }`}
                                 />
                               </button>
@@ -2116,8 +2116,8 @@ function AppContent({
                                           setIsLibrarySortOpen(false);
                                         }}
                                         className={`flex items-center justify-between gap-3 px-3 py-1.5 rounded-xl text-xs font-medium transition-all cursor-pointer text-left ${isSelected
-                                            ? "bg-[var(--accent-subtle)] text-white border border-[var(--accent-border)] font-semibold shadow-sm"
-                                            : "text-[#c4c8d8] hover:text-white hover:bg-white/5 border border-transparent"
+                                          ? "bg-[var(--accent-subtle)] text-white border border-[var(--accent-border)] font-semibold shadow-sm"
+                                          : "text-[#c4c8d8] hover:text-white hover:bg-white/5 border border-transparent"
                                           }`}
                                       >
                                         <span>{opt.label}</span>
@@ -2144,8 +2144,8 @@ function AppContent({
                                 aria-label="Grade padrão"
                                 aria-pressed={libraryDensity === "comfortable"}
                                 className={`p-1.5 rounded-lg transition-all cursor-pointer ${libraryDensity === "comfortable"
-                                    ? "bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] shadow-sm"
-                                    : "text-[#71778c] hover:text-white border border-transparent"
+                                  ? "bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] shadow-sm"
+                                  : "text-[#71778c] hover:text-white border border-transparent"
                                   }`}
                               >
                                 <LayoutGrid className="w-3.5 h-3.5" />
@@ -2157,8 +2157,8 @@ function AppContent({
                                 aria-label="Grade compacta"
                                 aria-pressed={libraryDensity === "compact"}
                                 className={`p-1.5 rounded-lg transition-all cursor-pointer ${libraryDensity === "compact"
-                                    ? "bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] shadow-sm"
-                                    : "text-[#71778c] hover:text-white border border-transparent"
+                                  ? "bg-[var(--accent-subtle)] text-[var(--accent-text)] border border-[var(--accent-border)] shadow-sm"
+                                  : "text-[#71778c] hover:text-white border border-transparent"
                                   }`}
                               >
                                 <Grid3x3 className="w-3.5 h-3.5" />
@@ -2190,8 +2190,8 @@ function AppContent({
                             >
                               <RefreshCw
                                 className={`w-3.5 h-3.5 ${isLoadingPlaylists || isLoadingAlbums
-                                    ? "animate-spin text-[var(--accent)]"
-                                    : ""
+                                  ? "animate-spin text-[var(--accent)]"
+                                  : ""
                                   }`}
                               />
                             </button>

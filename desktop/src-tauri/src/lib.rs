@@ -506,13 +506,19 @@ async fn download_track(
     let dest_path = music_dir.join(&file_name);
     let temp_path = music_dir.join(format!("{}.{ext}.part", track.id));
 
-    let mut resp = ytm::HTTP_CLIENT
+    let mut resp = ytm::DOWNLOAD_CLIENT
         .get(&stream_url)
+        .header(reqwest::header::RANGE, "bytes=0-")
+        .header(reqwest::header::ACCEPT_ENCODING, "identity")
+        .header(
+            reqwest::header::USER_AGENT,
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+        )
         .send()
         .await
         .map_err(|e| format!("Falha ao conectar no stream de download: {e}"))?;
 
-    if !resp.status().is_success() {
+    if !resp.status().is_success() && resp.status() != reqwest::StatusCode::PARTIAL_CONTENT {
         return Err(format!("Servidor de áudio retornou status {}", resp.status()));
     }
 

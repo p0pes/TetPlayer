@@ -338,11 +338,18 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
               {/* Ação Secundária: Download Offline (Somente-Ícone c/ Tooltip e Semântica) */}
               {tracks.length > 0 &&
                 (isPlaylistDownloading ? (
-                  <div className="flex items-center gap-2 bg-[#171b28] border border-[var(--accent)]/50 text-white text-xs font-semibold px-3.5 h-10 rounded-xl shadow-md">
+                  <div
+                    title={
+                      batchInfo?.currentTrackTitle
+                        ? `Baixando faixa ${batchInfo.currentTrackIndex ?? 1} de ${batchInfo.total}: ${batchInfo.currentTrackTitle}`
+                        : "Baixando playlist offline..."
+                    }
+                    className="flex items-center gap-2 bg-[#171b28] border border-[var(--accent)]/50 text-white text-xs font-semibold px-3.5 h-10 rounded-xl shadow-md"
+                  >
                     <Loader2 className="w-4 h-4 text-[var(--accent)] animate-spin shrink-0" />
                     <span className="font-mono text-[11px]">
                       {batchInfo
-                        ? `${batchInfo.completed}/${batchInfo.total}`
+                        ? `${batchInfo.completed}/${batchInfo.total}${batchInfo.failed > 0 ? ` (${batchInfo.failed} falha${batchInfo.failed > 1 ? "s" : ""})` : ""}`
                         : `${downloadedCount}/${totalDownloadable}`}
                     </span>
                     <button

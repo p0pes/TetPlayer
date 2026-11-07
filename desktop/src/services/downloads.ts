@@ -71,6 +71,8 @@ export interface PlaylistDownloadBatch {
   total: number;
   completed: number;
   failed: number;
+  currentTrackTitle?: string;
+  currentTrackIndex?: number;
   abortController: AbortController;
 }
 
@@ -421,10 +423,15 @@ export const DownloadsService = {
     notify();
 
     try {
-      for (const track of toDownload) {
+      for (let i = 0; i < toDownload.length; i++) {
+        const track = toDownload[i];
         if (abortController.signal.aborted) {
           break;
         }
+
+        batch.currentTrackTitle = track.title;
+        batch.currentTrackIndex = i + 1;
+        notify();
 
         try {
           await this.downloadTrack(track);
