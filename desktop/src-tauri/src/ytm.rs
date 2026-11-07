@@ -15,6 +15,16 @@ pub static HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
         .expect("Falha ao inicializar HTTP client do TetPlayer")
 });
 
+pub static DOWNLOAD_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
+    reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(15))
+        .read_timeout(Duration::from_secs(45))
+        .tcp_keepalive(Some(Duration::from_secs(60)))
+        .pool_max_idle_per_host(8)
+        .build()
+        .expect("Falha ao inicializar DOWNLOAD_CLIENT do TetPlayer")
+});
+
 
 static CACHED_VISITOR_DATA: LazyLock<std::sync::Mutex<Option<(String, std::time::Instant)>>> =
     LazyLock::new(|| std::sync::Mutex::new(None));
@@ -3660,54 +3670,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_stream_info_real() {
+        let session = load_saved_google_session().unwrap_or_default();
         let video_id = "9bZkp7q19f0";
-
-        let payload_android = json!({
-            "context": {
-                "client": {
-                    "clientName": "ANDROID",
-                    "clientVersion": "21.26.364",
-                    "androidSdkVersion": 30,
-                    "userAgent": "com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip",
-                    "osName": "Android",
-                    "osVersion": "11",
-                    "hl": "pt",
-                    "gl": "BR"
-                }
-            },
-            "videoId": video_id
-        });
-
-        let mut headers_android = reqwest::header::HeaderMap::new();
-        headers_android.insert(reqwest::header::CONTENT_TYPE, reqwest::header::HeaderValue::from_static("application/json"));
-        headers_android.insert(reqwest::header::USER_AGENT, reqwest::header::HeaderValue::from_static("com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip"));
-        headers_android.insert(reqwest::header::HeaderName::from_static("x-youtube-client-name"), reqwest::header::HeaderValue::from_static("3"));
-        headers_android.insert(reqwest::header::HeaderName::from_static("x-youtube-client-version"), reqwest::header::HeaderValue::from_static("21.26.364"));
-
-        if let Ok(resp) = HTTP_CLIENT.post("https://www.youtube.com/youtubei/v1/player?prettyPrint=false")
-            .headers(headers_android)
-            .json(&payload_android)
-            .send()
-            .await
-        {
-            if let Ok(json_val) = resp.json::<Value>().await {
-                println!("ANDROID status: {}", json_val["playabilityStatus"]["status"].as_str().unwrap_or(""));
-                if let Some(formats) = json_val["streamingData"]["adaptiveFormats"].as_array() {
-                    let direct: Vec<&Value> = formats.iter().filter(|f| f.get("url").and_then(|u| u.as_str()).is_some()).collect();
-                    println!("ANDROID direct formats count: {}", direct.len());
-                    if let Some(first) = direct.first() {
-                        let url = first["url"].as_str().unwrap();
-                        let dl_resp = HTTP_CLIENT.get(url)
-                            .header(reqwest::header::USER_AGENT, "com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip")
-                            .header(reqwest::header::RANGE, "bytes=0-1000")
-                            .send().await;
-                        if let Ok(r) = dl_resp {
-                            println!("ANDROID DL status: {}", r.status());
-                        }
-                    }
-                }
+        let res = get_stream_info(&session, video_id).await;
+        if let Ok(Some(stream)) = res {
+            assert!(!stream.stream_url.is_empty(), "stream_url não deve ser vazio");
+            if let Some(ref mime) = stream.mime_type {
+                assert!(mime.contains("audio/"), "mime_type deve ser de áudio");
             }
         }
-        panic!("End of test");
     }
 }
