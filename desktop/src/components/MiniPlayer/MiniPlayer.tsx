@@ -186,15 +186,17 @@ export function MiniPlayer() {
         }}
         title="TetPlayer Mini - Clique para expandir ou arraste para cima/baixo"
         className={`w-full h-full bg-[#0c0e17] hover:bg-[#151928] border border-[#2b3042] hover:border-[#3e4560] flex items-center justify-center overflow-hidden cursor-pointer group transition-colors duration-150 select-none relative ${
-          activeDockSide === "left" ? "rounded-r-full" : "rounded-l-full"
+          activeDockSide === "left"
+            ? "border-l-0 rounded-r-full"
+            : "border-r-0 rounded-l-full"
         }`}
       >
         {/* Glow Aurora de fundo sutil acompanhando o formato da cápsula */}
         <div
-          className="absolute inset-0 opacity-25 pointer-events-none rounded-[inherit]"
+          className="absolute inset-0 opacity-15 pointer-events-none rounded-[inherit]"
           style={{
             background:
-              "radial-gradient(circle at center, var(--aurora-1-glow) 0%, transparent 70%)",
+              "radial-gradient(ellipse at center, var(--aurora-1-glow) 0%, transparent 80%)",
           }}
         />
 

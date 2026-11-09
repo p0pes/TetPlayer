@@ -1003,17 +1003,20 @@ Todos os **148 apontamentos técnicos (#01 a #148)** catalogados em auditorias t
 
 ---
 
-### 153. Sincronização e Simetria Visual das Setas e Borda em Cápsula Contínua no Mini Player Recolhido
+### 153. Sincronização e Simetria Visual das Setas, Transparência Real e Ancoragem na Borda no Mini Player Recolhido
 * **Status:** 🟢 **Resolvido**
-* **Localização:** [`desktop/src-tauri/src/lib.rs:840-865, 1025-1045`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/lib.rs#L840-L865), [`desktop/src/components/MiniPlayer/MiniPlayer.tsx:180-220`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MiniPlayer/MiniPlayer.tsx#L180-L220)
+* **Localização:** [`desktop/src-tauri/src/lib.rs:825-865, 1060-1080`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/lib.rs#L825-L865), [`desktop/index.html:1-24`](file:///d:/progrmação/programas/TetPlayer/desktop/index.html#L1-L24), [`desktop/src/components/MiniPlayer/MiniPlayer.tsx:180-220`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MiniPlayer/MiniPlayer.tsx#L180-L220)
 * **Diagnóstico Técnico da Causa-Raiz:**
-  1. No backend Rust (`dock_mini_player` e `move_docked_tab`), o cálculo de posicionamento utilizava a função `get_dwm_frame_offsets` adicionando `offset_right` ao `target_x` na ancoragem à direita. Em janelas sem decorações nativas e transparentes (`decorations: false, transparent: true`), o DWM reportava margens de sombra inexistentes na WebView, empurrando a janela cerca de 15px para fora dos limites físicos do monitor. Como consequência, a aba direita ficava truncada (com apenas ~19px visíveis em vez de 34px), cortando a seta `ChevronLeft` pela metade e criando uma discrepância visual notável em relação à seta da aba esquerda;
-  2. O componente utilizava `rounded-r-xl` / `rounded-l-xl` (raio de 12px) combinado com remoção unilateral de borda (`border-l-0` / `border-r-0`). Em uma cápsula de 48px de altura, o raio de 12px deixava 24px de face vertical reta e 22px de bordas horizontais que terminavam abruptamente em ângulos de 90 graus na moldura da tela, conferindo a impressão de um recorte retangular de papel e não de uma aba arredondada contínua.
+  1. Em `desktop/index.html`, o elemento `html, body` continha estilos inline e regras com `background-color: #0b0c10 !important`. Mesmo com `transparent: true` configurado no manifesto do Tauri, a WebView2 pintava um retângulo opaco sólido de 34x48px sob o elemento, gerando um contorno retangular do Windows 11 com quinas cortadas ao redor da curvatura arredondada da cápsula (efeito de borda dupla/recorte);
+  2. No backend Rust, janelas no Windows possuem uma margem invisível de redimensionamento de 7-8px na coordenada `RECT.left`. Ao ancorar na esquerda com `target_x = mon_logical_pos.x`, os pixels visíveis da janela começavam em `x = 8`, criando um espaçamento/fresta de 8px de papel de parede entre a borda do monitor e a aba;
+  3. No gradiente de iluminação de fundo (`radial-gradient`), a forma circular produzia um degrau visível com aspecto de anel interno;
+  4. Na ancoragem à direita, a posição `mon_logical_pos.x + mon_logical_size.width - docked_w` estava correta e sem cortes, enquanto a esquerda precisava do recuo de `offset_left` para colar 100% na borda da tela.
 * **Solução Implementada:**
-  1. Removido o cálculo distorcido de `get_dwm_frame_offsets` no backend Rust: `target_x` agora ancora de forma exata e pixel-perfect na coordenada do monitor (`mon_logical_pos.x` para esquerda e `mon_logical_pos.x + mon_logical_size.width - docked_w` para direita), garantindo que ambos os lados exibam rigorosamente os 34px da janela;
-  2. Substituído o raio estático de 12px por curvatura semicircular em cápsula contínua (`rounded-r-full` na esquerda e `rounded-l-full` na direita), gerando um domo arredondado perfeito de 24px de raio sem segmentos retos verticais;
-  3. Mantida a borda contínua completa (`border border-[#2b3042] hover:border-[#3e4560]`) que abraça a silhueta da cápsula e elimina pontas abertas nas quinas;
-  4. Padronizadas ambas as setas (`ChevronRight` e `ChevronLeft`) com dimensões idênticas de `18x18px`, espessura de traço consistente (`strokeWidth={2.5}`) e centralização óptica equilibrada na cápsula, com deslocamento suave no hover (`translate-x-0.5` / `-translate-x-0.5`).
+  1. Definido `background-color: transparent !important` em `index.html` para `html, body`, permitindo que os cantos fora de `rounded-r-full` e `rounded-l-full` fiquem 100% transparentes e eliminando completamente qualquer borda retangular da janela;
+  2. Implementada a função nativa `get_dwm_frame_offset_left` no Rust para compensar a margem esquerda invisível do DWM (`mon_logical_pos.x - offset_left`), fazendo a aba colar de forma perfeita e sem fresta na borda esquerda do monitor, alinhada à direita;
+  3. Reintroduzido `border-l-0` para a aba esquerda e `border-r-0` para a aba direita, eliminando qualquer traço de borda sobre a moldura física do monitor e preservando a borda contínua no lado que projeta para dentro da tela;
+  4. Suavizado o gradiente Aurora para elipse difusa (`ellipse at center ... transparent 80%`), eliminando anéis circulares internos;
+  5. Setas padronizadas em `18x18px` com `strokeWidth={2.5}` e transições de hover balanceadas.
 
 ---
 
