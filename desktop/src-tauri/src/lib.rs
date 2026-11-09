@@ -823,40 +823,6 @@ fn set_mini_player_mode(window: tauri::Window, enabled: bool) -> Result<(), Stri
     Ok(())
 }
 
-#[cfg(target_os = "windows")]
-fn get_dwm_frame_offsets(window: &tauri::Window, scale_factor: f64) -> (f64, f64) {
-    use windows_sys::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_EXTENDED_FRAME_BOUNDS};
-    use windows_sys::Win32::UI::WindowsAndMessaging::GetWindowRect;
-    use windows_sys::Win32::Foundation::RECT;
-
-    if let Ok(hwnd) = window.hwnd() {
-        let hwnd_raw = hwnd.0 as windows_sys::Win32::Foundation::HWND;
-        let mut win_rect = RECT { left: 0, top: 0, right: 0, bottom: 0 };
-        let mut frame_rect = RECT { left: 0, top: 0, right: 0, bottom: 0 };
-        unsafe {
-            if GetWindowRect(hwnd_raw, &mut win_rect) != 0 {
-                let hr = DwmGetWindowAttribute(
-                    hwnd_raw,
-                    DWMWA_EXTENDED_FRAME_BOUNDS as u32,
-                    &mut frame_rect as *mut _ as *mut _,
-                    std::mem::size_of::<RECT>() as u32,
-                );
-                if hr == 0 {
-                    let offset_left = (frame_rect.left - win_rect.left) as f64 / scale_factor;
-                    let offset_right = (win_rect.right - frame_rect.right) as f64 / scale_factor;
-                    return (offset_left.max(0.0), offset_right.max(0.0));
-                }
-            }
-        }
-    }
-    (0.0, 0.0)
-}
-
-#[cfg(not(target_os = "windows"))]
-fn get_dwm_frame_offsets(_window: &tauri::Window, _scale_factor: f64) -> (f64, f64) {
-    (0.0, 0.0)
-}
-
 #[tauri::command]
 fn dock_mini_player(window: tauri::Window, side: String) -> Result<String, String> {
     let _ = window.unmaximize();
@@ -883,12 +849,10 @@ fn dock_mini_player(window: tauri::Window, side: String) -> Result<String, Strin
     let docked_w = 34.0;
     let docked_h = 48.0;
 
-    let (offset_left, offset_right) = get_dwm_frame_offsets(&window, scale_factor);
-
     let target_x = if side == "left" {
-        mon_logical_pos.x - offset_left
+        mon_logical_pos.x
     } else {
-        mon_logical_pos.x + mon_logical_size.width - docked_w + offset_right
+        mon_logical_pos.x + mon_logical_size.width - docked_w
     };
 
     let min_y = mon_logical_pos.y;
@@ -1068,13 +1032,11 @@ fn move_docked_tab(
     let docked_w = 34.0;
     let docked_h = 48.0;
 
-    let (offset_left, offset_right) = get_dwm_frame_offsets(&window, scale_factor);
-
     // X é ESTRITAMENTE travado na borda esquerda ou direita sem folga
     let target_x = if side == "left" {
-        mon_logical_pos.x - offset_left
+        mon_logical_pos.x
     } else {
-        mon_logical_pos.x + mon_logical_size.width - docked_w + offset_right
+        mon_logical_pos.x + mon_logical_size.width - docked_w
     };
 
     let min_y = mon_logical_pos.y;

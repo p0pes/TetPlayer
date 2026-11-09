@@ -1001,6 +1001,23 @@ Todos os **148 apontamentos técnicos (#01 a #148)** catalogados em auditorias t
   5. Filtradas faixas baixadas em `handlePlayCollectionFromMenu` quando offline e substituída a dependência estática `isOnline` por `NetworkService.isOnline()` nos handlers de seleção de playlist e álbum;
   6. Adicionada classe de esmaecimento `opacity-40` em `TrackRow.tsx` para faixas indisponíveis offline e sincronizada a troca de ícones `Check` -> `Trash2` no hover do botão de cabeçalho em `AlbumDetailView.tsx`.
 
+---
+
+### 153. Sincronização e Simetria Visual das Setas e Borda em Cápsula Contínua no Mini Player Recolhido
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src-tauri/src/lib.rs:840-865, 1025-1045`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/lib.rs#L840-L865), [`desktop/src/components/MiniPlayer/MiniPlayer.tsx:180-220`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MiniPlayer/MiniPlayer.tsx#L180-L220)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  1. No backend Rust (`dock_mini_player` e `move_docked_tab`), o cálculo de posicionamento utilizava a função `get_dwm_frame_offsets` adicionando `offset_right` ao `target_x` na ancoragem à direita. Em janelas sem decorações nativas e transparentes (`decorations: false, transparent: true`), o DWM reportava margens de sombra inexistentes na WebView, empurrando a janela cerca de 15px para fora dos limites físicos do monitor. Como consequência, a aba direita ficava truncada (com apenas ~19px visíveis em vez de 34px), cortando a seta `ChevronLeft` pela metade e criando uma discrepância visual notável em relação à seta da aba esquerda;
+  2. O componente utilizava `rounded-r-xl` / `rounded-l-xl` (raio de 12px) combinado com remoção unilateral de borda (`border-l-0` / `border-r-0`). Em uma cápsula de 48px de altura, o raio de 12px deixava 24px de face vertical reta e 22px de bordas horizontais que terminavam abruptamente em ângulos de 90 graus na moldura da tela, conferindo a impressão de um recorte retangular de papel e não de uma aba arredondada contínua.
+* **Solução Implementada:**
+  1. Removido o cálculo distorcido de `get_dwm_frame_offsets` no backend Rust: `target_x` agora ancora de forma exata e pixel-perfect na coordenada do monitor (`mon_logical_pos.x` para esquerda e `mon_logical_pos.x + mon_logical_size.width - docked_w` para direita), garantindo que ambos os lados exibam rigorosamente os 34px da janela;
+  2. Substituído o raio estático de 12px por curvatura semicircular em cápsula contínua (`rounded-r-full` na esquerda e `rounded-l-full` na direita), gerando um domo arredondado perfeito de 24px de raio sem segmentos retos verticais;
+  3. Mantida a borda contínua completa (`border border-[#2b3042] hover:border-[#3e4560]`) que abraça a silhueta da cápsula e elimina pontas abertas nas quinas;
+  4. Padronizadas ambas as setas (`ChevronRight` e `ChevronLeft`) com dimensões idênticas de `18x18px`, espessura de traço consistente (`strokeWidth={2.5}`) e centralização óptica equilibrada na cápsula, com deslocamento suave no hover (`translate-x-0.5` / `-translate-x-0.5`).
+
+---
+
+
 
 
 

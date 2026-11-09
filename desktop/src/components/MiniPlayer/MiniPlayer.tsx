@@ -185,10 +185,8 @@ export function MiniPlayer() {
           isDraggingTabRef.current = false;
         }}
         title="TetPlayer Mini - Clique para expandir ou arraste para cima/baixo"
-        className={`w-full h-full bg-[#0c0e17] hover:bg-[#151928] border border-[#2b3042] flex items-center justify-center overflow-hidden cursor-pointer group transition-colors duration-150 select-none relative ${
-          activeDockSide === "left"
-            ? "border-l-0 rounded-r-xl"
-            : "border-r-0 rounded-l-xl"
+        className={`w-full h-full bg-[#0c0e17] hover:bg-[#151928] border border-[#2b3042] hover:border-[#3e4560] flex items-center justify-center overflow-hidden cursor-pointer group transition-colors duration-150 select-none relative ${
+          activeDockSide === "left" ? "rounded-r-full" : "rounded-l-full"
         }`}
       >
         {/* Glow Aurora de fundo sutil acompanhando o formato da cápsula */}
@@ -200,18 +198,24 @@ export function MiniPlayer() {
           }}
         />
 
-        {/* Setinha com indicador integrado de reprodução (brilhando com glow se tocando, apagada e discreta se pausada) */}
+        {/* Setinha com indicador integrado de reprodução (brilhando com glow se tocando, discreta e nítida se pausada) */}
         <div
           className={`flex items-center justify-center z-10 pointer-events-none transition-colors duration-200 ${
             isPlaying
               ? "text-[var(--accent)] drop-shadow-[0_0_8px_var(--accent-glow)] animate-pulse"
-              : "text-[#5e6479] opacity-60 group-hover:opacity-100 group-hover:text-white"
+              : "text-[#71788f] opacity-75 group-hover:opacity-100 group-hover:text-white"
           }`}
         >
           {activeDockSide === "left" ? (
-            <ChevronRight className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" />
+            <ChevronRight
+              className="w-[18px] h-[18px] group-hover:translate-x-0.5 transition-transform duration-150"
+              strokeWidth={2.5}
+            />
           ) : (
-            <ChevronLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
+            <ChevronLeft
+              className="w-[18px] h-[18px] group-hover:-translate-x-0.5 transition-transform duration-150"
+              strokeWidth={2.5}
+            />
           )}
         </div>
       </div>
