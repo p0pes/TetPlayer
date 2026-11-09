@@ -188,7 +188,7 @@ export const CommandPalette = React.memo(function CommandPalette({
         kind: "action",
         title: "Próxima Faixa",
         subtitle: "Avançar na fila de reprodução",
-        shortcut: "N",
+        shortcut: "K",
         icon: <SkipForward className="w-4 h-4 text-[var(--accent-text)]" />,
         action: onNextTrack,
       },
@@ -224,7 +224,7 @@ export const CommandPalette = React.memo(function CommandPalette({
         kind: "action",
         title: "Alternar Mini Player Flutuante",
         subtitle: "Modo compacto Always-on-Top",
-        shortcut: "M",
+        shortcut: "Ctrl+M",
         icon: <Minimize2 className="w-4 h-4 text-[var(--accent-text)]" />,
         action: onToggleMiniPlayer,
       },
@@ -241,10 +241,14 @@ export const CommandPalette = React.memo(function CommandPalette({
         kind: "action",
         title: "Abrir Configurações & Equalizador",
         subtitle: "Ajustes de áudio, aparência Aurora e conta",
+        shortcut: "Ctrl+,",
         icon: <Settings className="w-4 h-4 text-[var(--accent-text)]" />,
         action: onOpenSettings,
       },
-      {
+    ];
+
+    if (import.meta.env.DEV) {
+      quickActions.push({
         id: "act-dev-toggle-offline",
         kind: "action",
         title: NetworkService.isSimulatedOffline()
@@ -260,8 +264,8 @@ export const CommandPalette = React.memo(function CommandPalette({
         action: () => {
           NetworkService.toggleSimulatedOffline();
         },
-      },
-    ];
+      });
+    }
 
     const matchedActions = q
       ? quickActions.filter(

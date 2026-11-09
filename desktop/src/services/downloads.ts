@@ -264,6 +264,39 @@ export const DownloadsService = {
     downloadedIds.delete(videoId);
     saveDownloadedIds(downloadedIds);
     activeProgress.delete(videoId);
+
+    // Reavalia coleções para limpar badges caso faixas tenham sido removidas
+    if (downloadedCollectionIds.size > 0) {
+      let changedCollections = false;
+      for (const colId of Array.from(downloadedCollectionIds)) {
+        try {
+          const plTracks = LocalCacheService.getCachedPlaylistTracks(colId);
+          if (plTracks && plTracks.length > 0) {
+            const hasAnyDownloaded = plTracks.some((t) => t?.id && downloadedIds.has(t.id));
+            if (!hasAnyDownloaded) {
+              downloadedCollectionIds.delete(colId);
+              changedCollections = true;
+            }
+            continue;
+          }
+
+          const alDetail = LocalCacheService.getCachedAlbumDetail(colId);
+          if (alDetail?.tracks && alDetail.tracks.length > 0) {
+            const hasAnyDownloaded = alDetail.tracks.some((t) => t?.id && downloadedIds.has(t.id));
+            if (!hasAnyDownloaded) {
+              downloadedCollectionIds.delete(colId);
+              changedCollections = true;
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+      if (changedCollections) {
+        saveDownloadedCollectionIds(downloadedCollectionIds);
+      }
+    }
+
     notify();
 
     try {
@@ -347,6 +380,36 @@ export const DownloadsService = {
   isPlaylistDownloaded(collectionId?: string | null): boolean {
     if (!collectionId) return false;
     return Boolean(downloadedCollectionIds?.has?.(collectionId));
+  },
+
+  isCollectionAvailableOffline(collectionId?: string | null): boolean {
+    if (!collectionId) return false;
+    if (collectionId === "OFFLINE_DOWNLOADS") {
+      return downloadedIds.size > 0;
+    }
+    if (downloadedCollectionIds?.has?.(collectionId)) return true;
+
+    try {
+      const cachedPlaylistTracks = LocalCacheService.getCachedPlaylistTracks(collectionId);
+      if (
+        cachedPlaylistTracks &&
+        cachedPlaylistTracks.some((t) => t?.id && downloadedIds.has(t.id))
+      ) {
+        return true;
+      }
+
+      const cachedAlbum = LocalCacheService.getCachedAlbumDetail(collectionId);
+      if (
+        cachedAlbum?.tracks &&
+        cachedAlbum.tracks.some((t) => t?.id && downloadedIds.has(t.id))
+      ) {
+        return true;
+      }
+    } catch {
+      // ignore
+    }
+
+    return false;
   },
 
   isPlaylistDownloading(playlistId?: string | null): boolean {
@@ -481,6 +544,7 @@ export const DownloadsService = {
 
   async removePlaylistDownloads(tracks: Track[], playlistId?: string): Promise<number> {
     if (playlistId) {
+      this.cancelPlaylistDownload(playlistId);
       downloadedCollectionIds.delete(playlistId);
       saveDownloadedCollectionIds(downloadedCollectionIds);
     }

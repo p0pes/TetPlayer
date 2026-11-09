@@ -929,3 +929,78 @@ Todos os **148 apontamentos técnicos (#01 a #148)** catalogados em auditorias t
   2. Em `downloads.ts`, `isAllDownloaded` agora avalia estritamente `total > 0 && downloaded === total`, e `downloadedCollectionIds.add` é chamado exclusivamente se todas as faixas da coleção estiverem no disco local;
   3. Em `lib.rs`, `delete_downloaded_track` remove com segurança arquivos `.opus.part`, `.m4a.part` e `.webm.part`;
   4. Em `ytm.rs`, parsing com suporte a variantes do payload de script e fallback de target id.
+
+---
+
+### 149. Auditoria de Regras de Negócio Offline, Isolamento DEV, 144 FPS na Gaveta e Unificação Minimalista de UI
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/components/TitleBar/TitleBar.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/TitleBar/TitleBar.tsx), [`desktop/src/hooks/useKeyboardShortcuts.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useKeyboardShortcuts.ts), [`desktop/src/components/SettingsModal/SettingsModal.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/SettingsModal/SettingsModal.tsx), [`desktop/src/components/NowPlayingDrawer/NowPlayingDrawer.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/NowPlayingDrawer/NowPlayingDrawer.tsx), [`desktop/src/context/PlayerContext.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/context/PlayerContext.tsx), [`desktop/src/context/playerReducer.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/context/playerReducer.ts), [`desktop/src/services/downloads.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/downloads.ts), [`desktop/src/services/audioEngine.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/audioEngine.ts), [`desktop/src/App.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/App.tsx), [`desktop/src/components/MainView/PlaylistDetailView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/PlaylistDetailView.tsx), [`desktop/src/components/MainView/AlbumDetailView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/AlbumDetailView.tsx), [`desktop/src/components/MainView/ArtistDetailView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/ArtistDetailView.tsx)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  1. Os controles de simulação offline (`Dev: Online` / `Dev: Offline`) na `TitleBar`, `SettingsModal` e o atalho `Ctrl+Alt+O` não possuíam guarda `import.meta.env.DEV`;
+  2. Em `NowPlayingDrawer.tsx`, a pílula indicadora das abas animava `left` e `width` em pixels com medição de DOM (`offsetLeft`/`offsetWidth`), violando o Mandamento #2 (144 FPS GPU-only);
+  3. Em `PlayerContext.tsx` (`handlePrevTrack`), voltar na primeira faixa com `repeat === "all"` chamava `loadAndPlayVideo(lastTrack.id)` sem `isManual = true`, iniciando a faixa muda quando o Crossfade estava ativo;
+  4. No modo offline (`!NetworkService.isOnline()`), playlists parcialmente baixadas desapareciam da biblioteca (`displayedPlaylists`/`displayedAlbums` filtravam por `isPlaylistDownloaded` 100%), a fila parava ao encontrar uma faixa não baixada em `handleNextTrack`/`handlePrevTrack`, e `handleSelectArtist` tentava consultar a rede sem fallback offline;
+  5. No modo `playlistEnqueueMode: "append"` com Shuffle ativo, `PLAY_TRACK_WITH_QUEUE` re-embaralhava as faixas já existentes na fila junto com as novas;
+  6. Em `AlbumDetailView` e `ArtistDetailView`, as linhas de faixa não possuíam o botão de Curtir (`Heart`), o indicador de faixa baixada (`CheckCircle2`), o feedback de fila (`Check`) nem esmaecimento de indisponibilidade offline, e o cabeçalho de `PlaylistDetailView` duplicava a contagem de músicas quando `playlist.subtitle` já trazia `"N itens"`.
+* **Solução Implementada:**
+  1. Condicionados todos os controles e atalhos de simulação de rede estritamente a `import.meta.env.DEV`;
+  2. Substituída a animação da gaveta (`NowPlayingDrawer`) por `grid-cols-2` com `transform: translate3d(0%/100%, 0, 0)` acelerado por GPU;
+  3. Passado `isManual = true` em `handlePrevTrack` (`repeat === "all"`), adicionado salto automático para a próxima/anterior faixa baixada na fila quando offline, e preservado o prefixo existente (`preserveExistingCount`) no `playerReducer` ao anexar playlists com Shuffle;
+  4. Criado `DownloadsService.isCollectionAvailableOffline` para manter coleções parcialmente baixadas visíveis e tocáveis offline, além de fallback offline em `handleSelectArtist` agregando faixas baixadas do artista;
+  5. Conectado `captureStream()` de faixas locais (`blob:`/`asset:`) ao `AnalyserNode` do `AudioEngine` de forma não-intrusiva;
+  6. Unificados os componentes `AlbumTrackRow` e `ArtistTrackRow` com suporte a Favoritos (`Heart`), selo offline (`CheckCircle2`) e feedback de fila, deduplicado o subtítulo de `PlaylistDetailView` e aplicado acabamento minimalista Clean UI com bordas translúcidas (`border-white/[0.06]`).
+
+---
+
+### 150. Falha e Bloqueio HTTP 403 Forbidden no Download em Lote de Playlists Offline
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src-tauri/src/ytm.rs:690-760`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/ytm.rs#L690-L760), [`desktop/src-tauri/src/lib.rs:509-525`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/lib.rs#L509-L525)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  1. Durante o download de playlists longas, todas as faixas falhavam consecutivamente (ex: `0/110 (7 falhas) ✕`) devido a respostas HTTP `403 Forbidden` disparadas pelo CDN do YouTube (`*.googlevideo.com`);
+  2. O cliente `IOS` gera URLs de áudio direto sem cipher, porém o CDN do YouTube impõe proteção anti-bot estrita com estrangulamento (throttling): requisições com cabeçalho de faixa aberta (`Range: bytes=0-`), requisições sem `Range` ou tentativas de baixar além de 1MB (1.048.576 bytes) em clientes de streaming móvel recebem corte imediato e rejeição com HTTP `403 Forbidden`;
+  3. No método `get_stream_info`, a tentativa `VISIONOS` com `VISITOR_DATA` (que produz streams Opus diretos sem throttling e sem cipher) havia sido omitida no fluxo de fallback, deixando apenas `WEB_REMIX` e `IOS`.
+* **Solução Implementada:**
+  1. Restaurada como prioridade máxima (`Tentativa 1`) no `get_stream_info` a extração via cliente `VISIONOS` (`1.02`, `RealityDevice17,1`) associada ao `VISITOR_DATA` (com cache de 12 horas em memória via `CACHED_VISITOR_DATA`);
+  2. O cliente `VISIONOS` gera streams `googlevideo` puros com suporte total a `Range: bytes=0-`, transferindo arquivos inteiros de áudio (3 a 5MB) de forma contínua em alta velocidade (~1 segundo por faixa) sem acionar os cortes de 1MB do CDN;
+  3. Mantidos os fallbacks resilientes para `WEB_REMIX`, `IOS` e `ANDROID_VR`, garantindo compatibilidade universal mesmo para catálogos com restrições de licença.
+
+---
+
+### 151. Ações Contextuais de Download e Remoção Offline em Músicas e Coleções (Playlists e Álbuns)
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/components/ContextMenu/TrackContextMenu.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/ContextMenu/TrackContextMenu.tsx), [`desktop/src/components/ContextMenu/CollectionContextMenu.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/ContextMenu/CollectionContextMenu.tsx), [`desktop/src/App.tsx:1755-1810`](file:///d:/progrmação/programas/TetPlayer/desktop/src/App.tsx#L1755-L1810), [`desktop/src/components/__tests__/ContextMenus.test.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/__tests__/ContextMenus.test.tsx)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  1. No menu de contexto de faixas individuais (`TrackContextMenu`), não havia opção rápida para baixar ou remover uma música do armazenamento offline local do disco;
+  2. No menu de contexto de coleções (`CollectionContextMenu`), existia apenas a ação para iniciar o download de playlists/álbuns, sem a possibilidade de remover faixas baixadas e liberar espaço em disco pelo próprio menu de clique direito.
+* **Solução Implementada:**
+  1. Integrado o hook `useTrackDownload` ao `TrackContextMenu.tsx`:
+     - Caso a música já esteja no disco, exibe a opção em destaque carmim com ícone `Trash2`: *"Remover do download"*, invocando `DownloadsService.removeDownload(track.id)` e exibindo toast de confirmação;
+     - Caso esteja em transferência, exibe o spinner `Loader2` com o percentual de progresso em tempo real (*"Baixando... (X%)"*);
+     - Caso não esteja baixada, exibe o botão *"Baixar para ouvir offline"* com ícone `Download`.
+  2. Adicionada a ação *"Remover Downloads da Playlist"* / *"Remover Downloads do Álbum"* ao `CollectionContextMenu.tsx` sempre que a coleção possuir faixas offline (`isAvailableOffline || isDownloaded`), delegando a remoção atômica via `DownloadsService.removePlaylistDownloads(tracks, id)`;
+  3. Em `App.tsx`, implementado `handleRemoveCollectionDownloadsFromMenu` com suporte a coleções cacheadas e virtuais (`OFFLINE_DOWNLOADS`), feedback via toast descritivo com contagem de faixas apagadas e testes unitários dedicados em `ContextMenus.test.tsx`.
+
+---
+
+### 152. Correção de Conflitos de Atalhos Globais, Race Conditions de Downloads e Consistência Offline
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/hooks/useKeyboardShortcuts.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useKeyboardShortcuts.ts), [`desktop/src/context/PlayerContext.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/context/PlayerContext.tsx), [`desktop/src/components/CommandPalette/CommandPalette.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/CommandPalette/CommandPalette.tsx), [`desktop/src/services/downloads.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/downloads.ts), [`desktop/src/App.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/App.tsx), [`desktop/src/components/MainView/TrackRow.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/TrackRow.tsx), [`desktop/src/components/MainView/AlbumDetailView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/AlbumDetailView.tsx)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  1. Em `useKeyboardShortcuts.ts`, a verificação de teclas únicas (`KeyK`, `KeyJ`, `KeyM`, etc.) não checava se `Ctrl`, `Alt` ou `Meta` estavam ativos. Como resultado, pressionar `Ctrl+K` para abrir a Command Palette pulava a faixa atual, e `Ctrl+M` (atalho para alternar o Mini Player) mutava o áudio;
+  2. Em `CommandPalette.tsx`, o comando de alternância offline de desenvolvedor não estava encapsulado em `import.meta.env.DEV`, aparecendo indevidamente no catálogo geral, e os rótulos de atalhos estavam desincronizados (`N` vs `K`, `M` vs `Ctrl+M`);
+  3. Em `DownloadsService.removeDownload`, a remoção de músicas individuais do disco nunca reavaliava `downloadedCollectionIds`. Logo, coleções que tinham todas as suas faixas removidas permaneciam marcadas como baixadas na interface;
+  4. Em `DownloadsService.isCollectionAvailableOffline`, a coleção virtual `"OFFLINE_DOWNLOADS"` retornava `false` pois suas faixas não são persistidas sob essa chave no cache;
+  5. Em `DownloadsService.removePlaylistDownloads`, apagar faixas não abortava o lote de download ativo (`activePlaylistBatches`), gerando concorrência com o download em segundo plano;
+  6. Em `App.tsx` (`handlePlayCollectionFromMenu`), reproduzir playlist pelo menu de contexto offline enviava faixas não baixadas para a fila sem filtrar por `DownloadsService.isDownloaded`, e `handleSelectPlaylist`/`handleSelectAlbum` continham *stale closure* por não usar `NetworkService.isOnline()`;
+  7. Em `TrackRow.tsx`, músicas não baixadas não recebiam `opacity-40` no modo offline (ao contrário de `AlbumTrackRow` e `ArtistTrackRow`), e em `AlbumDetailView.tsx`, o botão de download de álbum mantinha o ícone `Check` verde mesmo no hover com ação de remoção.
+* **Solução Implementada:**
+  1. Adicionada guarda `hasModifier` (`e.ctrlKey || e.metaKey || e.altKey`) para teclas de ação de caractere único em `useKeyboardShortcuts.ts`, além do mapeamento explícito de `Ctrl+M` para invocar `toggleMiniPlayer()`;
+  2. Isolado o comando `"Dev: Cortar Conexão à Internet"` sob `import.meta.env.DEV` e sincronizados os atalhos exibidos na Command Palette;
+  3. Implementada limpeza reativa em `downloadedCollectionIds` dentro de `removeDownload` e inclusão de verificação `downloadedIds.size > 0` para `"OFFLINE_DOWNLOADS"`;
+  4. Adicionada chamada a `this.cancelPlaylistDownload(playlistId)` antes de iniciar a remoção de arquivos em `removePlaylistDownloads`;
+  5. Filtradas faixas baixadas em `handlePlayCollectionFromMenu` quando offline e substituída a dependência estática `isOnline` por `NetworkService.isOnline()` nos handlers de seleção de playlist e álbum;
+  6. Adicionada classe de esmaecimento `opacity-40` em `TrackRow.tsx` para faixas indisponíveis offline e sincronizada a troca de ícones `Check` -> `Trash2` no hover do botão de cabeçalho em `AlbumDetailView.tsx`.
+
+
+
+

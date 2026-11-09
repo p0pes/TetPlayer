@@ -264,11 +264,20 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
     return `${mins} min`;
   }, [tracks]);
 
+  const cleanAuthorSubtitle = useMemo(() => {
+    if (!playlist.subtitle) return "";
+    // Remove contagens duplicadas vindas do YouTube Music (ex: "Autor • 110 itens" -> "Autor")
+    const cleaned = playlist.subtitle
+      .replace(/(?:^|\s*[•·-]\s*)\d+\s*(?:itens|faixas|músicas|songs|tracks|items)\b.*$/i, "")
+      .trim();
+    return cleaned;
+  }, [playlist.subtitle]);
+
   return (
     <div className="space-y-4">
-      {/* Header da Playlist */}
-      <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 bg-gradient-to-r from-[var(--accent-subtle)] via-[#1c1826] to-[#12141c] p-6 rounded-2xl border border-[var(--accent-border)]">
-        <div className="w-36 h-36 rounded-xl bg-gradient-to-br from-indigo-600 via-purple-700 to-pink-600 overflow-hidden shrink-0 shadow-2xl flex items-center justify-center">
+      {/* Header Clean da Playlist */}
+      <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 bg-gradient-to-r from-[var(--accent-subtle)] via-[#161824]/90 to-[#0e1017]/90 p-6 rounded-2xl border border-white/[0.07] shadow-xl">
+        <div className="w-36 h-36 rounded-xl bg-gradient-to-br from-indigo-600 via-purple-700 to-pink-600 overflow-hidden shrink-0 shadow-2xl border border-white/[0.08] flex items-center justify-center">
           {playlist.artwork_url && !hasImageError ? (
             <img
               src={upgradeArtworkQuality(playlist.artwork_url)}
@@ -283,51 +292,54 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
         </div>
 
         <div className="flex-1 space-y-2 text-center sm:text-left min-w-0">
-          <div className="flex items-center justify-center sm:justify-start gap-2">
+          <div className="flex items-center justify-center sm:justify-start gap-2.5">
             <button
               type="button"
               onClick={onBack}
               title="Voltar para a Biblioteca (Alt+←)"
               aria-label="Voltar para todas as playlists"
-              className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-[#8c91a4] hover:text-white transition-colors cursor-pointer shrink-0"
+              className="w-7 h-7 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.08] flex items-center justify-center text-[#8c91a4] hover:text-white transition-all cursor-pointer shrink-0 active:scale-95"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
             </button>
             <span
-              className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md border ${
+              className={`text-[11px] font-bold uppercase tracking-widest ${
                 playlist.id === "OFFLINE_DOWNLOADS"
-                  ? "bg-emerald-950/70 border-emerald-500/40 text-emerald-300"
-                  : "bg-[var(--accent-subtle)] border-[var(--accent-border)] text-[var(--accent-text)]"
+                  ? "text-emerald-400"
+                  : "text-white/50"
               }`}
             >
               {playlist.id === "OFFLINE_DOWNLOADS" ? "Armazenamento Offline" : "Playlist"}
             </span>
           </div>
 
-          <h2 className="text-2xl font-extrabold text-white truncate">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight truncate">
             {playlist.title}
           </h2>
 
-          {/* Linha Única de Metadados Unificada (6.2.D.2) */}
-          <p className="text-xs text-[#8c91a4] truncate">
-            {playlist.subtitle ? `${playlist.subtitle} • ` : ""}
+          {/* Linha Única de Metadados Unificada sem duplicação de itens */}
+          <p className="text-xs text-[#8c91a4] truncate font-medium">
+            {cleanAuthorSubtitle ? `${cleanAuthorSubtitle} • ` : ""}
             {tracks.length} {tracks.length === 1 ? "música" : "músicas"}
             {totalDurationText ? ` • ${totalDurationText}` : ""}
+            {downloadedCount > 0 && !isAllDownloaded
+              ? ` • ${downloadedCount} offline`
+              : ""}
           </p>
 
           {playlist.description && (
-            <p className="text-xs text-[#8c91a4] line-clamp-2 italic">
+            <p className="text-xs text-[#8c91a4] line-clamp-2">
               {playlist.description}
             </p>
           )}
 
-          {/* Barra de Ações + Busca/Ordenação Integradas na Mesma Linha (6.2.D.1 & 6.2.D.4) */}
-          <div className="pt-2 flex flex-wrap items-center justify-between gap-3">
+          {/* Barra de Ações + Busca/Ordenação Integradas na Mesma Linha */}
+          <div className="pt-2.5 flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
               <button
                 onClick={() => onPlayPlaylist(displayedTracks)}
                 disabled={displayedTracks.length === 0}
-                className="bg-[var(--accent)] hover:opacity-90 disabled:opacity-50 text-white text-xs font-semibold px-5 h-10 rounded-xl shadow-lg shadow-[var(--accent-glow)] flex items-center gap-2 transition-all cursor-pointer"
+                className="bg-[var(--accent)] hover:opacity-90 active:scale-95 disabled:opacity-50 text-white text-xs font-bold uppercase tracking-wider px-6 h-10 rounded-full shadow-lg shadow-[var(--accent-glow)]/30 flex items-center gap-2 transition-all cursor-pointer"
               >
                 <Play className="w-4 h-4 fill-current ml-0.5" />
                 {searchFilter.trim() || sortBy !== "original"
@@ -344,7 +356,7 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
                         ? `Baixando faixa ${batchInfo.currentTrackIndex ?? 1} de ${batchInfo.total}: ${batchInfo.currentTrackTitle}`
                         : "Baixando playlist offline..."
                     }
-                    className="flex items-center gap-2 bg-[#171b28] border border-[var(--accent)]/50 text-white text-xs font-semibold px-3.5 h-10 rounded-xl shadow-md"
+                    className="flex items-center gap-2 bg-white/[0.05] border border-[var(--accent)]/40 text-white text-xs font-semibold px-3.5 h-10 rounded-full shadow-md"
                   >
                     <Loader2 className="w-4 h-4 text-[var(--accent)] animate-spin shrink-0" />
                     <span className="font-mono text-[11px]">
@@ -357,7 +369,7 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
                       onClick={handleCancelPlaylistDownload}
                       title="Cancelar download da playlist"
                       aria-label="Cancelar download da playlist"
-                      className="p-0.5 hover:bg-[#252b3d] text-[#8c91a4] hover:text-white rounded transition-colors cursor-pointer"
+                      className="p-0.5 hover:bg-white/10 text-[#8c91a4] hover:text-white rounded-full transition-colors cursor-pointer"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -368,7 +380,7 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
                     onClick={onRemoveDownloadsWithFeedback}
                     title="Playlist baixada para reprodução offline (Clique para remover downloads do disco)"
                     aria-label="Remover downloads desta playlist"
-                    className="w-10 h-10 flex items-center justify-center bg-emerald-950/60 hover:bg-red-950/50 border border-emerald-500/40 hover:border-red-500/40 text-emerald-400 hover:text-red-400 rounded-xl shadow-md transition-all cursor-pointer group"
+                    className="w-10 h-10 flex items-center justify-center bg-emerald-950/50 hover:bg-red-950/50 border border-emerald-500/35 hover:border-red-500/40 text-emerald-400 hover:text-red-400 rounded-full shadow-sm transition-all cursor-pointer group"
                   >
                     <Check className="w-4 h-4 group-hover:hidden" />
                     <Trash2 className="w-4 h-4 hidden group-hover:block" />
@@ -383,20 +395,20 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
                         ? `Baixar as ${totalDownloadable - downloadedCount} músicas restantes para ouvir offline`
                         : "Baixar playlist para ouvir offline"
                     }
-                    className="w-10 h-10 flex items-center justify-center bg-[#181c28] hover:bg-[#202536] border border-[#272d40] hover:border-[var(--accent-border)] text-[#c4c8d8] hover:text-white rounded-xl transition-all cursor-pointer shadow-sm group"
+                    className="w-10 h-10 flex items-center justify-center bg-white/[0.04] hover:bg-white/[0.09] border border-white/[0.08] hover:border-[var(--accent-border)] text-[#c4c8d8] hover:text-white rounded-full transition-all cursor-pointer shadow-sm group"
                   >
                     <Download className="w-4 h-4 text-[var(--accent-text)] group-hover:scale-110 transition-transform" />
                   </button>
                 ))}
 
-              {/* Ações da Playlist (Editar e Excluir) como Ícones Integrados na Mesma Linha */}
+              {/* Ações da Playlist (Editar e Excluir) como Ícones Circulares Minimalistas */}
               {!isVirtualCollection && onEditPlaylist && (
                 <button
                   type="button"
                   onClick={() => onEditPlaylist(playlist)}
                   title="Editar título e descrição da playlist"
                   aria-label="Editar playlist"
-                  className="w-10 h-10 flex items-center justify-center rounded-xl bg-[#181c28] hover:bg-[#202536] border border-[#272d40] text-[#8c91a4] hover:text-white transition-colors cursor-pointer"
+                  className="w-10 h-10 flex items-center justify-center rounded-full bg-white/[0.04] hover:bg-white/[0.09] border border-white/[0.08] text-[#8c91a4] hover:text-white transition-colors cursor-pointer"
                 >
                   <Edit3 className="w-4 h-4" />
                 </button>
@@ -407,7 +419,7 @@ export const PlaylistDetailView = React.memo(function PlaylistDetailView({
                   onClick={() => onDeletePlaylist(playlist)}
                   title="Excluir playlist do YouTube Music"
                   aria-label="Excluir playlist"
-                  className="w-10 h-10 flex items-center justify-center rounded-xl bg-[#181c28] hover:bg-rose-500/20 border border-[#272d40] hover:border-rose-500/40 text-[#8c91a4] hover:text-rose-400 transition-colors cursor-pointer"
+                  className="w-10 h-10 flex items-center justify-center rounded-full bg-white/[0.04] hover:bg-rose-500/20 border border-white/[0.08] hover:border-rose-500/40 text-[#8c91a4] hover:text-rose-400 transition-colors cursor-pointer"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>

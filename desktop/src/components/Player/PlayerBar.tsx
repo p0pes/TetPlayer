@@ -63,7 +63,7 @@ export const PlayerBar = memo(function PlayerBar() {
   };
 
   return (
-    <footer className="h-20 shrink-0 border-t border-[#1f232e] bg-[#0e1017]/95 backdrop-blur-md px-3 sm:px-4 md:px-6 flex items-center justify-between gap-2 sm:gap-4 md:gap-6 z-40">
+    <footer className="h-20 shrink-0 border-t border-white/[0.06] bg-[#0b0d14]/92 backdrop-blur-md px-3 sm:px-4 md:px-6 flex items-center justify-between gap-2 sm:gap-4 md:gap-6 z-40">
       {/* Faixa Atual e Mini Player Isolado na Extrema Esquerda */}
       <div className="flex items-center gap-2 sm:gap-3 w-[28%] min-w-0 max-w-[280px]">
         {/* Botão Mini Player Isolado em Destaque na Extrema Esquerda */}
@@ -71,14 +71,14 @@ export const PlayerBar = memo(function PlayerBar() {
           onClick={toggleMiniPlayer}
           title="Modo Mini Player Flutuante (Always-on-Top / PiP)"
           aria-label="Modo Mini Player"
-          className="p-1.5 sm:p-2 rounded-xl text-[#9da3b7] hover:text-white bg-[#151824] hover:bg-[#1f2436] border border-[#23283a] hover:border-[var(--accent-border)] transition-all cursor-pointer shrink-0 shadow-sm hover:shadow-[0_0_12px_var(--accent-glow)] group mr-0.5 sm:mr-1"
+          className="p-1.5 sm:p-2 rounded-xl text-[#8c91a4] hover:text-white bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.06] hover:border-[var(--accent-border)] transition-all cursor-pointer shrink-0 group mr-0.5 sm:mr-1"
         >
           <Tv className="w-4 h-4 group-hover:scale-105 group-hover:text-[var(--accent-text)] transition-all" />
         </button>
 
         <div
           onClick={toggleNowPlaying}
-          className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-[#171a24] border border-[#232733] overflow-hidden shrink-0 flex items-center justify-center cursor-pointer group relative shadow-md"
+          className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-[#161924] border border-white/[0.07] overflow-hidden shrink-0 flex items-center justify-center cursor-pointer group relative shadow-md"
           title={isDrawerOpen ? "Recolher gaveta de reprodução" : "Abrir gaveta de reprodução"}
         >
           {currentTrack?.artwork_url || currentTrack?.id ? (
@@ -279,7 +279,7 @@ export const PlayerBar = memo(function PlayerBar() {
         {/* Visualizador de Áudio Mini Silencioso (Sem Rótulo Textual) */}
         <div
           title={isPlaying ? "Reproduzindo áudio" : "Áudio em pausa"}
-          className="hidden 2xl:flex items-center justify-center px-2 py-1.5 rounded-lg bg-[#141724] border border-[#212638] shrink-0"
+          className="hidden 2xl:flex items-center justify-center px-2 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.06] shrink-0"
         >
           <SpectrumVisualizer isPlaying={isPlaying} track={currentTrack} variant="mini" barCount={4} />
         </div>

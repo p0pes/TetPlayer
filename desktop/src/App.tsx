@@ -49,7 +49,7 @@ import { SettingsService } from "./services/settings";
 import { PerformanceTelemetry } from "./services/telemetry";
 import { humanizeApiError } from "./utils/errors";
 import { DownloadsService } from "./services/downloads";
-import { useNetworkStatus } from "./services/network";
+import { NetworkService, useNetworkStatus } from "./services/network";
 
 export default function App() {
   useEffect(() => {
@@ -309,13 +309,13 @@ function AppContent({
   const displayedPlaylists = useMemo(() => {
     const list = Array.isArray(playlists) ? playlists : [];
     if (isOnline) return list;
-    return list.filter((pl) => pl && pl.id && DownloadsService.isPlaylistDownloaded(pl.id));
+    return list.filter((pl) => pl && pl.id && DownloadsService.isCollectionAvailableOffline(pl.id));
   }, [playlists, isOnline, downloadVersion]);
 
   const displayedAlbums = useMemo(() => {
     const list = Array.isArray(albums) ? albums : [];
     if (isOnline) return list;
-    return list.filter((al) => al && al.id && DownloadsService.isPlaylistDownloaded(al.id));
+    return list.filter((al) => al && al.id && DownloadsService.isCollectionAvailableOffline(al.id));
   }, [albums, isOnline, downloadVersion]);
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
   const selectedAlbumRef = useRef<Album | null>(null);
@@ -569,7 +569,7 @@ function AppContent({
       setPlaylistTracks([]);
     }
 
-    if (!isOnline) {
+    if (!NetworkService.isOnline()) {
       setIsLoadingPlaylistTracks(false);
       if (!cachedTracks || cachedTracks.length === 0) {
         setErrorMessage("Playlist indisponível offline: nenhuma faixa foi baixada ou armazenada em cache.");
@@ -653,7 +653,7 @@ function AppContent({
       setAlbumDetail(null);
     }
 
-    if (!isOnline) {
+    if (!NetworkService.isOnline()) {
       setIsLoadingAlbumDetail(false);
       if (!cachedDetail) {
         setErrorMessage("Álbum indisponível offline: não foi baixado nem armazenado em cache.");
@@ -733,6 +733,50 @@ function AppContent({
         setArtistDetail(cached);
       } else {
         setArtistDetail(null);
+      }
+
+      if (!NetworkService.isOnline()) {
+        if (cached) {
+          setIsLoadingArtistDetail(false);
+          return;
+        }
+        try {
+          const downloaded = await DownloadsService.getDownloadedTracks();
+          const artistLower = artist.name.trim().toLowerCase();
+          const matchedTracks: Track[] = downloaded
+            .filter((d) => d.artist?.toLowerCase().includes(artistLower))
+            .map((d) => ({
+              id: d.video_id,
+              title: d.title,
+              artist: d.artist,
+              duration_seconds: d.duration_seconds,
+              duration: d.duration_seconds
+                ? `${Math.floor(d.duration_seconds / 60)}:${String(d.duration_seconds % 60).padStart(2, "0")}`
+                : undefined,
+              artwork_url: d.artwork_url,
+            }));
+
+          if (matchedTracks.length > 0) {
+            setArtistDetail({
+              id: artist.id || cacheKey,
+              name: artist.name,
+              artwork_url: matchedTracks[0].artwork_url,
+              tracks: matchedTracks,
+              albums: [],
+            });
+          } else {
+            setErrorMessage(
+              "Artista indisponível offline: nenhuma informação ou música deste artista foi salva no dispositivo."
+            );
+          }
+        } catch {
+          setErrorMessage(
+            "Artista indisponível offline: nenhuma informação ou música deste artista foi salva no dispositivo."
+          );
+        } finally {
+          setIsLoadingArtistDetail(false);
+        }
+        return;
       }
 
       setIsLoadingArtistDetail(true);
@@ -1209,7 +1253,7 @@ function AppContent({
 
         const matchedAlbums = albums.filter(
           (a) =>
-            DownloadsService.isPlaylistDownloaded(a.id) &&
+            DownloadsService.isCollectionAvailableOffline(a.id) &&
             (a.title.toLowerCase().includes(queryLower) ||
               a.artist.toLowerCase().includes(queryLower))
         );
@@ -1442,8 +1486,13 @@ function AppContent({
   const handlePlayAlbum = useCallback(
     (tracks: Track[], startIndex = 0, shuffle = false) => {
       if (!tracks || tracks.length === 0) return;
-      let queue = [...tracks];
-      let startIdx = startIndex;
+      let queue = !NetworkService.isOnline()
+        ? tracks.filter((t) => DownloadsService.isDownloaded(t.id))
+        : [...tracks];
+      if (queue.length === 0) {
+        queue = [...tracks];
+      }
+      let startIdx = Math.min(startIndex, Math.max(0, queue.length - 1));
       if (shuffle) {
         for (let i = queue.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
@@ -1471,9 +1520,14 @@ function AppContent({
       try {
         const cached = LocalCacheService.getCachedAlbumDetail(album.id);
         if (cached && cached.tracks.length > 0) {
-          playTrackWithQueue(cached.tracks[0], cached.tracks, 0, album.id);
+          const playable = !NetworkService.isOnline()
+            ? cached.tracks.filter((t) => DownloadsService.isDownloaded(t.id))
+            : cached.tracks;
+          const queue = playable.length > 0 ? playable : cached.tracks;
+          playTrackWithQueue(queue[0], queue, 0, album.id);
           return;
         }
+        if (!NetworkService.isOnline()) return;
         const detail = await invoke<AlbumDetail>("get_album_details", {
           browseId: album.id,
         });
@@ -1494,9 +1548,14 @@ function AppContent({
       try {
         const cached = LocalCacheService.getCachedPlaylistTracks(playlist.id);
         if (cached && cached.length > 0) {
-          playTrackWithQueue(cached[0], cached, 0, playlist.id);
+          const playable = !NetworkService.isOnline()
+            ? cached.filter((t) => DownloadsService.isDownloaded(t.id))
+            : cached;
+          const queue = playable.length > 0 ? playable : cached;
+          playTrackWithQueue(queue[0], queue, 0, playlist.id);
           return;
         }
+        if (!NetworkService.isOnline()) return;
         const tracks = await invoke<Track[]>("get_playlist_tracks", {
           playlistId: playlist.id,
         });
@@ -1548,7 +1607,13 @@ function AppContent({
             }
           }
           if (tracks && tracks.length > 0) {
-            let queue = [...tracks];
+            const isOffline = !NetworkService.isOnline();
+            const playable = isOffline
+              ? tracks.filter((t) => DownloadsService.isDownloaded(t.id))
+              : tracks;
+            const finalTracks = playable.length > 0 ? playable : tracks;
+
+            let queue = [...finalTracks];
             let startIdx = 0;
             if (shuffle) {
               for (let i = queue.length - 1; i > 0; i--) {
@@ -1690,6 +1755,58 @@ function AppContent({
       } catch (err) {
         console.warn("[App] Erro ao baixar coleção para offline:", err);
         showPlaylistToast("Falha ao baixar músicas para reprodução offline.");
+      }
+    },
+    [showPlaylistToast]
+  );
+
+  const handleRemoveCollectionDownloadsFromMenu = useCallback(
+    async (item: CollectionContextItem) => {
+      const isPlaylist = item.kind === "playlist";
+      const id = isPlaylist ? item.playlist.id : item.album.id;
+      const title = isPlaylist ? item.playlist.title : item.album.title;
+
+      try {
+        let tracks: Track[] | null = null;
+        if (isPlaylist) {
+          if (id === "OFFLINE_DOWNLOADS") {
+            const downloadedList = await DownloadsService.getDownloadedTracks();
+            tracks = downloadedList.map((d) => ({
+              id: d.video_id,
+              title: d.title,
+              artist: d.artist,
+              artwork_url: d.artwork_url,
+              duration_seconds: d.duration_seconds,
+            }));
+          } else {
+            tracks = LocalCacheService.getCachedPlaylistTracks(id);
+            if (!tracks || tracks.length === 0) {
+              tracks = await invoke<Track[]>("get_playlist_tracks", { playlistId: id });
+            }
+          }
+        } else {
+          const cached = LocalCacheService.getCachedAlbumDetail(id);
+          tracks = cached?.tracks || null;
+          if (!tracks || tracks.length === 0) {
+            const detail = await invoke<AlbumDetail>("get_album_details", { browseId: id });
+            tracks = detail?.tracks || null;
+          }
+        }
+
+        if (!tracks || tracks.length === 0) {
+          showPlaylistToast(`Nenhuma música encontrada para remover de "${title}".`);
+          return;
+        }
+
+        const count = await DownloadsService.removePlaylistDownloads(tracks, id);
+        if (count > 0) {
+          showPlaylistToast(`Downloads de "${title}" removidos (${count} ${count > 1 ? "músicas apagadas" : "música apagada"} do disco).`);
+        } else {
+          showPlaylistToast(`Nenhuma faixa offline pendente para remoção em "${title}".`);
+        }
+      } catch (err) {
+        console.warn("[App] Erro ao remover downloads da coleção:", err);
+        showPlaylistToast("Falha ao remover músicas baixadas.");
       }
     },
     [showPlaylistToast]
@@ -1897,12 +2014,17 @@ function AppContent({
                         onDeletePlaylist={(pl) => setDeletingPlaylist(pl)}
                         onReorderTrack={handleReorderPlaylistTrack}
                         onPlayPlaylist={(customTracks) => {
-                          const queue = customTracks && customTracks.length > 0 ? customTracks : playlistTracks;
-                          if (queue.length > 0) {
+                          const rawQueue =
+                            customTracks && customTracks.length > 0 ? customTracks : playlistTracks;
+                          const queue = !NetworkService.isOnline()
+                            ? rawQueue.filter((t) => DownloadsService.isDownloaded(t.id))
+                            : rawQueue;
+                          const finalQueue = queue.length > 0 ? queue : rawQueue;
+                          if (finalQueue.length > 0) {
                             markPlaylistListened(selectedPlaylist.id);
                             playTrackWithQueue(
-                              queue[0],
-                              queue,
+                              finalQueue[0],
+                              finalQueue,
                               0,
                               selectedPlaylist.id
                             );
@@ -2402,6 +2524,7 @@ function AppContent({
         onEditPlaylist={(pl) => setEditingPlaylist(pl)}
         onDeletePlaylist={(pl) => setDeletingPlaylist(pl)}
         onDownloadCollection={handleDownloadCollectionFromMenu}
+        onRemoveCollectionDownloads={handleRemoveCollectionDownloadsFromMenu}
       />
 
       <EditPlaylistModal

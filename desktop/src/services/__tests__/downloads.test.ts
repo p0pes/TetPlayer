@@ -160,6 +160,41 @@ describe("DownloadsService (Reprodução Offline e Downloads)", () => {
       expect(res.completed).toBeLessThan(longList.length);
       expect(DownloadsService.isPlaylistDownloading("cancel-pl")).toBe(false);
     });
+
+    it("deve reportar isCollectionAvailableOffline = true para coleções parcialmente baixadas com cache local", async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      vi.mocked(invoke).mockImplementation(async (cmd: string, args?: any) => {
+        if (cmd === "download_track") {
+          if (args?.track?.id === "partial-2") {
+            throw new Error("Simulated failure on partial-2");
+          }
+          return {
+            video_id: args?.track?.id || "id",
+            title: args?.track?.title || "title",
+            artist: args?.track?.artist || "artist",
+            file_path: "D:/music/file.opus",
+            file_size_bytes: 2000,
+            mime_type: "audio/webm",
+            downloaded_at: Date.now(),
+          };
+        }
+        if (cmd === "delete_downloaded_track") return true;
+        return null as any;
+      });
+
+      const partialTracks: Track[] = [
+        { id: "partial-1", title: "P1", artist: "A" },
+        { id: "partial-2", title: "P2", artist: "A" },
+      ];
+
+      const res = await DownloadsService.downloadPlaylist("partial-pl-id", partialTracks);
+      expect(res.completed).toBe(1);
+      expect(res.failed).toBe(1);
+      expect(DownloadsService.isPlaylistDownloaded("partial-pl-id")).toBe(false);
+      expect(DownloadsService.isCollectionAvailableOffline("partial-pl-id")).toBe(true);
+
+      await DownloadsService.removePlaylistDownloads(partialTracks, "partial-pl-id");
+    });
   });
 
   describe("detectAudioMimeType (Identificação Dinâmica de Codecs por Magic Bytes)", () => {

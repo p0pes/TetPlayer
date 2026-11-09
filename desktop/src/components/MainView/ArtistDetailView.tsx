@@ -17,10 +17,15 @@ import {
   ChevronDown,
   SearchX,
   Disc3,
+  Heart,
+  CheckCircle2,
 } from "lucide-react";
 import { Album, ArtistDetail, Track } from "../../types";
 import { upgradeArtworkQuality, handleArtworkError } from "../../utils/artwork";
 import { triggerTrackContextMenu, triggerPlayNext } from "../../context/PlayerContext";
+import { useLikedTrack } from "../../services/likes";
+import { useTrackDownload } from "../../services/downloads";
+import { useNetworkStatus } from "../../services/network";
 import { AlbumCard } from "./AlbumCard";
 
 export type ArtistSortOption =
@@ -85,6 +90,211 @@ const SubtleWaveIndicator = React.memo(function SubtleWaveIndicator({
           }}
         />
       ))}
+    </div>
+  );
+});
+
+interface ArtistTrackRowProps {
+  track: Track;
+  idx: number;
+  displayedTracks: Track[];
+  displayName: string;
+  isCurrent: boolean;
+  isPlaying: boolean;
+  isLoadingThis: boolean;
+  onPlayTrack: (track: Track, index: number, customQueue?: Track[]) => void;
+  onTogglePlayPause?: () => void;
+}
+
+const ArtistTrackRow = React.memo(function ArtistTrackRow({
+  track,
+  idx,
+  displayedTracks,
+  displayName,
+  isCurrent,
+  isPlaying,
+  isLoadingThis,
+  onPlayTrack,
+  onTogglePlayPause,
+}: ArtistTrackRowProps) {
+  const { isLiked, toggleLike } = useLikedTrack(track);
+  const { isDownloaded: isTrackDownloaded, isDownloading: isTrackDownloading } =
+    useTrackDownload(track);
+  const { isOnline } = useNetworkStatus();
+  const [queuedFeedback, setQueuedFeedback] = useState(false);
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    };
+  }, []);
+
+  const isUnavailableOffline = !isOnline && !isTrackDownloaded;
+
+  return (
+    <div
+      onClick={() => {
+        if (isCurrent && onTogglePlayPause) {
+          onTogglePlayPause();
+        } else {
+          onPlayTrack(track, idx, displayedTracks);
+        }
+      }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        triggerTrackContextMenu(e, track);
+      }}
+      className={`flex items-center justify-between py-2.5 px-3 rounded-xl transition-all cursor-pointer group ${
+        isCurrent
+          ? "bg-[#181b28] text-[var(--accent-text)]"
+          : "hover:bg-white/[0.04] text-zinc-300 hover:text-white"
+      } ${isUnavailableOffline ? "opacity-45" : ""}`}
+    >
+      <div className="flex items-center gap-3.5 min-w-0 flex-1">
+        {/* Numeração / Indicador de Play */}
+        <div className="w-6 text-center text-xs font-mono shrink-0 text-[#63697e] group-hover:text-white flex items-center justify-center">
+          {isLoadingThis ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--accent)]" />
+          ) : isCurrent ? (
+            <>
+              <div className="group-hover:hidden flex items-center justify-center">
+                <SubtleWaveIndicator isPlaying={isPlaying} />
+              </div>
+              {isPlaying ? (
+                <Pause className="w-3.5 h-3.5 fill-current hidden group-hover:block text-[var(--accent)]" />
+              ) : (
+                <Play className="w-3.5 h-3.5 fill-current hidden group-hover:block text-[var(--accent)]" />
+              )}
+            </>
+          ) : (
+            <>
+              <span className="group-hover:hidden">{idx + 1}</span>
+              <Play className="w-3.5 h-3.5 fill-current hidden group-hover:block" />
+            </>
+          )}
+        </div>
+
+        {/* Capa da Faixa */}
+        <div className="w-10 h-10 rounded-lg overflow-hidden bg-[#161824] border border-white/5 shrink-0 flex items-center justify-center">
+          {track.artwork_url ? (
+            <img
+              src={upgradeArtworkQuality(track.artwork_url, track.id)}
+              alt={track.title}
+              referrerPolicy="no-referrer"
+              onError={(e) => handleArtworkError(e, track.id)}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <Disc3 className="w-4 h-4 text-[#63697e]" />
+          )}
+        </div>
+
+        {/* Título, Indicador Offline, Colaboradores e Álbum */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <p
+              className={`text-xs sm:text-sm font-semibold truncate ${
+                isCurrent ? "text-[var(--accent-text)]" : "text-white"
+              }`}
+            >
+              {track.title}
+            </p>
+            {isTrackDownloading ? (
+              <Loader2
+                className="w-3.5 h-3.5 text-[var(--accent)] animate-spin shrink-0"
+                aria-label="Baixando para reprodução offline..."
+              />
+            ) : isTrackDownloaded ? (
+              <span title="Baixada para reprodução offline" className="shrink-0 inline-flex">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              </span>
+            ) : null}
+          </div>
+          <div className="flex items-center gap-1.5 text-[11px] text-[#8c91a4] truncate mt-0.5">
+            <span className="truncate">{track.artist || displayName}</span>
+            {track.album && (
+              <>
+                <span className="text-[#63697e]">•</span>
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.dispatchEvent(
+                      new CustomEvent("tetplayer:open-album", {
+                        detail: {
+                          albumId: track.album_id,
+                          albumTitle: track.album,
+                          artist: track.artist || displayName,
+                          artworkUrl: track.artwork_url,
+                        },
+                      })
+                    );
+                  }}
+                  className="hover:text-white hover:underline cursor-pointer transition-colors truncate"
+                  title={`Ir para o álbum ${track.album}`}
+                >
+                  {track.album}
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Curtir, Tocar a seguir (1 clique) + Duração e Menu de Contexto */}
+      <div className="flex items-center gap-1.5 shrink-0 pl-3">
+        <button
+          type="button"
+          onClick={toggleLike}
+          title={isLiked ? "Remover dos Favoritos" : "Curtir música"}
+          aria-label={isLiked ? "Remover dos Favoritos" : "Curtir música"}
+          className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+            isLiked
+              ? "text-rose-500 opacity-100 hover:bg-rose-500/10"
+              : "text-[#71778c] opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-rose-400 hover:bg-white/10"
+          }`}
+        >
+          <Heart className={`w-3.5 h-3.5 ${isLiked ? "fill-rose-500" : ""}`} />
+        </button>
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            triggerPlayNext(track);
+            setQueuedFeedback(true);
+            if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+            feedbackTimerRef.current = setTimeout(() => setQueuedFeedback(false), 1200);
+          }}
+          title={queuedFeedback ? "Adicionada para tocar a seguir!" : "Tocar a seguir"}
+          aria-label={`Tocar a seguir: ${track.title}`}
+          className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+            queuedFeedback
+              ? "text-emerald-400 bg-emerald-500/15 opacity-100"
+              : "text-[#71778c] hover:text-[var(--accent-text)] hover:bg-white/10 opacity-0 group-hover:opacity-100 focus:opacity-100"
+          }`}
+        >
+          {queuedFeedback ? (
+            <Check className="w-3.5 h-3.5 text-emerald-400" />
+          ) : (
+            <ListPlus className="w-3.5 h-3.5" />
+          )}
+        </button>
+        <span className="text-xs font-mono text-[#71778c] min-w-[38px] text-right">
+          {track.duration || "--:--"}
+        </span>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            triggerTrackContextMenu(e, track);
+          }}
+          aria-label="Mais opções"
+          className="p-1.5 rounded-lg text-[#71778c] hover:text-white hover:bg-white/10 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all cursor-pointer"
+        >
+          <MoreVertical className="w-3.5 h-3.5" />
+        </button>
+      </div>
     </div>
   );
 });
@@ -309,17 +519,17 @@ export const ArtistDetailView = React.memo(function ArtistDetailView({
 
           {/* Metadados e Ações Principais */}
           <div className="flex-1 flex flex-col items-center md:items-start text-center md:text-left min-w-0 w-full">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5">
               <button
                 type="button"
                 onClick={onBack}
                 title="Voltar (Alt+←)"
                 aria-label="Voltar"
-                className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-[#8c91a4] hover:text-white flex items-center justify-center transition-all cursor-pointer active:scale-95"
+                className="w-7 h-7 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.08] text-[#8c91a4] hover:text-white flex items-center justify-center transition-all cursor-pointer active:scale-95"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
               </button>
-              <span className="text-[11px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-md bg-white/10 text-[var(--accent-text)] border border-white/10 shadow-sm inline-block">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-white/50 inline-block">
                 ARTISTA
               </span>
             </div>
@@ -521,8 +731,8 @@ export const ArtistDetailView = React.memo(function ArtistDetailView({
       </div>
 
       {/* Lista de Músicas do Artista */}
-      <div className="bg-[#0e1017]/80 rounded-2xl border border-[#1f232e] overflow-hidden p-4 sm:p-6 shadow-md">
-        <div className="flex items-center justify-between pb-3 border-b border-[#1f232e] text-[11px] font-bold text-[#63697e] uppercase tracking-wider px-3 select-none">
+      <div className="bg-[#0e1017]/80 rounded-2xl border border-white/[0.06] overflow-hidden p-4 sm:p-6 shadow-md">
+        <div className="flex items-center justify-between pb-3 border-b border-white/[0.06] text-[11px] font-bold text-[#63697e] uppercase tracking-wider px-3 select-none">
           <div className="flex items-center gap-4">
             <span className="w-6 text-center">#</span>
             <span>Músicas de {displayName}</span>
@@ -559,140 +769,20 @@ export const ArtistDetailView = React.memo(function ArtistDetailView({
           </div>
         ) : (
           <div className="divide-y divide-white/[0.03] mt-1">
-            {displayedTracks.map((track, idx) => {
-              const isCurrent = currentTrack?.id === track.id;
-              const isLoadingThis = loadingTrackId === track.id;
-
-              return (
-                <div
-                  key={`${track.id}-${idx}`}
-                  onClick={() => {
-                    if (isCurrent && onTogglePlayPause) {
-                      onTogglePlayPause();
-                    } else {
-                      onPlayTrack(track, idx, displayedTracks);
-                    }
-                  }}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    triggerTrackContextMenu(e, track);
-                  }}
-                  className={`flex items-center justify-between py-2.5 px-3 rounded-xl transition-all cursor-pointer group ${
-                    isCurrent
-                      ? "bg-[#181b28] text-[var(--accent-text)]"
-                      : "hover:bg-white/[0.04] text-zinc-300 hover:text-white"
-                  }`}
-                >
-                  <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                    {/* Numeração / Indicador de Play */}
-                    <div className="w-6 text-center text-xs font-mono shrink-0 text-[#63697e] group-hover:text-white flex items-center justify-center">
-                      {isLoadingThis ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--accent)]" />
-                      ) : isCurrent ? (
-                        <>
-                          <div className="group-hover:hidden flex items-center justify-center">
-                            <SubtleWaveIndicator isPlaying={isPlaying} />
-                          </div>
-                          {isPlaying ? (
-                            <Pause className="w-3.5 h-3.5 fill-current hidden group-hover:block text-[var(--accent)]" />
-                          ) : (
-                            <Play className="w-3.5 h-3.5 fill-current hidden group-hover:block text-[var(--accent)]" />
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          <span className="group-hover:hidden">{idx + 1}</span>
-                          <Play className="w-3.5 h-3.5 fill-current hidden group-hover:block" />
-                        </>
-                      )}
-                    </div>
-
-                    {/* Capa da Faixa */}
-                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-[#161824] border border-white/5 shrink-0 flex items-center justify-center">
-                      {track.artwork_url ? (
-                        <img
-                          src={upgradeArtworkQuality(track.artwork_url, track.id)}
-                          alt={track.title}
-                          referrerPolicy="no-referrer"
-                          onError={(e) => handleArtworkError(e, track.id)}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <Disc3 className="w-4 h-4 text-[#63697e]" />
-                      )}
-                    </div>
-
-                    {/* Título, Colaboradores e Álbum */}
-                    <div className="min-w-0 flex-1">
-                      <p
-                        className={`text-xs sm:text-sm font-semibold truncate ${
-                          isCurrent ? "text-[var(--accent-text)]" : "text-white"
-                        }`}
-                      >
-                        {track.title}
-                      </p>
-                      <div className="flex items-center gap-1.5 text-[11px] text-[#8c91a4] truncate mt-0.5">
-                        <span className="truncate">{track.artist || displayName}</span>
-                        {track.album && (
-                          <>
-                            <span className="text-[#63697e]">•</span>
-                            <span
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                window.dispatchEvent(
-                                  new CustomEvent("tetplayer:open-album", {
-                                    detail: {
-                                      albumId: track.album_id,
-                                      albumTitle: track.album,
-                                      artist: track.artist || displayName,
-                                      artworkUrl: track.artwork_url,
-                                    },
-                                  })
-                                );
-                              }}
-                              className="hover:text-white hover:underline cursor-pointer transition-colors truncate"
-                              title={`Ir para o álbum ${track.album}`}
-                            >
-                              {track.album}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Tocar a seguir (1 clique) + Duração e Menu de Contexto */}
-                  <div className="flex items-center gap-2 shrink-0 pl-3">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        triggerPlayNext(track);
-                      }}
-                      title="Tocar a seguir"
-                      aria-label={`Tocar a seguir: ${track.title}`}
-                      className="p-1.5 rounded-lg text-[#71778c] hover:text-[var(--accent-text)] hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
-                    >
-                      <ListPlus className="w-3.5 h-3.5" />
-                    </button>
-                    <span className="text-xs font-mono text-[#71778c] w-11 text-right">
-                      {track.duration || "--:--"}
-                    </span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        triggerTrackContextMenu(e, track);
-                      }}
-                      aria-label="Mais opções"
-                      className="p-1 rounded-lg text-[#71778c] hover:text-white hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
-                    >
-                      <MoreVertical className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+            {displayedTracks.map((track, idx) => (
+              <ArtistTrackRow
+                key={`${track.id}-${idx}`}
+                track={track}
+                idx={idx}
+                displayedTracks={displayedTracks}
+                displayName={displayName}
+                isCurrent={currentTrack?.id === track.id}
+                isPlaying={isPlaying}
+                isLoadingThis={loadingTrackId === track.id}
+                onPlayTrack={onPlayTrack}
+                onTogglePlayPause={onTogglePlayPause}
+              />
+            ))}
           </div>
         )}
       </div>

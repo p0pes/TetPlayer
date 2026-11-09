@@ -1,4 +1,3 @@
-import { useRef, useState, useEffect } from "react";
 import {
   ListMusic,
   Mic2,
@@ -22,20 +21,6 @@ export function NowPlayingDrawer() {
     isDrawerClosing,
   } = usePlayer();
 
-  const queueBtnRef = useRef<HTMLButtonElement>(null);
-  const lyricsBtnRef = useRef<HTMLButtonElement>(null);
-  const [indicatorStyle, setIndicatorStyle] = useState<{ left: number; width: number }>({ left: 2, width: 0 });
-
-  useEffect(() => {
-    const activeBtn = nowPlayingTab === "queue" ? queueBtnRef.current : lyricsBtnRef.current;
-    if (activeBtn) {
-      setIndicatorStyle({
-        left: activeBtn.offsetLeft,
-        width: activeBtn.offsetWidth,
-      });
-    }
-  }, [nowPlayingTab, activeQueue.length]);
-
   return (
     <div
       className={`absolute inset-0 z-30 flex flex-col min-h-0 overflow-hidden bg-[#0b0c10] ${
@@ -43,36 +28,35 @@ export function NowPlayingDrawer() {
       }`}
     >
       {/* Header Minimalista da Gaveta: Tabs (Fila / Letras) Centralizadas + Crossfade */}
-      <div className="h-14 px-3 sm:px-4 md:px-6 border-b border-[#1f232e] flex items-center justify-between gap-2 sm:gap-4 shrink-0 bg-[#0e1017]/80 backdrop-blur-md z-20">
+      <div className="h-14 px-3 sm:px-4 md:px-6 border-b border-white/[0.06] flex items-center justify-between gap-2 sm:gap-4 shrink-0 bg-[#0d0f16]/85 backdrop-blur-md z-20">
         {/* Esquerda: Espaçador simétrico (Evita triplicar título/artista na mesma tela) */}
         <div className="w-[28%] min-w-0 max-w-[260px] hidden sm:block" />
 
-        {/* Centro: Tabs com Semântica WAI-ARIA & Indicador Deslizante Fluido */}
+        {/* Centro: Tabs com Semântica WAI-ARIA & Indicador Deslizante 144 FPS (translate3d) */}
         <div className="flex-1 flex items-center justify-center min-w-0 px-1 sm:px-2">
           <div
             role="tablist"
             aria-label="Visualização da gaveta de reprodução"
-            className="relative flex items-center bg-[#141722] p-0.5 h-8 rounded-xl border border-[#232735] shadow-inner shrink-0 gap-1 overflow-hidden"
+            className="relative grid grid-cols-2 items-center bg-[#131622] p-1 h-9 rounded-xl border border-white/[0.06] shadow-inner shrink-0 overflow-hidden"
           >
-            {/* Indicador Deslizante (Pill) Acelerado por GPU */}
-            {indicatorStyle.width > 0 && (
-              <div
-                className="absolute top-0.5 bottom-0.5 rounded-[10px] bg-[var(--accent)] shadow-md shadow-[var(--accent-glow)] transition-all duration-200 ease-out pointer-events-none"
-                style={{
-                  left: `${indicatorStyle.left}px`,
-                  width: `${indicatorStyle.width}px`,
-                }}
-              />
-            )}
+            {/* Indicador Deslizante (Pill) 100% Acelerado por GPU */}
+            <div
+              className="absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] rounded-[9px] bg-[var(--accent)] shadow-md shadow-[var(--accent-glow)] transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] pointer-events-none will-change-transform"
+              style={{
+                transform:
+                  nowPlayingTab === "queue"
+                    ? "translate3d(0%, 0, 0)"
+                    : "translate3d(100%, 0, 0)",
+              }}
+            />
 
             <button
-              ref={queueBtnRef}
               type="button"
               role="tab"
               aria-selected={nowPlayingTab === "queue"}
               aria-label="Fila de reprodução"
               onClick={() => setNowPlayingTab("queue")}
-              className={`relative z-10 flex items-center gap-1.5 px-3 h-full rounded-[10px] text-xs font-semibold transition-colors duration-150 cursor-pointer whitespace-nowrap shrink-0 ${
+              className={`relative z-10 flex items-center justify-center gap-1.5 px-3.5 h-full rounded-[9px] text-xs font-semibold transition-colors duration-150 cursor-pointer whitespace-nowrap shrink-0 ${
                 nowPlayingTab === "queue"
                   ? "text-white"
                   : "text-[#8c91a4] hover:text-white"
@@ -85,7 +69,7 @@ export function NowPlayingDrawer() {
               </span>
               {activeQueue.length > 0 && (
                 <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono shrink-0 transition-colors ${
-                  nowPlayingTab === "queue" ? "bg-black/35 text-white" : "bg-white/10 text-zinc-300"
+                  nowPlayingTab === "queue" ? "bg-black/30 text-white" : "bg-white/[0.08] text-zinc-300"
                 }`}>
                   {activeQueue.length}
                 </span>
@@ -93,13 +77,12 @@ export function NowPlayingDrawer() {
             </button>
 
             <button
-              ref={lyricsBtnRef}
               type="button"
               role="tab"
               aria-selected={nowPlayingTab === "lyrics"}
               aria-label="Letras sincronizadas"
               onClick={() => setNowPlayingTab("lyrics")}
-              className={`relative z-10 flex items-center gap-1.5 px-3 h-full rounded-[10px] text-xs font-semibold transition-colors duration-150 cursor-pointer whitespace-nowrap shrink-0 ${
+              className={`relative z-10 flex items-center justify-center gap-1.5 px-3.5 h-full rounded-[9px] text-xs font-semibold transition-colors duration-150 cursor-pointer whitespace-nowrap shrink-0 ${
                 nowPlayingTab === "lyrics"
                   ? "text-white"
                   : "text-[#8c91a4] hover:text-white"

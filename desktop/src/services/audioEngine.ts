@@ -40,6 +40,7 @@ export class AudioEngine {
 
   private audioContext: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
+  private connectedMediaStreamSource: MediaStreamAudioSourceNode | null = null;
 
   public onTimeUpdate: ((currentTime: number, duration: number) => void) | null = null;
   public onEnded: (() => void) | null = null;
@@ -167,6 +168,7 @@ export class AudioEngine {
     const active = this.getActiveDeck();
     try {
       await active.audio.play();
+      this.connectDeckToAnalyserIfLocal(active.audio);
     } catch (err: unknown) {
       this.isSuppressingPauseEvent = true;
       const errName = (err as Error)?.name;
@@ -348,6 +350,38 @@ export class AudioEngine {
       }
     } catch {
       // Ignora em caso de indisponibilidade de Web Audio
+    }
+  }
+
+  /**
+   * Conecta de forma não-intrusiva (via captureStream) faixas same-origin/blob ao AnalyserNode
+   * sem interceptar o roteamento principal de áudio nem sofrer bloqueios CORS em streams remotos.
+   */
+  private connectDeckToAnalyserIfLocal(audio: HTMLAudioElement): void {
+    if (!this.audioContext || !this.analyser) return;
+    try {
+      if (this.connectedMediaStreamSource) {
+        this.connectedMediaStreamSource.disconnect();
+        this.connectedMediaStreamSource = null;
+      }
+      const src = audio.src || "";
+      if (!src.startsWith("blob:") && !src.startsWith("data:") && !src.startsWith("asset:")) {
+        return;
+      }
+      const mediaElem = audio as HTMLAudioElement & {
+        captureStream?: () => MediaStream;
+        mozCaptureStream?: () => MediaStream;
+      };
+      const captureFn = mediaElem.captureStream || mediaElem.mozCaptureStream;
+      if (typeof captureFn === "function" && typeof this.audioContext.createMediaStreamSource === "function") {
+        const stream = captureFn.call(audio);
+        if (stream && stream.getAudioTracks().length > 0) {
+          this.connectedMediaStreamSource = this.audioContext.createMediaStreamSource(stream);
+          this.connectedMediaStreamSource.connect(this.analyser);
+        }
+      }
+    } catch {
+      // Fallback silencioso para ondas matemáticas no SpectrumVisualizer
     }
   }
 

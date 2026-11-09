@@ -538,7 +538,7 @@ export const Sidebar = React.memo(function Sidebar({
   const isCollectionLoading = isLoadingPlaylists || isLoadingAlbums;
 
   return (
-    <aside className="w-64 bg-[#0e1017]/90 border-r border-[#1f232e] flex flex-col justify-between p-4 select-none shrink-0">
+    <aside className="w-64 bg-[#0c0e15]/85 border-r border-white/[0.06] flex flex-col justify-between p-4 select-none shrink-0">
       <div className="space-y-4 flex-1 flex flex-col min-h-0">
         {/* Menu de Navegação Principal */}
         <nav className="space-y-1">
@@ -936,8 +936,8 @@ export const Sidebar = React.memo(function Sidebar({
       </div>
 
       {/* Rodapé Compacto de Conta & Configurações (Linha Única) */}
-      <div className="pt-3 border-t border-[#1f232e] shrink-0">
-        <div className="bg-[#141722] rounded-xl px-2.5 py-2 border border-[#222738] space-y-2">
+      <div className="pt-3 border-t border-white/[0.06] shrink-0">
+        <div className="bg-white/[0.03] rounded-xl px-2.5 py-2 border border-white/[0.06] space-y-2">
           <div className="flex items-center justify-between gap-2">
             <div
               className="flex items-center gap-2 min-w-0"

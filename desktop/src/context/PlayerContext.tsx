@@ -23,6 +23,8 @@ import { PlaybackProgressProvider } from "./PlaybackProgressContext";
 import { playerReducer, createInitialQueueState, SESSION_STORAGE_KEY, StoredSessionData } from "./playerReducer";
 import { TrackContextMenu, ContextMenuPosition } from "../components/ContextMenu/TrackContextMenu";
 import { SettingsService } from "../services/settings";
+import { NetworkService } from "../services/network";
+import { DownloadsService } from "../services/downloads";
 
 interface PlayerContextType {
   currentTrack: Track | null;
@@ -477,7 +479,12 @@ export function PlayerProvider({
       const targetIndex = combined.findIndex((t) => t.id === track.id);
       dispatchQueue({
         type: "PLAY_TRACK_WITH_QUEUE",
-        payload: { track, queue: combined, index: targetIndex >= 0 ? targetIndex : index },
+        payload: {
+          track,
+          queue: combined,
+          index: targetIndex >= 0 ? targetIndex : index,
+          preserveExistingCount: existingQueue.length,
+        },
       });
     } else {
       dispatchQueue({
@@ -564,6 +571,33 @@ export function PlayerProvider({
       return;
     }
 
+    const isOffline = !NetworkService.isOnline();
+
+    if (isOffline) {
+      // No modo offline, avança automaticamente para a próxima faixa baixada disponível na fila
+      for (let i = currentIndex + 1; i < queue.length; i++) {
+        if (DownloadsService.isDownloaded(queue[i]?.id)) {
+          const nextTrack = queue[i];
+          recordTrackPlayed(nextTrack);
+          dispatchQueue({ type: "PLAY_FROM_QUEUE", payload: { index: i } });
+          loadAndPlayVideo(nextTrack.id, 0, isManual);
+          return;
+        }
+      }
+      if (repeat === "all" && queue.length > 0) {
+        for (let i = 0; i <= currentIndex; i++) {
+          if (DownloadsService.isDownloaded(queue[i]?.id)) {
+            const wrapTrack = queue[i];
+            recordTrackPlayed(wrapTrack);
+            dispatchQueue({ type: "PLAY_FROM_QUEUE", payload: { index: i } });
+            loadAndPlayVideo(wrapTrack.id, 0, isManual);
+            return;
+          }
+        }
+      }
+      return;
+    }
+
     const nextIndex = currentIndex + 1;
     if (nextIndex < queue.length) {
       const nextTrack = queue[nextIndex];
@@ -618,6 +652,30 @@ export function PlayerProvider({
       return;
     }
 
+    if (!NetworkService.isOnline()) {
+      for (let i = currentIndex - 1; i >= 0; i--) {
+        if (DownloadsService.isDownloaded(queue[i]?.id)) {
+          const prevTrack = queue[i];
+          recordTrackPlayed(prevTrack);
+          dispatchQueue({ type: "PLAY_FROM_QUEUE", payload: { index: i } });
+          loadAndPlayVideo(prevTrack.id, 0, true);
+          return;
+        }
+      }
+      if (repeat === "all" && queue.length > 0) {
+        for (let i = queue.length - 1; i >= currentIndex; i--) {
+          if (DownloadsService.isDownloaded(queue[i]?.id)) {
+            const lastTrack = queue[i];
+            recordTrackPlayed(lastTrack);
+            dispatchQueue({ type: "PLAY_FROM_QUEUE", payload: { index: i } });
+            loadAndPlayVideo(lastTrack.id, 0, true);
+            return;
+          }
+        }
+      }
+      return;
+    }
+
     const prevIndex = currentIndex - 1;
     if (prevIndex >= 0) {
       const prevTrack = queue[prevIndex];
@@ -629,7 +687,7 @@ export function PlayerProvider({
       const lastTrack = queue[lastIndex];
       recordTrackPlayed(lastTrack);
       dispatchQueue({ type: "PLAY_FROM_QUEUE", payload: { index: lastIndex } });
-      loadAndPlayVideo(lastTrack.id);
+      loadAndPlayVideo(lastTrack.id, 0, true);
     }
   }
 
@@ -771,6 +829,7 @@ export function PlayerProvider({
     toggleMute,
     toggleShuffle,
     cycleRepeatMode,
+    toggleMiniPlayer,
     isNowPlayingOpen,
     nowPlayingTab,
     toggleNowPlaying,

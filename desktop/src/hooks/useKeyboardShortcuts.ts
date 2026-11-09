@@ -13,6 +13,7 @@ interface UseKeyboardShortcutsProps {
   toggleMute: () => void;
   toggleShuffle: () => void;
   cycleRepeatMode: () => void;
+  toggleMiniPlayer: () => void;
   isNowPlayingOpen: boolean;
   nowPlayingTab: NowPlayingTab;
   toggleNowPlaying: () => void;
@@ -31,6 +32,7 @@ export function useKeyboardShortcuts({
   toggleMute,
   toggleShuffle,
   cycleRepeatMode,
+  toggleMiniPlayer,
   isNowPlayingOpen,
   nowPlayingTab,
   toggleNowPlaying,
@@ -48,6 +50,7 @@ export function useKeyboardShortcuts({
     toggleMute,
     toggleShuffle,
     cycleRepeatMode,
+    toggleMiniPlayer,
     isNowPlayingOpen,
     nowPlayingTab,
     toggleNowPlaying,
@@ -66,6 +69,7 @@ export function useKeyboardShortcuts({
     toggleMute,
     toggleShuffle,
     cycleRepeatMode,
+    toggleMiniPlayer,
     isNowPlayingOpen,
     nowPlayingTab,
     toggleNowPlaying,
@@ -86,11 +90,21 @@ export function useKeyboardShortcuts({
       }
 
       // Atalho de Desenvolvedor (Develop Only): Ctrl + Alt + O para alternar simulação offline
-      if ((e.ctrlKey || e.metaKey) && e.altKey && e.code === "KeyO") {
+      if (import.meta.env.DEV && (e.ctrlKey || e.metaKey) && e.altKey && e.code === "KeyO") {
         e.preventDefault();
         NetworkService.toggleSimulatedOffline();
         return;
       }
+
+      // Atalho de Mini Player (Ctrl + M / Cmd + M)
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.code === "KeyM") {
+        e.preventDefault();
+        stateAndHandlersRef.current.toggleMiniPlayer();
+        return;
+      }
+
+      // Se qualquer modificador estiver pressionado, não dispara atalhos de letra única
+      const hasModifier = e.ctrlKey || e.metaKey || e.altKey;
 
       const h = stateAndHandlersRef.current;
 
@@ -101,12 +115,20 @@ export function useKeyboardShortcuts({
           h.togglePlayPause();
           break;
         case "MediaTrackNext":
+          e.preventDefault();
+          h.handleNextTrack();
+          break;
         case "KeyK":
+          if (hasModifier) break;
           e.preventDefault();
           h.handleNextTrack();
           break;
         case "MediaTrackPrevious":
+          e.preventDefault();
+          h.handlePrevTrack();
+          break;
         case "KeyJ":
+          if (hasModifier) break;
           e.preventDefault();
           h.handlePrevTrack();
           break;
@@ -134,37 +156,42 @@ export function useKeyboardShortcuts({
           h.changeVolume(Math.max(0, Math.round((h.volume - 0.05) * 100) / 100));
           break;
         case "KeyM":
+          if (hasModifier) break;
           h.toggleMute();
           break;
         case "KeyL":
+          if (hasModifier) break;
           e.preventDefault();
-            if (h.isNowPlayingOpen && h.nowPlayingTab === "lyrics") {
-              h.closeNowPlaying();
-            } else {
-              h.openNowPlaying("lyrics");
-            }
-            break;
+          if (h.isNowPlayingOpen && h.nowPlayingTab === "lyrics") {
+            h.closeNowPlaying();
+          } else {
+            h.openNowPlaying("lyrics");
+          }
+          break;
         case "KeyQ":
+          if (hasModifier) break;
           e.preventDefault();
-            if (h.isNowPlayingOpen && h.nowPlayingTab === "queue") {
-              h.closeNowPlaying();
-            } else {
-              h.openNowPlaying("queue");
-            }
-            break;
+          if (h.isNowPlayingOpen && h.nowPlayingTab === "queue") {
+            h.closeNowPlaying();
+          } else {
+            h.openNowPlaying("queue");
+          }
+          break;
         case "KeyS":
+          if (hasModifier) break;
           h.toggleShuffle();
           break;
         case "KeyR":
+          if (hasModifier) break;
           h.cycleRepeatMode();
           break;
         case "Escape":
-            if (h.isNowPlayingOpen) {
-              e.preventDefault();
-              h.closeNowPlaying();
-            }
-            break;
+          if (h.isNowPlayingOpen) {
+            e.preventDefault();
+            h.closeNowPlaying();
           }
+          break;
+      }
       };
 
       window.addEventListener("keydown", handleKeyDown);

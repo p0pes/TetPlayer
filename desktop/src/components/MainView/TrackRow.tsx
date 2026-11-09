@@ -16,6 +16,7 @@ import { upgradeArtworkQuality, handleArtworkError } from "../../utils/artwork";
 import { triggerTrackContextMenu, triggerPlayNext } from "../../context/PlayerContext";
 import { useLikedTrack } from "../../services/likes";
 import { useTrackDownload } from "../../services/downloads";
+import { useNetworkStatus } from "../../services/network";
 
 interface TrackRowProps {
   track: Track;
@@ -52,7 +53,9 @@ export const TrackRow = React.memo(function TrackRow({
 }: TrackRowProps) {
   const { isLiked, toggleLike } = useLikedTrack(track);
   const { isDownloaded } = useTrackDownload(track);
+  const { isOnline } = useNetworkStatus();
   const [addedNextFeedback, setAddedNextFeedback] = useState(false);
+  const isPlayable = isOnline || isDownloaded;
 
   function handlePlayNextClick(e: React.MouseEvent) {
     e.preventDefault();
@@ -91,6 +94,8 @@ export const TrackRow = React.memo(function TrackRow({
       onClick={handleClick}
       onContextMenu={handleContextMenu}
       className={`relative flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer group ${
+        !isPlayable ? "opacity-40 hover:opacity-60" : ""
+      } ${
         isDraggingThis
           ? "opacity-25 scale-[0.99] bg-[#0e1017] border-dashed border-[var(--accent)]/60"
           : isCurrent

@@ -199,20 +199,20 @@ export const TitleBar = React.memo(function TitleBar({
       onMouseMove={handleMouseMoveDrag}
       onMouseUp={handleMouseUpDrag}
       onDoubleClick={handleToggleMaximize}
-      className="h-10 border-b border-[#1f232e] bg-[#0c0e14]/90 backdrop-blur-md flex items-center justify-between shrink-0 select-none z-50 cursor-default"
+      className="h-10 border-b border-white/[0.06] bg-[#0b0d13]/85 backdrop-blur-md flex items-center justify-between shrink-0 select-none z-50 cursor-default"
     >
       {/* Esquerda: Logo TetPlayer limpo alinhado à largura da sidebar */}
       <div
-        className="flex items-center gap-2.5 px-4 w-64 shrink-0 h-full border-r border-[#1f232e]"
+        className="flex items-center gap-2.5 px-4 w-64 shrink-0 h-full border-r border-white/[0.06]"
       >
-        <div className="w-2.5 h-2.5 rounded-full bg-[var(--accent)] shadow-[0_0_8px_var(--accent-glow)] pointer-events-none" />
-        <span className="font-bold text-sm text-white tracking-tight pointer-events-none">
+        <div className="w-2 h-2 rounded-full bg-[var(--accent)] shadow-[0_0_8px_var(--accent-glow)] pointer-events-none" />
+        <span className="font-bold text-xs tracking-wide text-white/90 pointer-events-none">
           TetPlayer
         </span>
       </div>
 
       {/* Centro: Navegação Histórico + Contexto Conciso */}
-      <div className="flex-1 flex items-center px-3 h-full min-w-0 overflow-hidden gap-2.5">
+      <div className="flex-1 flex items-center px-3 h-full min-w-0 overflow-hidden gap-2">
         <div data-no-drag className="flex items-center gap-0.5 shrink-0 pointer-events-auto">
           <button
             type="button"
@@ -222,7 +222,7 @@ export const TitleBar = React.memo(function TitleBar({
             title="Voltar (Alt+← / Mouse 4)"
             aria-label="Voltar para a tela anterior"
             className={`p-1 rounded-md transition-all cursor-pointer ${canGoBack
-                ? "text-[#8c91a4] hover:text-white hover:bg-white/10 active:scale-95"
+                ? "text-[#8c91a4] hover:text-white hover:bg-white/[0.08] active:scale-95"
                 : "text-[#8c91a4]/20 cursor-not-allowed"
               }`}
           >
@@ -236,7 +236,7 @@ export const TitleBar = React.memo(function TitleBar({
             title="Avançar (Alt+→ / Mouse 5)"
             aria-label="Avançar para a próxima tela"
             className={`p-1 rounded-md transition-all cursor-pointer ${canGoForward
-                ? "text-[#8c91a4] hover:text-white hover:bg-white/10 active:scale-95"
+                ? "text-[#8c91a4] hover:text-white hover:bg-white/[0.08] active:scale-95"
                 : "text-[#8c91a4]/20 cursor-not-allowed"
               }`}
           >
@@ -262,25 +262,25 @@ export const TitleBar = React.memo(function TitleBar({
             onClick={onOpenCommandPalette}
             title="Paleta de Comandos e Busca Rápida (Ctrl+K)"
             aria-label="Abrir paleta de comandos rápidos"
-            className="hidden sm:inline-flex items-center gap-2 bg-[#141722] hover:bg-[#1c2030] border border-[#232738] hover:border-[var(--accent-border)] text-[#8c91a4] hover:text-white px-2.5 py-1 rounded-lg text-[11px] font-medium mr-2.5 transition-colors cursor-pointer"
+            className="hidden sm:inline-flex items-center gap-2 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] hover:border-[var(--accent-border)] text-[#8c91a4] hover:text-white px-2.5 py-1 rounded-lg text-[11px] font-medium mr-2 transition-colors cursor-pointer"
           >
             <Search className="w-3 h-3 text-[var(--accent-text)]" />
             <span>Ir para...</span>
-            <kbd className="text-[10px] font-mono text-[#63697e] bg-[#0e1017] px-1 rounded border border-white/5">
+            <kbd className="text-[10px] font-mono text-[#63697e] bg-black/30 px-1 rounded border border-white/[0.05]">
               Ctrl+K
             </kbd>
           </button>
         )}
-        {/* Toggle Dev de Simulação Offline (Develop Only) */}
-        {!isOnline && isSimulatedOffline && (
+        {/* Toggle Dev de Simulação Offline (Apenas em Modo Desenvolvimento) */}
+        {import.meta.env.DEV && !isOnline && isSimulatedOffline && (
           <button
             data-no-drag
             onClick={toggleSimulatedOffline}
             title="Dev: Conexão cortada para testes offline. Clique para RESTABELECER a conexão com a internet (Ctrl+Alt+O)."
-            className="inline-flex items-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 px-2.5 py-0.5 rounded-full text-[11px] font-semibold mr-2 transition-all cursor-pointer animate-pulse"
+            className="inline-flex items-center gap-1.5 bg-amber-500/15 text-amber-300 border border-amber-500/35 hover:bg-amber-500/25 px-2.5 py-0.5 rounded-full text-[11px] font-semibold mr-2 transition-all cursor-pointer"
           >
-            <WifiOff className="w-3.5 h-3.5 text-amber-400" />
-            <span>Dev: Offline (Reconectar)</span>
+            <WifiOff className="w-3 h-3 text-amber-400" />
+            <span>Dev: Offline</span>
           </button>
         )}
         {!isOnline && !isSimulatedOffline && (
@@ -288,29 +288,29 @@ export const TitleBar = React.memo(function TitleBar({
             data-no-drag
             role="status"
             aria-live="polite"
-            title="Modo offline (sem conexão com a internet) — Exibindo apenas playlists e álbuns baixados no disco"
-            className="inline-flex items-center gap-1.5 bg-amber-950/80 text-amber-300 border border-amber-700/50 px-2.5 py-0.5 rounded-full text-[11px] font-medium mr-2.5 animate-pulse"
+            title="Modo offline (sem conexão com a internet) — Exibindo apenas playlists e álbuns disponíveis offline"
+            className="inline-flex items-center gap-1.5 bg-amber-950/70 text-amber-300 border border-amber-700/40 px-2.5 py-0.5 rounded-full text-[11px] font-medium mr-2.5"
           >
             <WifiOff className="w-3 h-3" />
             <span>Offline</span>
           </span>
         )}
-        {isOnline && (
+        {import.meta.env.DEV && isOnline && (
           <button
             data-no-drag
             onClick={toggleSimulatedOffline}
             title="Dev: Cortar conexão da aplicação para testar reprodução e cache offline (Ctrl+Alt+O)"
-            className="hidden sm:inline-flex items-center gap-1.5 bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white border border-white/5 hover:border-white/10 px-2 py-0.5 rounded text-[11px] font-mono mr-2 transition-all cursor-pointer"
+            className="hidden sm:inline-flex items-center gap-1.5 bg-white/[0.03] hover:bg-white/[0.07] text-[#71778c] hover:text-white border border-white/[0.06] px-2 py-0.5 rounded-md text-[10px] font-mono mr-2 transition-all cursor-pointer"
           >
-            <Wifi className="w-3 h-3 text-emerald-400" />
-            <span>Dev: Online</span>
+            <Wifi className="w-2.5 h-2.5 text-emerald-400/80" />
+            <span>Dev</span>
           </button>
         )}
         {isOnline && showRestoredNotice && (
           <span
             data-no-drag
             title="Conexão com a internet restaurada"
-            className="inline-flex items-center gap-1.5 bg-emerald-950/80 text-emerald-300 border border-emerald-800/60 px-2.5 py-0.5 rounded-full text-[11px] font-medium mr-2.5 transition-all"
+            className="inline-flex items-center gap-1.5 bg-emerald-950/70 text-emerald-300 border border-emerald-800/50 px-2.5 py-0.5 rounded-full text-[11px] font-medium mr-2.5 transition-all"
           >
             <Wifi className="w-3 h-3" />
             <span>Online</span>

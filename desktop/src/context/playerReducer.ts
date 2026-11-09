@@ -17,6 +17,7 @@ export type QueueAction =
         track: Track;
         queue: Track[];
         index: number;
+        preserveExistingCount?: number;
       };
     }
   | { type: "PLAY_FROM_QUEUE"; payload: { index: number } }
@@ -136,7 +137,7 @@ export function createInitialQueueState(): QueueState {
 export function playerReducer(state: QueueState, action: QueueAction): QueueState {
   switch (action.type) {
     case "PLAY_TRACK_WITH_QUEUE": {
-      const { track, queue, index } = action.payload;
+      const { track, queue, index, preserveExistingCount = 0 } = action.payload;
       const originalQueue = [...queue];
 
       if (state.isShuffle) {
@@ -146,6 +147,34 @@ export function playerReducer(state: QueueState, action: QueueAction): QueueStat
             : queue.findIndex((t) => t.id === track.id);
         const validIdx = resolvedIndex !== -1 ? resolvedIndex : 0;
         const selected = queue[validIdx] || track;
+
+        // Se estamos anexando ao final (append), preserva a ordem das faixas já existentes na fila
+        if (preserveExistingCount > 0 && preserveExistingCount < queue.length) {
+          const existingPart = queue.slice(0, preserveExistingCount);
+          const newPart = queue.slice(preserveExistingCount);
+
+          if (validIdx >= preserveExistingCount) {
+            const relIdx = validIdx - preserveExistingCount;
+            const otherNew = newPart.filter((_, i) => i !== relIdx);
+            const shuffledNew = shuffleArray(otherNew);
+            return {
+              ...state,
+              currentTrack: selected,
+              activeQueue: [...existingPart, selected, ...shuffledNew],
+              originalQueue,
+              currentQueueIndex: preserveExistingCount,
+            };
+          } else {
+            return {
+              ...state,
+              currentTrack: selected,
+              activeQueue: [...existingPart, ...shuffleArray(newPart)],
+              originalQueue,
+              currentQueueIndex: validIdx,
+            };
+          }
+        }
+
         const others = queue.filter((_, i) => i !== validIdx);
         const shuffledOthers = shuffleArray(others);
 

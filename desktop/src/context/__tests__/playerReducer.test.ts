@@ -229,4 +229,37 @@ describe("playerReducer (FSM da Fila e Reprodução)", () => {
     expect(state.repeatMode).toBe("all");
     expect(state.isAutoplayRadio).toBe(false);
   });
+
+  it("deve preservar a ordem das faixas existentes quando preserveExistingCount é informado com shuffle ativo", () => {
+    const mockTrack4: Track = { id: "4", title: "Faixa 4", artist: "Artista D" };
+    const mockTrack5: Track = { id: "5", title: "Faixa 5", artist: "Artista E" };
+    const stateWithShuffle: QueueState = {
+      ...createInitialQueueState(),
+      activeQueue: [mockTrack1, mockTrack2],
+      originalQueue: [mockTrack1, mockTrack2],
+      currentTrack: mockTrack1,
+      currentQueueIndex: 0,
+      isShuffle: true,
+    };
+
+    const combined = [mockTrack1, mockTrack2, mockTrack3, mockTrack4, mockTrack5];
+    const nextState = playerReducer(stateWithShuffle, {
+      type: "PLAY_TRACK_WITH_QUEUE",
+      payload: {
+        track: mockTrack3,
+        queue: combined,
+        index: 2,
+        preserveExistingCount: 2,
+      },
+    });
+
+    // As duas primeiras faixas devem permanecer intactas
+    expect(nextState.activeQueue[0].id).toBe("1");
+    expect(nextState.activeQueue[1].id).toBe("2");
+    // A faixa selecionada da nova playlist entra no índice 2
+    expect(nextState.activeQueue[2].id).toBe("3");
+    expect(nextState.currentQueueIndex).toBe(2);
+    expect(nextState.currentTrack?.id).toBe("3");
+    expect(nextState.activeQueue).toHaveLength(5);
+  });
 });

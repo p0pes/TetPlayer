@@ -34,6 +34,7 @@ export interface CollectionContextMenuProps {
   onEditPlaylist?: (playlist: Playlist) => void;
   onDeletePlaylist?: (playlist: Playlist) => void;
   onDownloadCollection?: (item: CollectionContextItem) => void;
+  onRemoveCollectionDownloads?: (item: CollectionContextItem) => void;
 }
 
 export function triggerCollectionContextMenu(
@@ -64,10 +65,30 @@ export function CollectionContextMenu({
   onEditPlaylist,
   onDeletePlaylist,
   onDownloadCollection,
+  onRemoveCollectionDownloads,
 }: CollectionContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isClosing, setIsClosing] = useState(false);
+  const [downloadState, setDownloadState] = useState(() => ({
+    isDownloading: false,
+    isDownloaded: false,
+    isAvailableOffline: false,
+  }));
+
+  useEffect(() => {
+    if (!item) return;
+    const itemId = item.kind === "playlist" ? item.playlist.id : item.album.id;
+    const update = () => {
+      setDownloadState({
+        isDownloading: DownloadsService.isPlaylistDownloading(itemId),
+        isDownloaded: DownloadsService.isPlaylistDownloaded(itemId),
+        isAvailableOffline: DownloadsService.isCollectionAvailableOffline(itemId),
+      });
+    };
+    update();
+    return DownloadsService.subscribe(update);
+  }, [item]);
 
   const handleClose = useCallback(() => {
     if (isClosing) return;
@@ -114,7 +135,7 @@ export function CollectionContextMenu({
 
   // Dimensões dinâmicas para clamp na viewport
   const menuWidth = 240;
-  const menuHeight = isPlaylist ? (isVllm ? 240 : 310) : 280;
+  const menuHeight = isPlaylist ? (isVllm ? 280 : 360) : 320;
   const safeX = Math.min(position.x, window.innerWidth - menuWidth - 16);
   const safeY = Math.min(position.y, window.innerHeight - menuHeight - 16);
 
@@ -136,12 +157,16 @@ export function CollectionContextMenu({
     showToast(isPlaylist ? "Playlist adicionada à fila!" : "Álbum adicionado à fila!");
   }
 
-  const itemId = item ? (item.kind === "playlist" ? item.playlist.id : item.album.id) : "";
-  const isDownloading = DownloadsService.isPlaylistDownloading(itemId);
-
   function handleDownloadAction() {
     if (item && onDownloadCollection) {
       onDownloadCollection(item);
+    }
+    handleClose();
+  }
+
+  function handleRemoveDownloadsAction() {
+    if (item && onRemoveCollectionDownloads) {
+      onRemoveCollectionDownloads(item);
     }
     handleClose();
   }
@@ -275,25 +300,41 @@ export function CollectionContextMenu({
         </button>
 
         {/* Opção Download Offline da Coleção */}
-        {(
+        <button
+          type="button"
+          role="menuitem"
+          disabled={downloadState.isDownloading}
+          onClick={handleDownloadAction}
+          className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-[#c4c8d8] hover:text-white hover:bg-[var(--accent-subtle)] hover:border-[var(--accent-border)] border border-transparent transition-all cursor-pointer group text-left"
+        >
+          {downloadState.isDownloading ? (
+            <Loader2 className="w-4 h-4 text-[var(--accent)] animate-spin shrink-0" />
+          ) : (
+            <Download className="w-4 h-4 text-[var(--accent-text)] group-hover:scale-110 transition-transform shrink-0" />
+          )}
+          <span>
+            {downloadState.isDownloading
+              ? "Baixando faixas offline..."
+              : isPlaylist
+              ? "Baixar Playlist Offline"
+              : "Baixar Álbum Offline"}
+          </span>
+        </button>
+
+        {/* Opção Remover Downloads da Coleção */}
+        {(downloadState.isAvailableOffline || downloadState.isDownloaded) && (
           <button
             type="button"
             role="menuitem"
-            disabled={isDownloading}
-            onClick={handleDownloadAction}
-            className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-[#c4c8d8] hover:text-white hover:bg-[var(--accent-subtle)] hover:border-[var(--accent-border)] border border-transparent transition-all cursor-pointer group text-left"
+            disabled={downloadState.isDownloading}
+            onClick={handleRemoveDownloadsAction}
+            className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-rose-400 hover:text-rose-200 hover:bg-rose-500/15 border border-transparent transition-all cursor-pointer group text-left"
           >
-            {isDownloading ? (
-              <Loader2 className="w-4 h-4 text-[var(--accent)] animate-spin shrink-0" />
-            ) : (
-              <Download className="w-4 h-4 text-[var(--accent-text)] group-hover:scale-110 transition-transform shrink-0" />
-            )}
+            <Trash2 className="w-4 h-4 text-rose-400 group-hover:scale-110 transition-transform shrink-0" />
             <span>
-              {isDownloading
-                ? "Baixando faixas offline..."
-                : isPlaylist
-                ? "Baixar Playlist Offline"
-                : "Baixar Álbum Offline"}
+              {isPlaylist
+                ? "Remover Downloads da Playlist"
+                : "Remover Downloads do Álbum"}
             </span>
           </button>
         )}

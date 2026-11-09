@@ -11,11 +11,15 @@ import {
   FolderPlus,
   FolderMinus,
   Heart,
+  Download,
+  Trash2,
+  Loader2,
 } from "lucide-react";
 import { Track } from "../../types";
 import { usePlayer } from "../../context/PlayerContext";
 import { upgradeArtworkQuality } from "../../utils/artwork";
 import { useLikedTrack } from "../../services/likes";
+import { DownloadsService, useTrackDownload } from "../../services/downloads";
 
 export interface ContextMenuPosition {
   x: number;
@@ -38,6 +42,7 @@ export function TrackContextMenu({
   const { handlePlayNext, handleAddToQueue, handleStartRadio, searchArtist } =
     usePlayer();
   const { isLiked, toggleLike } = useLikedTrack(track);
+  const { isDownloaded, isDownloading, progress } = useTrackDownload(track);
   const menuRef = useRef<HTMLDivElement>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isClosing, setIsClosing] = useState(false);
@@ -83,7 +88,7 @@ export function TrackContextMenu({
   // Ajuste inteligente para evitar que o menu transborde a tela
   const isCustomPlaylist = !!contextPlaylistId && contextPlaylistId !== "VLLM" && contextPlaylistId !== "OFFLINE_DOWNLOADS";
   const menuWidth = 240;
-  const menuHeight = isCustomPlaylist ? 480 : 440;
+  const menuHeight = isCustomPlaylist ? 520 : 480;
   const safeX = Math.min(position.x, window.innerWidth - menuWidth - 16);
   const safeY = Math.min(position.y, window.innerHeight - menuHeight - 16);
 
@@ -93,6 +98,28 @@ export function TrackContextMenu({
       setToastMessage(null);
       handleClose();
     }, 900);
+  }
+
+  async function onToggleDownload() {
+    if (!track || !track.id) return;
+    if (isDownloading) return;
+
+    if (isDownloaded) {
+      const ok = await DownloadsService.removeDownload(track.id);
+      if (ok) {
+        showToast("Música removida dos downloads offline!");
+      } else {
+        showToast("Falha ao remover música do disco");
+      }
+    } else {
+      showToast("Baixando música para ouvir offline...");
+      try {
+        await DownloadsService.downloadTrack(track);
+        showToast("Música salva para ouvir offline!");
+      } catch {
+        showToast("Falha ao baixar música offline");
+      }
+    }
   }
 
   function onPlayNext() {
@@ -215,11 +242,39 @@ export function TrackContextMenu({
           className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-[#c4c8d8] hover:text-white hover:bg-[var(--accent-subtle)] hover:border-[var(--accent-border)] border border-transparent transition-all cursor-pointer group text-left"
         >
           <Heart
-            className={`w-4 h-4 shrink-0 group-hover:scale-110 transition-transform ${
-              isLiked ? "text-[var(--accent)] fill-current" : "text-[#8c91a4] group-hover:text-[var(--accent)]"
-            }`}
+            className={`w-4 h-4 shrink-0 group-hover:scale-110 transition-transform ${isLiked ? "text-[var(--accent)] fill-current" : "text-[#8c91a4] group-hover:text-[var(--accent)]"
+              }`}
           />
           <span>{isLiked ? "Descurtir música" : "Curtir música"}</span>
+        </button>
+
+        {/* Opção Download Offline / Remover do Download */}
+        <button
+          type="button"
+          role="menuitem"
+          disabled={isDownloading}
+          onClick={onToggleDownload}
+          className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-medium border border-transparent transition-all text-left ${isDownloading
+              ? "text-[#8c91a4] cursor-wait"
+              : isDownloaded
+                ? "text-rose-400 hover:text-rose-200 hover:bg-rose-500/15 cursor-pointer group"
+                : "text-[#c4c8d8] hover:text-white hover:bg-[var(--accent-subtle)] hover:border-[var(--accent-border)] cursor-pointer group"
+            }`}
+        >
+          {isDownloading ? (
+            <Loader2 className="w-4 h-4 text-[var(--accent)] animate-spin shrink-0" />
+          ) : isDownloaded ? (
+            <Trash2 className="w-4 h-4 text-rose-400 group-hover:scale-110 transition-transform shrink-0" />
+          ) : (
+            <Download className="w-4 h-4 text-[var(--accent-text)] group-hover:scale-110 transition-transform shrink-0" />
+          )}
+          <span>
+            {isDownloading
+              ? `Baixando... (${progress}%)`
+              : isDownloaded
+                ? "Remover do download"
+                : "Baixar para ouvir offline"}
+          </span>
         </button>
 
         {/* Opção 1: Tocar a Seguir */}
