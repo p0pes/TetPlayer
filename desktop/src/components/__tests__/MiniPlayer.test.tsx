@@ -67,23 +67,20 @@ describe("MiniPlayer — Gaveta Inteligente Auto-Slide", () => {
     vi.useRealTimers();
   });
 
-  it("deve ancorar na borda em modo Auto-Slide e abrir automaticamente ao encostar o mouse (0 cliques)", async () => {
+  it("deve ancorar na borda em modo Auto-Slide (apenas indicador vertical sem seta) e abrir automaticamente ao encostar o mouse", async () => {
     render(<MiniPlayer />);
 
-    // Inicialmente em modo flutuante
     expect(screen.getByText("Mini Player")).toBeInTheDocument();
 
-    // Clica para ancorar na borda
     const dockBtn = screen.getByTitle(/Ancorar na borda/i);
     await act(async () => {
       fireEvent.click(dockBtn);
     });
 
-    // Agora deve exibir a alça recolhida Auto-Slide
     const handle = screen.getByTitle(/TetPlayer Auto-Slide/i);
     expect(handle).toBeInTheDocument();
+    expect(handle.querySelector("svg")).toBeNull();
 
-    // Passa o mouse sobre a alça (onMouseEnter) -> deve abrir sozinho após o cooldown/intent delay
     await act(async () => {
       fireEvent.mouseEnter(handle);
       vi.advanceTimersByTime(450);
@@ -95,16 +92,14 @@ describe("MiniPlayer — Gaveta Inteligente Auto-Slide", () => {
     expect(screen.getByText("Mini Player • Auto")).toBeInTheDocument();
   });
 
-  it("deve recolher automaticamente de volta para a borda ao retirar o mouse da gaveta", async () => {
+  it("deve recolher rapidamente de volta para a borda ao retirar o mouse da gaveta", async () => {
     render(<MiniPlayer />);
 
-    // Ancora na borda
     const dockBtn = screen.getByTitle(/Ancorar na borda/i);
     await act(async () => {
       fireEvent.click(dockBtn);
     });
 
-    // Abre no hover
     const handle = screen.getByTitle(/TetPlayer Auto-Slide/i);
     await act(async () => {
       fireEvent.mouseEnter(handle);
@@ -115,11 +110,9 @@ describe("MiniPlayer — Gaveta Inteligente Auto-Slide", () => {
     const expandedRoot = badge.closest("div.w-full.h-full") as HTMLElement;
     expect(expandedRoot).toBeTruthy();
 
-    // Avança o tempo além da guarda de resize (240ms) e retira o mouse
     await act(async () => {
-      vi.advanceTimersByTime(300);
       fireEvent.mouseLeave(expandedRoot);
-      vi.advanceTimersByTime(400);
+      vi.advanceTimersByTime(320);
     });
 
     expect(invokeMock).toHaveBeenCalledWith("dock_mini_player", {
@@ -128,7 +121,34 @@ describe("MiniPlayer — Gaveta Inteligente Auto-Slide", () => {
     expect(screen.getByTitle(/TetPlayer Auto-Slide/i)).toBeInTheDocument();
   });
 
-  it("deve permitir ajustar o volume girando o scroll do mouse diretamente sobre a alça recolhida", async () => {
+  it("deve recolher imediatamente ao clicar em qualquer lugar fora da janela (blur)", async () => {
+    render(<MiniPlayer />);
+
+    const dockBtn = screen.getByTitle(/Ancorar na borda/i);
+    await act(async () => {
+      fireEvent.click(dockBtn);
+    });
+
+    const handle = screen.getByTitle(/TetPlayer Auto-Slide/i);
+    await act(async () => {
+      fireEvent.mouseEnter(handle);
+      vi.advanceTimersByTime(450);
+    });
+
+    expect(screen.getByText("Mini Player • Auto")).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.blur(window);
+      vi.advanceTimersByTime(100);
+    });
+
+    expect(invokeMock).toHaveBeenCalledWith("dock_mini_player", {
+      side: "right",
+    });
+    expect(screen.getByTitle(/TetPlayer Auto-Slide/i)).toBeInTheDocument();
+  });
+
+  it("deve permitir ajustar o volume girando o scroll do mouse diretamente sobre o indicador vertical", async () => {
     render(<MiniPlayer />);
 
     const dockBtn = screen.getByTitle(/Ancorar na borda/i);

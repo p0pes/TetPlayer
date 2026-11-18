@@ -95,17 +95,20 @@ export function MiniPlayer() {
   }, []);
 
   const collapseDockedDrawerNow = useCallback(
-    (sideOverride?: "left" | "right") => {
+    (sideOverride?: "left" | "right", instant = false) => {
       const side = sideOverride || isDockedRef.current;
       if (!side) return;
       clearAllDrawerTimers();
+      isPointerDownInsideRef.current = false;
+      pendingCloseAfterPointerUpRef.current = false;
       setIsDrawerAnimatingOut(true);
 
+      const animDuration = instant ? 60 : 90;
       collapseFinishTimerRef.current = window.setTimeout(async () => {
         collapseFinishTimerRef.current = null;
         const activeSide = sideOverride || isDockedRef.current;
         if (!activeSide) return;
-        collapseCooldownUntilRef.current = performance.now() + 280;
+        collapseCooldownUntilRef.current = performance.now() + 240;
         setIsDrawerAnimatingOut(false);
         setIsDrawerExpanded(false);
         isDrawerExpandedRef.current = false;
@@ -114,13 +117,13 @@ export function MiniPlayer() {
         } catch (err) {
           console.error("Erro ao recolher gaveta auto-slide:", err);
         }
-      }, 115);
+      }, animDuration);
     },
     [clearAllDrawerTimers]
   );
 
   const scheduleAutoCollapse = useCallback(
-    (delayMs = 210) => {
+    (delayMs = 80) => {
       if (!isDockedRef.current || !isDrawerExpandedRef.current) return;
       if (autoCloseTimerRef.current !== null) {
         window.clearTimeout(autoCloseTimerRef.current);
@@ -163,7 +166,9 @@ export function MiniPlayer() {
   );
 
   useEffect(() => {
-    let unlisten: (() => void) | undefined;
+    let unlistenDocked: (() => void) | undefined;
+    let unlistenAutoCollapse: (() => void) | undefined;
+
     listen<string>("mini-player-docked", (event) => {
       if (event.payload === "left" || event.payload === "right") {
         isDockedRef.current = event.payload;
@@ -174,7 +179,22 @@ export function MiniPlayer() {
       }
     })
       .then((fn) => {
-        unlisten = fn;
+        unlistenDocked = fn;
+      })
+      .catch(console.error);
+
+    listen<string>("mini-player-auto-collapse", (event) => {
+      if (
+        isDockedRef.current &&
+        isDrawerExpandedRef.current &&
+        !isDraggingWindowRef.current
+      ) {
+        const isOutsideClick = event.payload === "outside-click";
+        collapseDockedDrawerNow(undefined, isOutsideClick);
+      }
+    })
+      .then((fn) => {
+        unlistenAutoCollapse = fn;
       })
       .catch(console.error);
 
@@ -183,21 +203,38 @@ export function MiniPlayer() {
         isPointerDownInsideRef.current = false;
         if (pendingCloseAfterPointerUpRef.current) {
           pendingCloseAfterPointerUpRef.current = false;
-          scheduleAutoCollapse(160);
+          scheduleAutoCollapse(60);
         }
+      }
+    };
+
+    const handleWindowBlur = () => {
+      isPointerDownInsideRef.current = false;
+      pendingCloseAfterPointerUpRef.current = false;
+      if (
+        isDockedRef.current &&
+        isDrawerExpandedRef.current &&
+        !isDraggingWindowRef.current
+      ) {
+        collapseDockedDrawerNow(undefined, true);
       }
     };
 
     window.addEventListener("pointerup", handleGlobalPointerUp);
     window.addEventListener("mouseup", handleGlobalPointerUp);
+    window.addEventListener("pointercancel", handleGlobalPointerUp);
+    window.addEventListener("blur", handleWindowBlur);
 
     return () => {
-      if (unlisten) unlisten();
+      if (unlistenDocked) unlistenDocked();
+      if (unlistenAutoCollapse) unlistenAutoCollapse();
       clearAllDrawerTimers();
       window.removeEventListener("pointerup", handleGlobalPointerUp);
       window.removeEventListener("mouseup", handleGlobalPointerUp);
+      window.removeEventListener("pointercancel", handleGlobalPointerUp);
+      window.removeEventListener("blur", handleWindowBlur);
     };
-  }, [clearAllDrawerTimers, scheduleAutoCollapse]);
+  }, [clearAllDrawerTimers, collapseDockedDrawerNow, scheduleAutoCollapse]);
 
   // Arrasto da janela do Mini Player Completo com snap automático ao soltar
   async function handleStartDrag(e: React.MouseEvent) {
@@ -405,52 +442,20 @@ export function MiniPlayer() {
           }}
           onWheel={handleWheelVolume}
           title="TetPlayer Auto-Slide — Encoste o mouse para abrir, gire o scroll para volume ou arraste verticalmente"
-          className={`w-[18px] h-[56px] bg-[#0c0e17]/95 hover:bg-[#141826] border border-[#2b3042] hover:border-[var(--accent)]/60 flex items-center justify-center overflow-hidden cursor-pointer group transition-colors duration-150 select-none relative ${
+          className={`w-[10px] h-[64px] bg-[#0c0e17]/95 hover:bg-[#141826] border border-[#2b3042] hover:border-[var(--accent)]/80 flex items-center justify-center overflow-hidden cursor-pointer group transition-colors duration-150 select-none relative ${
             activeDockSide === "left"
               ? "border-l-0 rounded-r-full"
               : "border-r-0 rounded-l-full"
           }`}
         >
-          {/* Glow Aurora sutil na alça */}
+          {/* Indicador vertical lateral mais espesso (sem seta) */}
           <div
-            className="absolute inset-0 opacity-20 pointer-events-none rounded-[inherit]"
-            style={{
-              background:
-                "radial-gradient(ellipse at center, var(--aurora-1-glow) 0%, transparent 80%)",
-            }}
-          />
-
-          {/* Filete luminoso de estado na moldura do monitor */}
-          <div
-            className={`absolute top-3.5 bottom-3.5 w-[2.5px] rounded-full transition-colors duration-200 ${
-              activeDockSide === "left" ? "left-0" : "right-0"
-            } ${
+            className={`w-[4.5px] h-[44px] rounded-full transition-colors duration-200 ${
               isPlaying
-                ? "bg-[var(--accent)] shadow-[0_0_8px_var(--accent-glow)] animate-pulse"
-                : "bg-[#3e4560] group-hover:bg-[var(--accent)]/80"
+                ? "bg-[var(--accent)] shadow-[0_0_12px_var(--accent-glow)]"
+                : "bg-[#606884] group-hover:bg-[var(--accent)]"
             }`}
           />
-
-          {/* Micro-seta simétrica centralizada */}
-          <div
-            className={`flex items-center justify-center z-10 pointer-events-none transition-colors duration-200 ${
-              isPlaying
-                ? "text-[var(--accent)] drop-shadow-[0_0_6px_var(--accent-glow)]"
-                : "text-[#7a829c] opacity-85 group-hover:opacity-100 group-hover:text-white"
-            }`}
-          >
-            {activeDockSide === "left" ? (
-              <ChevronRight
-                className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform duration-150"
-                strokeWidth={2.5}
-              />
-            ) : (
-              <ChevronLeft
-                className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform duration-150"
-                strokeWidth={2.5}
-              />
-            )}
-          </div>
         </div>
       </div>
     );
@@ -477,8 +482,11 @@ export function MiniPlayer() {
   return (
     <div
       onMouseDown={handleStartDrag}
-      onPointerDownCapture={() => {
-        isPointerDownInsideRef.current = true;
+      onPointerDownCapture={(e) => {
+        const target = e.target as HTMLElement;
+        if (target && target.tagName === "INPUT") {
+          isPointerDownInsideRef.current = true;
+        }
         cancelAutoCollapse();
       }}
       onMouseEnter={() => {
@@ -493,10 +501,9 @@ export function MiniPlayer() {
       }}
       onMouseLeave={() => {
         if (isDockedRef.current && isDrawerExpandedRef.current) {
-          if (performance.now() - expandTimestampRef.current < 240) {
-            return;
-          }
-          scheduleAutoCollapse(210);
+          const elapsed = performance.now() - expandTimestampRef.current;
+          const remainingGuard = Math.max(0, 130 - elapsed);
+          scheduleAutoCollapse(remainingGuard + 70);
         }
       }}
       onWheel={handleWheelVolume}

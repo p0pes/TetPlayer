@@ -902,8 +902,91 @@ fn atomic_set_window_rect(
     }));
 }
 
+static PEEK_WATCHER_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+fn cancel_peek_cursor_watcher() {
+    PEEK_WATCHER_GEN.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+}
+
+#[cfg(target_os = "windows")]
+fn spawn_peek_cursor_watcher(window: tauri::Window) {
+    use std::sync::atomic::Ordering;
+    use windows_sys::Win32::Foundation::{POINT, RECT};
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetCursorPos, GetWindowRect};
+
+    let my_gen = PEEK_WATCHER_GEN.fetch_add(1, Ordering::SeqCst) + 1;
+    let Ok(hwnd) = window.hwnd() else { return };
+    let hwnd_isize = hwnd.0 as isize;
+
+    std::thread::spawn(move || {
+        let mut outside_ticks: u32 = 0;
+        let mut dragging_from_inside = false;
+        let mut total_ticks: u32 = 0;
+
+        while PEEK_WATCHER_GEN.load(Ordering::SeqCst) == my_gen {
+            std::thread::sleep(std::time::Duration::from_millis(30));
+            if PEEK_WATCHER_GEN.load(Ordering::SeqCst) != my_gen {
+                break;
+            }
+            total_ticks += 1;
+
+            let hwnd_raw = hwnd_isize as windows_sys::Win32::Foundation::HWND;
+            let mut pt = POINT { x: 0, y: 0 };
+            let mut rect = RECT {
+                left: 0,
+                top: 0,
+                right: 0,
+                bottom: 0,
+            };
+
+            let (inside, any_button_down, lbutton_down) = unsafe {
+                if GetCursorPos(&mut pt) == 0 || GetWindowRect(hwnd_raw, &mut rect) == 0 {
+                    continue;
+                }
+                let margin = 2;
+                let is_in = pt.x >= rect.left - margin
+                    && pt.x <= rect.right + margin
+                    && pt.y >= rect.top - margin
+                    && pt.y <= rect.bottom + margin;
+                let lb = (GetAsyncKeyState(0x01) as u16 & 0x8000) != 0;
+                let rb = (GetAsyncKeyState(0x02) as u16 & 0x8000) != 0;
+                let mb = (GetAsyncKeyState(0x04) as u16 & 0x8000) != 0;
+                (is_in, lb || rb || mb, lb)
+            };
+
+            if inside && lbutton_down {
+                dragging_from_inside = true;
+            } else if !lbutton_down {
+                dragging_from_inside = false;
+            }
+
+            // 1) Se clicou em qualquer lugar da tela fora do Mini Player, recolhe IMEDIATAMENTE
+            if !inside && any_button_down && !dragging_from_inside {
+                let _ = window.emit("mini-player-auto-collapse", "outside-click");
+                break;
+            }
+
+            // 2) Se tirou o mouse de cima do Mini Player, recolhe imediatamente (60ms de confirmação física)
+            if inside {
+                outside_ticks = 0;
+            } else if !dragging_from_inside && total_ticks >= 3 {
+                outside_ticks += 1;
+                if outside_ticks >= 2 {
+                    let _ = window.emit("mini-player-auto-collapse", "mouse-leave");
+                    break;
+                }
+            }
+        }
+    });
+}
+
+#[cfg(not(target_os = "windows"))]
+fn spawn_peek_cursor_watcher(_window: tauri::Window) {}
+
 #[tauri::command]
 fn set_mini_player_mode(window: tauri::Window, enabled: bool) -> Result<(), String> {
+    cancel_peek_cursor_watcher();
     if enabled {
         let _ = window.unmaximize();
         let _ = window.set_resizable(false);
@@ -955,6 +1038,7 @@ fn set_mini_player_mode(window: tauri::Window, enabled: bool) -> Result<(), Stri
 
 #[tauri::command]
 fn dock_mini_player(window: tauri::Window, side: String) -> Result<String, String> {
+    cancel_peek_cursor_watcher();
     let _ = window.unmaximize();
     let _ = window.set_resizable(false);
     let _ = window.set_maximizable(false);
@@ -1064,11 +1148,13 @@ fn peek_docked_mini_player(window: tauri::Window, side: String) -> Result<(), St
         );
     }
 
+    spawn_peek_cursor_watcher(window);
     Ok(())
 }
 
 #[tauri::command]
 fn undock_mini_player(window: tauri::Window, side: Option<String>) -> Result<(), String> {
+    cancel_peek_cursor_watcher();
     let _ = window.unmaximize();
     let _ = window.set_resizable(false);
     let _ = window.set_maximizable(false);
@@ -1180,6 +1266,7 @@ fn check_and_snap_mini_player(window: tauri::Window) -> Result<Option<String>, S
 
 #[tauri::command]
 async fn start_drag_and_snap(window: tauri::Window) -> Result<Option<String>, String> {
+    cancel_peek_cursor_watcher();
     let _ = window.start_dragging();
 
     // Aguarda o usuário soltar o botão esquerdo do mouse (LBUTTON) para avaliar o snap

@@ -1013,11 +1013,11 @@ Todos os **148 apontamentos técnicos (#01 a #148)** catalogados em auditorias t
 * **Solução Implementada:**
   1. **Supressão Nativa da Moldura DWM no Modo Mini Player (`configure_window_dwm_frame`):** Ao ativar o Mini Player, o backend Rust invoca `window.set_shadow(false)` e aplica `DwmSetWindowAttribute` com `DWMWA_BORDER_COLOR = DWMWA_COLOR_NONE` (`0xFFFFFFFE`) e `DWMWA_WINDOW_CORNER_PREFERENCE = DWMWCP_DONOTROUND` (`1`), eliminando 100% a borda vermelha e o recorte retangular do Windows 11 (e restaurando-os automaticamente ao retornar ao Player Completo);
   2. **Posicionamento Atômico Sem Roubo de Foco (`atomic_set_window_rect`):** Utilização de `SetWindowPos` com `SWP_NOZORDER | SWP_NOACTIVATE` e aferição imediata via `GetWindowRect`, garantindo alinhamento exato na borda física esquerda e direita do monitor em um único frame sem roubar o foco de janela de jogos;
-  3. **Gaveta Inteligente Auto-Slide (0 Cliques para Abrir/Fechar):**
-     - Quando recolhida na borda, exibe uma alça minimalista e simétrica de `18x56px` (`justify-start` na esquerda e `justify-end` na direita) com filete luminoso Aurora pulsante (`var(--accent)`) e micro-seta centralizada;
-     - Ao encostar o cursor do mouse na alça (`onMouseEnter`), o comando `peek_docked_mini_player` desliza automaticamente a gaveta completa (`380x140`) para dentro da tela com animação acelerada por GPU a 144 FPS (`translate3d`);
-     - Ao retirar o mouse de cima da gaveta (`onMouseLeave`), ela desliza de volta para a borda e se recolhe sozinha após `210ms` (com proteção contra fechamento durante o arrasto de sliders de volume/tempo);
-  4. **Ajuste de Volume no Scroll e Botão Desafixar (`PinOff`):** Adicionado suporte a ajuste direto de volume (`±5%`) ao girar a roda do mouse sobre a alça ou gaveta, além de botão no cabeçalho para desafixar da borda caso o usuário deseje mantê-lo flutuando permanentemente aberto.
+  3. **Gaveta Inteligente Auto-Slide (0 Cliques para Abrir/Fechar e Indicador Vertical Puro):**
+     - Quando recolhida na borda, exibe apenas um indicador vertical lateral mais espesso e minimalista (`w-[10px] h-[64px]` com núcleo luminoso `w-[4.5px] h-[44px]`, sem setas), simétrico em ambos os lados (`justify-start` na esquerda e `justify-end` na direita);
+     - Ao encostar o cursor do mouse no indicador (`onMouseEnter`), o comando `peek_docked_mini_player` desliza automaticamente a gaveta completa (`380x140`) para dentro da tela com animação acelerada por GPU a 144 FPS (`translate3d`);
+     - **Fechamento Imediato Garantido via Monitoramento Nativo Win32 (`spawn_peek_cursor_watcher`):** Enquanto a gaveta está expandida, uma rotina nativa no Rust consulta diretamente `GetCursorPos`, `GetWindowRect` e `GetAsyncKeyState` a cada `30ms`. Se o cursor sair da área física do Mini Player (mesmo em movimentos rápidos onde a WebView2 perde o evento `mouseleave`) ou se o usuário clicar em qualquer lugar da tela fora do player (inclusive dentro de jogos sem bordas), a gaveta é recolhida imediatamente;
+  4. **Ajuste de Volume no Scroll e Botão Desafixar (`PinOff`):** Adicionado suporte a ajuste direto de volume (`±5%`) ao girar a roda do mouse sobre o indicador ou gaveta, além de botão no cabeçalho para desafixar da borda caso o usuário deseje mantê-lo flutuando permanentemente aberto.
 
 ---
 
