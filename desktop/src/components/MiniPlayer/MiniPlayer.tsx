@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsRight,
+  PinOff,
   Heart,
 } from "lucide-react";
 import { usePlayer, usePlaybackProgress } from "../../context/PlayerContext";
@@ -35,32 +36,168 @@ export function MiniPlayer() {
     togglePlayPause,
     handleSeekTo,
     handleVolumeChange,
+    setVolume,
     toggleMute,
     toggleMiniPlayer,
   } = usePlayer();
   const { isLiked, toggleLike } = useLikedTrack(currentTrack);
 
-  // Estado de ancoragem / docking na borda ('left' | 'right' | null)
+  // Estado de ancoragem na borda ('left' | 'right' | null) e expansão da Gaveta Auto-Slide
   const [isDocked, setIsDocked] = useState<"left" | "right" | null>(null);
+  const [isDrawerExpanded, setIsDrawerExpanded] = useState(false);
+  const [isDrawerAnimatingOut, setIsDrawerAnimatingOut] = useState(false);
 
-  React.useEffect(() => {
-    let unlisten: (() => void) | undefined;
-    listen<string>("mini-player-docked", (event) => {
-      if (event.payload === "left" || event.payload === "right") {
-        setIsDocked(event.payload);
-      }
-    }).then((fn) => { unlisten = fn; }).catch(console.error);
+  const isDockedRef = useRef<"left" | "right" | null>(null);
+  const isDrawerExpandedRef = useRef(false);
 
-    return () => {
-      if (unlisten) unlisten();
-    };
-  }, []);
+  const hoverOpenTimerRef = useRef<number | null>(null);
+  const autoCloseTimerRef = useRef<number | null>(null);
+  const collapseFinishTimerRef = useRef<number | null>(null);
+  const expandTimestampRef = useRef<number>(0);
+  const collapseCooldownUntilRef = useRef<number>(0);
 
-  // Controle de arrasto vertical do tab recolhido estilo PiP Android
+  const isPointerDownInsideRef = useRef(false);
+  const pendingCloseAfterPointerUpRef = useRef(false);
+  const isDraggingWindowRef = useRef(false);
+
+  // Controle de arrasto vertical da alça recolhida na borda
   const isDraggingTabRef = useRef(false);
   const dragStartYRef = useRef(0);
   const grabOffsetYRef = useRef(0);
   const hasMovedRef = useRef(false);
+
+  const clearAllDrawerTimers = useCallback(() => {
+    if (hoverOpenTimerRef.current !== null) {
+      window.clearTimeout(hoverOpenTimerRef.current);
+      hoverOpenTimerRef.current = null;
+    }
+    if (autoCloseTimerRef.current !== null) {
+      window.clearTimeout(autoCloseTimerRef.current);
+      autoCloseTimerRef.current = null;
+    }
+    if (collapseFinishTimerRef.current !== null) {
+      window.clearTimeout(collapseFinishTimerRef.current);
+      collapseFinishTimerRef.current = null;
+    }
+  }, []);
+
+  const cancelAutoCollapse = useCallback(() => {
+    pendingCloseAfterPointerUpRef.current = false;
+    if (autoCloseTimerRef.current !== null) {
+      window.clearTimeout(autoCloseTimerRef.current);
+      autoCloseTimerRef.current = null;
+    }
+    if (collapseFinishTimerRef.current !== null) {
+      window.clearTimeout(collapseFinishTimerRef.current);
+      collapseFinishTimerRef.current = null;
+      setIsDrawerAnimatingOut(false);
+    }
+  }, []);
+
+  const collapseDockedDrawerNow = useCallback(
+    (sideOverride?: "left" | "right") => {
+      const side = sideOverride || isDockedRef.current;
+      if (!side) return;
+      clearAllDrawerTimers();
+      setIsDrawerAnimatingOut(true);
+
+      collapseFinishTimerRef.current = window.setTimeout(async () => {
+        collapseFinishTimerRef.current = null;
+        const activeSide = sideOverride || isDockedRef.current;
+        if (!activeSide) return;
+        collapseCooldownUntilRef.current = performance.now() + 280;
+        setIsDrawerAnimatingOut(false);
+        setIsDrawerExpanded(false);
+        isDrawerExpandedRef.current = false;
+        try {
+          await invoke("dock_mini_player", { side: activeSide });
+        } catch (err) {
+          console.error("Erro ao recolher gaveta auto-slide:", err);
+        }
+      }, 115);
+    },
+    [clearAllDrawerTimers]
+  );
+
+  const scheduleAutoCollapse = useCallback(
+    (delayMs = 210) => {
+      if (!isDockedRef.current || !isDrawerExpandedRef.current) return;
+      if (autoCloseTimerRef.current !== null) {
+        window.clearTimeout(autoCloseTimerRef.current);
+      }
+      autoCloseTimerRef.current = window.setTimeout(() => {
+        autoCloseTimerRef.current = null;
+        if (
+          !isDockedRef.current ||
+          !isDrawerExpandedRef.current ||
+          isDraggingWindowRef.current
+        ) {
+          return;
+        }
+        if (isPointerDownInsideRef.current) {
+          pendingCloseAfterPointerUpRef.current = true;
+          return;
+        }
+        collapseDockedDrawerNow();
+      }, delayMs);
+    },
+    [collapseDockedDrawerNow]
+  );
+
+  const openDockedDrawer = useCallback(
+    async (sideOverride?: "left" | "right") => {
+      const side = sideOverride || isDockedRef.current || "right";
+      clearAllDrawerTimers();
+      pendingCloseAfterPointerUpRef.current = false;
+      expandTimestampRef.current = performance.now();
+      setIsDrawerAnimatingOut(false);
+      setIsDrawerExpanded(true);
+      isDrawerExpandedRef.current = true;
+      try {
+        await invoke("peek_docked_mini_player", { side });
+      } catch (err) {
+        console.error("Erro ao deslizar gaveta do mini player:", err);
+      }
+    },
+    [clearAllDrawerTimers]
+  );
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen<string>("mini-player-docked", (event) => {
+      if (event.payload === "left" || event.payload === "right") {
+        isDockedRef.current = event.payload;
+        isDrawerExpandedRef.current = false;
+        setIsDocked(event.payload);
+        setIsDrawerExpanded(false);
+        setIsDrawerAnimatingOut(false);
+      }
+    })
+      .then((fn) => {
+        unlisten = fn;
+      })
+      .catch(console.error);
+
+    const handleGlobalPointerUp = () => {
+      if (isPointerDownInsideRef.current) {
+        isPointerDownInsideRef.current = false;
+        if (pendingCloseAfterPointerUpRef.current) {
+          pendingCloseAfterPointerUpRef.current = false;
+          scheduleAutoCollapse(160);
+        }
+      }
+    };
+
+    window.addEventListener("pointerup", handleGlobalPointerUp);
+    window.addEventListener("mouseup", handleGlobalPointerUp);
+
+    return () => {
+      if (unlisten) unlisten();
+      clearAllDrawerTimers();
+      window.removeEventListener("pointerup", handleGlobalPointerUp);
+      window.removeEventListener("mouseup", handleGlobalPointerUp);
+    };
+  }, [clearAllDrawerTimers, scheduleAutoCollapse]);
 
   // Arrasto da janela do Mini Player Completo com snap automático ao soltar
   async function handleStartDrag(e: React.MouseEvent) {
@@ -74,13 +211,28 @@ export function MiniPlayer() {
       ) {
         return;
       }
+      cancelAutoCollapse();
+      isDraggingWindowRef.current = true;
       try {
         const snapped = await invoke<string | null>("start_drag_and_snap");
         if (snapped === "left" || snapped === "right") {
+          collapseCooldownUntilRef.current = performance.now() + 320;
+          isDockedRef.current = snapped;
+          isDrawerExpandedRef.current = false;
           setIsDocked(snapped);
+          setIsDrawerExpanded(false);
+          setIsDrawerAnimatingOut(false);
+        } else {
+          isDockedRef.current = null;
+          isDrawerExpandedRef.current = false;
+          setIsDocked(null);
+          setIsDrawerExpanded(false);
+          setIsDrawerAnimatingOut(false);
         }
       } catch (err) {
         console.error("Erro ao arrastar janela:", err);
+      } finally {
+        isDraggingWindowRef.current = false;
       }
     }
   }
@@ -110,13 +262,24 @@ export function MiniPlayer() {
   }
 
   async function handleManualDock() {
+    clearAllDrawerTimers();
     try {
+      collapseCooldownUntilRef.current = performance.now() + 350;
       const autoSnapped = await invoke<string | null>("check_and_snap_mini_player");
       if (autoSnapped === "left" || autoSnapped === "right") {
+        isDockedRef.current = autoSnapped;
+        isDrawerExpandedRef.current = false;
         setIsDocked(autoSnapped);
+        setIsDrawerExpanded(false);
+        setIsDrawerAnimatingOut(false);
       } else {
         const side = await invoke<string>("dock_mini_player", { side: "right" });
-        setIsDocked(side as "left" | "right");
+        const validSide = (side === "left" ? "left" : "right") as "left" | "right";
+        isDockedRef.current = validSide;
+        isDrawerExpandedRef.current = false;
+        setIsDocked(validSide);
+        setIsDrawerExpanded(false);
+        setIsDrawerAnimatingOut(false);
       }
     } catch (err) {
       console.error("Erro ao recolher mini player:", err);
@@ -124,15 +287,58 @@ export function MiniPlayer() {
   }
 
   async function handleUndock() {
+    clearAllDrawerTimers();
     try {
-      await invoke("undock_mini_player", { side: isDocked });
+      const currentSide = isDockedRef.current;
+      isDockedRef.current = null;
+      isDrawerExpandedRef.current = false;
       setIsDocked(null);
+      setIsDrawerExpanded(false);
+      setIsDrawerAnimatingOut(false);
+      await invoke("undock_mini_player", { side: currentSide });
     } catch (err) {
       console.error("Erro ao desencaixar mini player:", err);
     }
   }
 
-  // Manipulação de pointer para o Tab Recolhido (estilo PiP do YouTube no Android)
+  // Controle de volume rápido via scroll do mouse (tanto na alça quanto na gaveta)
+  function handleWheelVolume(e: React.WheelEvent) {
+    const step = e.deltaY < 0 ? 0.05 : -0.05;
+    const baseVol = isMuted ? 0 : volume;
+    const nextVol = Math.min(1, Math.max(0, Number((baseVol + step).toFixed(2))));
+    setVolume(nextVol);
+  }
+
+  // Hover na alça recolhida para abrir automaticamente (Auto-Slide 0 cliques)
+  function handleTabMouseEnter() {
+    if (isDraggingTabRef.current || !isDockedRef.current || isDrawerExpandedRef.current) {
+      return;
+    }
+    if (hoverOpenTimerRef.current !== null) {
+      window.clearTimeout(hoverOpenTimerRef.current);
+    }
+    const remainingCooldown = Math.max(
+      0,
+      collapseCooldownUntilRef.current - performance.now()
+    );
+    const delay = remainingCooldown > 0 ? remainingCooldown + 60 : 65;
+
+    hoverOpenTimerRef.current = window.setTimeout(() => {
+      hoverOpenTimerRef.current = null;
+      if (!isDraggingTabRef.current && isDockedRef.current && !isDrawerExpandedRef.current) {
+        openDockedDrawer();
+      }
+    }, delay);
+  }
+
+  function handleTabMouseLeave() {
+    if (hoverOpenTimerRef.current !== null) {
+      window.clearTimeout(hoverOpenTimerRef.current);
+      hoverOpenTimerRef.current = null;
+    }
+  }
+
+  // Manipulação de pointer na alça recolhida (arrasto vertical na borda ou clique imediato)
   function handleTabPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (e.button !== 0) return;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -143,12 +349,16 @@ export function MiniPlayer() {
   }
 
   function handleTabPointerMove(e: React.PointerEvent<HTMLDivElement>) {
-    if (!isDraggingTabRef.current || !isDocked) return;
+    if (!isDraggingTabRef.current || !isDockedRef.current) return;
     const deltaY = Math.abs(e.screenY - dragStartYRef.current);
-    if (deltaY > 3) {
+    if (deltaY > 4) {
       hasMovedRef.current = true;
+      if (hoverOpenTimerRef.current !== null) {
+        window.clearTimeout(hoverOpenTimerRef.current);
+        hoverOpenTimerRef.current = null;
+      }
       invoke("move_docked_tab", {
-        side: isDocked,
+        side: isDockedRef.current,
         screenYLogical: e.screenY,
         grabOffsetYLogical: grabOffsetYRef.current,
       }).catch(console.error);
@@ -164,75 +374,150 @@ export function MiniPlayer() {
       // ignore
     }
 
-    // Se o usuário apenas clicou (sem arrastar verticalmente), expande o Mini Player
+    // Se clicou sem arrastar verticalmente, abre a gaveta imediatamente
     if (!hasMovedRef.current) {
-      await handleUndock();
+      await openDockedDrawer();
     }
-    // Se arrastou verticalmente, NÃO expande! Fica ancorado na nova posição vertical
   }
 
-  // Visualização recolhida / ancorada na borda da tela (Ultra-compacta com indicador único na setinha)
-  const isCompactMode = Boolean(isDocked || (typeof window !== "undefined" && window.innerWidth < 150));
+  // Visualização Recolhida da Gaveta Auto-Slide (Alça minimalista simétrica na borda da tela)
+  const isCompactMode = Boolean(
+    (isDocked && !isDrawerExpanded) ||
+      (!isDrawerExpanded && typeof window !== "undefined" && window.innerWidth < 150)
+  );
   const activeDockSide = isDocked || "right";
 
   if (isCompactMode) {
     return (
       <div
-        onPointerDown={handleTabPointerDown}
-        onPointerMove={handleTabPointerMove}
-        onPointerUp={handleTabPointerUp}
-        onPointerCancel={() => {
-          isDraggingTabRef.current = false;
-        }}
-        title="TetPlayer Mini - Clique para expandir ou arraste para cima/baixo"
-        className={`w-full h-full bg-[#0c0e17] hover:bg-[#151928] border border-[#2b3042] hover:border-[#3e4560] flex items-center justify-center overflow-hidden cursor-pointer group transition-colors duration-150 select-none relative ${
-          activeDockSide === "left"
-            ? "border-l-0 rounded-r-full"
-            : "border-r-0 rounded-l-full"
+        className={`w-full h-full bg-transparent flex items-center select-none ${
+          activeDockSide === "left" ? "justify-start" : "justify-end"
         }`}
       >
-        {/* Glow Aurora de fundo sutil acompanhando o formato da cápsula */}
         <div
-          className="absolute inset-0 opacity-15 pointer-events-none rounded-[inherit]"
-          style={{
-            background:
-              "radial-gradient(ellipse at center, var(--aurora-1-glow) 0%, transparent 80%)",
+          onMouseEnter={handleTabMouseEnter}
+          onMouseLeave={handleTabMouseLeave}
+          onPointerDown={handleTabPointerDown}
+          onPointerMove={handleTabPointerMove}
+          onPointerUp={handleTabPointerUp}
+          onPointerCancel={() => {
+            isDraggingTabRef.current = false;
           }}
-        />
-
-        {/* Setinha com indicador integrado de reprodução (brilhando com glow se tocando, discreta e nítida se pausada) */}
-        <div
-          className={`flex items-center justify-center z-10 pointer-events-none transition-colors duration-200 ${
-            isPlaying
-              ? "text-[var(--accent)] drop-shadow-[0_0_8px_var(--accent-glow)] animate-pulse"
-              : "text-[#71788f] opacity-75 group-hover:opacity-100 group-hover:text-white"
+          onWheel={handleWheelVolume}
+          title="TetPlayer Auto-Slide — Encoste o mouse para abrir, gire o scroll para volume ou arraste verticalmente"
+          className={`w-[18px] h-[56px] bg-[#0c0e17]/95 hover:bg-[#141826] border border-[#2b3042] hover:border-[var(--accent)]/60 flex items-center justify-center overflow-hidden cursor-pointer group transition-colors duration-150 select-none relative ${
+            activeDockSide === "left"
+              ? "border-l-0 rounded-r-full"
+              : "border-r-0 rounded-l-full"
           }`}
         >
-          {activeDockSide === "left" ? (
-            <ChevronRight
-              className="w-[18px] h-[18px] group-hover:translate-x-0.5 transition-transform duration-150"
-              strokeWidth={2.5}
-            />
-          ) : (
-            <ChevronLeft
-              className="w-[18px] h-[18px] group-hover:-translate-x-0.5 transition-transform duration-150"
-              strokeWidth={2.5}
-            />
-          )}
+          {/* Glow Aurora sutil na alça */}
+          <div
+            className="absolute inset-0 opacity-20 pointer-events-none rounded-[inherit]"
+            style={{
+              background:
+                "radial-gradient(ellipse at center, var(--aurora-1-glow) 0%, transparent 80%)",
+            }}
+          />
+
+          {/* Filete luminoso de estado na moldura do monitor */}
+          <div
+            className={`absolute top-3.5 bottom-3.5 w-[2.5px] rounded-full transition-colors duration-200 ${
+              activeDockSide === "left" ? "left-0" : "right-0"
+            } ${
+              isPlaying
+                ? "bg-[var(--accent)] shadow-[0_0_8px_var(--accent-glow)] animate-pulse"
+                : "bg-[#3e4560] group-hover:bg-[var(--accent)]/80"
+            }`}
+          />
+
+          {/* Micro-seta simétrica centralizada */}
+          <div
+            className={`flex items-center justify-center z-10 pointer-events-none transition-colors duration-200 ${
+              isPlaying
+                ? "text-[var(--accent)] drop-shadow-[0_0_6px_var(--accent-glow)]"
+                : "text-[#7a829c] opacity-85 group-hover:opacity-100 group-hover:text-white"
+            }`}
+          >
+            {activeDockSide === "left" ? (
+              <ChevronRight
+                className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform duration-150"
+                strokeWidth={2.5}
+              />
+            ) : (
+              <ChevronLeft
+                className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform duration-150"
+                strokeWidth={2.5}
+              />
+            )}
+          </div>
         </div>
       </div>
     );
   }
 
-  // Visualização Completa do Mini Player Flutuante (Solid Edge-to-Edge Frame)
+  // Classes de animação e formato para Gaveta Auto-Slide vs Flutuante Livre
+  const drawerAnimationClass = isDocked
+    ? isDrawerAnimatingOut
+      ? activeDockSide === "left"
+        ? "animate-drawer-out-left"
+        : "animate-drawer-out-right"
+      : activeDockSide === "left"
+        ? "animate-drawer-in-left"
+        : "animate-drawer-in-right"
+    : "";
+
+  const containerShapeClass = isDocked
+    ? activeDockSide === "left"
+      ? "border-l-0 rounded-r-2xl"
+      : "border-r-0 rounded-l-2xl"
+    : "rounded-2xl";
+
+  // Visualização Expandida (Gaveta Auto-Slide na borda ou Mini Player Flutuante)
   return (
     <div
       onMouseDown={handleStartDrag}
-      className="w-full h-full bg-[#0c0e17] border border-[#232738] flex flex-col justify-between overflow-hidden shadow-2xl relative select-none"
+      onPointerDownCapture={() => {
+        isPointerDownInsideRef.current = true;
+        cancelAutoCollapse();
+      }}
+      onMouseEnter={() => {
+        if (isDockedRef.current) {
+          cancelAutoCollapse();
+        }
+      }}
+      onMouseMove={() => {
+        if (isDockedRef.current) {
+          cancelAutoCollapse();
+        }
+      }}
+      onMouseLeave={() => {
+        if (isDockedRef.current && isDrawerExpandedRef.current) {
+          if (performance.now() - expandTimestampRef.current < 240) {
+            return;
+          }
+          scheduleAutoCollapse(210);
+        }
+      }}
+      onWheel={handleWheelVolume}
+      className={`w-full h-full bg-[#0c0e17] border border-[#262b3d] flex flex-col justify-between overflow-hidden relative select-none ${containerShapeClass} ${drawerAnimationClass}`}
     >
+      {/* Filete luminoso lateral quando ancorado como Gaveta Auto-Slide */}
+      {isDocked && (
+        <div
+          className={`absolute top-3 bottom-3 w-[2.5px] rounded-full z-30 pointer-events-none ${
+            activeDockSide === "left" ? "left-0" : "right-0"
+          } ${
+            isPlaying
+              ? "bg-[var(--accent)] shadow-[0_0_10px_var(--accent-glow)]"
+              : "bg-[#343b52]"
+          }`}
+        />
+      )}
+
       {/* Glow Aurora de fundo sutil */}
       <div
-        className="absolute inset-0 opacity-25 pointer-events-none"
+        className="absolute inset-0 opacity-25 pointer-events-none rounded-[inherit]"
         style={{
           background:
             "radial-gradient(circle at 20% 50%, var(--aurora-1-glow) 0%, transparent 60%)",
@@ -240,15 +525,11 @@ export function MiniPlayer() {
       />
 
       {/* Header com Drag e Controles de Janela */}
-      <div
-        className="h-7 px-2.5 bg-[#121522] border-b border-[#1c2030] flex items-center justify-between cursor-move shrink-0 z-20"
-      >
-        <div
-          className="flex items-center gap-1.5 pointer-events-none select-none"
-        >
+      <div className="h-7 px-2.5 bg-[#121522] border-b border-[#1c2030] flex items-center justify-between cursor-move shrink-0 z-20">
+        <div className="flex items-center gap-1.5 pointer-events-none select-none">
           <div className="w-2 h-2 rounded-full bg-[var(--accent)] animate-pulse" />
           <span className="text-[10px] font-bold text-[#8c91a4] tracking-wider uppercase">
-            Mini Player
+            {isDocked ? "Mini Player • Auto" : "Mini Player"}
           </span>
         </div>
 
@@ -258,20 +539,58 @@ export function MiniPlayer() {
           onPointerDown={(e) => e.stopPropagation()}
           className="flex items-center gap-1 z-30"
         >
-          {/* Recolher na borda da tela (Dock) */}
-          <button
-            type="button"
-            onMouseDown={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleManualDock();
-            }}
-            title="Recolher na borda da tela (Dock)"
-            className="p-1 rounded text-[#71778c] hover:text-white hover:bg-[#202536] transition-colors cursor-pointer"
-          >
-            <ChevronsRight className="w-3 h-3" />
-          </button>
+          {isDocked ? (
+            <>
+              {/* Desafixar da borda para manter sempre aberto como janela flutuante */}
+              <button
+                type="button"
+                onMouseDown={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleUndock();
+                }}
+                title="Desafixar da borda (Manter sempre aberto)"
+                className="p-1 rounded text-[var(--accent)] hover:text-white hover:bg-[#202536] transition-colors cursor-pointer"
+              >
+                <PinOff className="w-3 h-3" />
+              </button>
+
+              {/* Recolher imediatamente para a borda */}
+              <button
+                type="button"
+                onMouseDown={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  collapseDockedDrawerNow();
+                }}
+                title="Esconder gaveta agora"
+                className="p-1 rounded text-[#71778c] hover:text-white hover:bg-[#202536] transition-colors cursor-pointer"
+              >
+                {activeDockSide === "left" ? (
+                  <ChevronLeft className="w-3 h-3" />
+                ) : (
+                  <ChevronRight className="w-3 h-3" />
+                )}
+              </button>
+            </>
+          ) : (
+            /* Recolher na borda da tela (Ativar Gaveta Auto-Slide) */
+            <button
+              type="button"
+              onMouseDown={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleManualDock();
+              }}
+              title="Ancorar na borda (Gaveta Auto-Slide ao passar o mouse)"
+              className="p-1 rounded text-[#71778c] hover:text-white hover:bg-[#202536] transition-colors cursor-pointer"
+            >
+              <ChevronsRight className="w-3 h-3" />
+            </button>
+          )}
 
           {/* Restaurar para janela normal */}
           <button
@@ -280,6 +599,7 @@ export function MiniPlayer() {
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
+              clearAllDrawerTimers();
               toggleMiniPlayer();
             }}
             title="Expandir para o Player Completo"

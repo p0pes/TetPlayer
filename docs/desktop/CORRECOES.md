@@ -1003,20 +1003,21 @@ Todos os **148 apontamentos técnicos (#01 a #148)** catalogados em auditorias t
 
 ---
 
-### 153. Sincronização e Simetria Visual das Setas, Transparência Real e Ancoragem na Borda no Mini Player Recolhido
+### 153. Gaveta Inteligente Auto-Slide por Hover na Borda, Remoção Nativa da Moldura DWM do Windows 11 e Controle Rápido por Scroll
 * **Status:** 🟢 **Resolvido**
-* **Localização:** [`desktop/src-tauri/src/lib.rs:825-865, 1060-1080`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/lib.rs#L825-L865), [`desktop/index.html:1-24`](file:///d:/progrmação/programas/TetPlayer/desktop/index.html#L1-L24), [`desktop/src/components/MiniPlayer/MiniPlayer.tsx:180-220`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MiniPlayer/MiniPlayer.tsx#L180-L220)
+* **Localização:** [`desktop/src-tauri/src/lib.rs:795-1150`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/lib.rs#L795-L1150), [`desktop/src/components/MiniPlayer/MiniPlayer.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MiniPlayer/MiniPlayer.tsx), [`desktop/src/index.css:500-565`](file:///d:/progrmação/programas/TetPlayer/desktop/src/index.css#L500-L565), [`desktop/src/components/__tests__/MiniPlayer.test.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/__tests__/MiniPlayer.test.tsx)
 * **Diagnóstico Técnico da Causa-Raiz:**
-  1. Em `desktop/index.html`, o elemento `html, body` continha estilos inline e regras com `background-color: #0b0c10 !important`. Mesmo com `transparent: true` configurado no manifesto do Tauri, a WebView2 pintava um retângulo opaco sólido de 34x48px sob o elemento, gerando um contorno retangular do Windows 11 com quinas cortadas ao redor da curvatura arredondada da cápsula (efeito de borda dupla/recorte);
-  2. No backend Rust, janelas no Windows possuem uma margem invisível de redimensionamento de 7-8px na coordenada `RECT.left`. Ao ancorar na esquerda com `target_x = mon_logical_pos.x`, os pixels visíveis da janela começavam em `x = 8`, criando um espaçamento/fresta de 8px de papel de parede entre a borda do monitor e a aba;
-  3. No gradiente de iluminação de fundo (`radial-gradient`), a forma circular produzia um degrau visível com aspecto de anel interno;
-  4. Na ancoragem à direita, a posição `mon_logical_pos.x + mon_logical_size.width - docked_w` estava correta e sem cortes, enquanto a esquerda precisava do recuo de `offset_left` para colar 100% na borda da tela.
+  1. Com `"shadow": true` ativo no `tauri.conf.json`, o Desktop Window Manager (`dwm.exe`) do Windows 11 desenhava nativamente uma moldura retangular com cantos de 8px, sombra projetada e borda de 1px na cor de destaque do sistema (vermelha) ao redor do HWND, ignorando o formato semicircular do CSS interno;
+  2. Como o Windows 11 impõe uma largura mínima física (`SM_CXMINTRACK` ~36px) para janelas com moldura DWM, ancorar um elemento `w-full` na esquerda mantinha todos os 36px dentro da tela, enquanto na direita parte do HWND excedia a coordenada calculada, gerando assimetria entre os dois lados;
+  3. O fluxo anterior exigia 3 cliques (abrir aba -> controlar música -> fechar aba), dificultando o uso rápido sobre jogos em tela cheia sem bordas (como Fortnite).
 * **Solução Implementada:**
-  1. Definido `background-color: transparent !important` em `index.html` para `html, body`, permitindo que os cantos fora de `rounded-r-full` e `rounded-l-full` fiquem 100% transparentes e eliminando completamente qualquer borda retangular da janela;
-  2. Implementada a função nativa `get_dwm_frame_offset_left` no Rust para compensar a margem esquerda invisível do DWM (`mon_logical_pos.x - offset_left`), fazendo a aba colar de forma perfeita e sem fresta na borda esquerda do monitor, alinhada à direita;
-  3. Reintroduzido `border-l-0` para a aba esquerda e `border-r-0` para a aba direita, eliminando qualquer traço de borda sobre a moldura física do monitor e preservando a borda contínua no lado que projeta para dentro da tela;
-  4. Suavizado o gradiente Aurora para elipse difusa (`ellipse at center ... transparent 80%`), eliminando anéis circulares internos;
-  5. Setas padronizadas em `18x18px` com `strokeWidth={2.5}` e transições de hover balanceadas.
+  1. **Supressão Nativa da Moldura DWM no Modo Mini Player (`configure_window_dwm_frame`):** Ao ativar o Mini Player, o backend Rust invoca `window.set_shadow(false)` e aplica `DwmSetWindowAttribute` com `DWMWA_BORDER_COLOR = DWMWA_COLOR_NONE` (`0xFFFFFFFE`) e `DWMWA_WINDOW_CORNER_PREFERENCE = DWMWCP_DONOTROUND` (`1`), eliminando 100% a borda vermelha e o recorte retangular do Windows 11 (e restaurando-os automaticamente ao retornar ao Player Completo);
+  2. **Posicionamento Atômico Sem Roubo de Foco (`atomic_set_window_rect`):** Utilização de `SetWindowPos` com `SWP_NOZORDER | SWP_NOACTIVATE` e aferição imediata via `GetWindowRect`, garantindo alinhamento exato na borda física esquerda e direita do monitor em um único frame sem roubar o foco de janela de jogos;
+  3. **Gaveta Inteligente Auto-Slide (0 Cliques para Abrir/Fechar):**
+     - Quando recolhida na borda, exibe uma alça minimalista e simétrica de `18x56px` (`justify-start` na esquerda e `justify-end` na direita) com filete luminoso Aurora pulsante (`var(--accent)`) e micro-seta centralizada;
+     - Ao encostar o cursor do mouse na alça (`onMouseEnter`), o comando `peek_docked_mini_player` desliza automaticamente a gaveta completa (`380x140`) para dentro da tela com animação acelerada por GPU a 144 FPS (`translate3d`);
+     - Ao retirar o mouse de cima da gaveta (`onMouseLeave`), ela desliza de volta para a borda e se recolhe sozinha após `210ms` (com proteção contra fechamento durante o arrasto de sliders de volume/tempo);
+  4. **Ajuste de Volume no Scroll e Botão Desafixar (`PinOff`):** Adicionado suporte a ajuste direto de volume (`±5%`) ao girar a roda do mouse sobre a alça ou gaveta, além de botão no cabeçalho para desafixar da borda caso o usuário deseje mantê-lo flutuando permanentemente aberto.
 
 ---
 

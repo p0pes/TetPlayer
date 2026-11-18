@@ -792,6 +792,116 @@ fn start_drag_window(window: tauri::Window) -> Result<(), String> {
     window.start_dragging().map_err(|e| e.to_string())
 }
 
+#[cfg(target_os = "windows")]
+fn configure_window_dwm_frame(window: &tauri::Window, mini_mode: bool) {
+    use windows_sys::Win32::Graphics::Dwm::DwmSetWindowAttribute;
+
+    let _ = window.set_shadow(!mini_mode);
+
+    if let Ok(hwnd) = window.hwnd() {
+        let hwnd_raw = hwnd.0 as windows_sys::Win32::Foundation::HWND;
+        unsafe {
+            // DWMWA_WINDOW_CORNER_PREFERENCE = 33 (1 = DWMWCP_DONOTROUND, 2 = DWMWCP_ROUND)
+            let corner_pref: u32 = if mini_mode { 1 } else { 2 };
+            let _ = DwmSetWindowAttribute(
+                hwnd_raw,
+                33,
+                &corner_pref as *const _ as *const _,
+                std::mem::size_of::<u32>() as u32,
+            );
+
+            // DWMWA_BORDER_COLOR = 34 (0xFFFFFFFE = DWMWA_COLOR_NONE, 0xFFFFFFFF = DWMWA_COLOR_DEFAULT)
+            let border_color: u32 = if mini_mode { 0xFFFFFFFE } else { 0xFFFFFFFF };
+            let _ = DwmSetWindowAttribute(
+                hwnd_raw,
+                34,
+                &border_color as *const _ as *const _,
+                std::mem::size_of::<u32>() as u32,
+            );
+        }
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn configure_window_dwm_frame(window: &tauri::Window, mini_mode: bool) {
+    let _ = window.set_shadow(!mini_mode);
+}
+
+#[cfg(target_os = "windows")]
+fn atomic_set_window_rect(
+    window: &tauri::Window,
+    phys_x: i32,
+    phys_y: i32,
+    phys_w: i32,
+    phys_h: i32,
+    align_right_edge: Option<i32>,
+) {
+    use windows_sys::Win32::Foundation::RECT;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GetWindowRect, SetWindowPos, SWP_NOACTIVATE, SWP_NOZORDER,
+    };
+
+    if let Ok(hwnd) = window.hwnd() {
+        let hwnd_raw = hwnd.0 as windows_sys::Win32::Foundation::HWND;
+        let zero_hwnd = 0 as windows_sys::Win32::Foundation::HWND;
+        unsafe {
+            let _ = SetWindowPos(
+                hwnd_raw,
+                zero_hwnd,
+                phys_x,
+                phys_y,
+                phys_w,
+                phys_h,
+                SWP_NOZORDER | SWP_NOACTIVATE,
+            );
+
+            if let Some(right_edge) = align_right_edge {
+                let mut rect = RECT {
+                    left: 0,
+                    top: 0,
+                    right: 0,
+                    bottom: 0,
+                };
+                if GetWindowRect(hwnd_raw, &mut rect) != 0 {
+                    let actual_w = rect.right - rect.left;
+                    let actual_h = rect.bottom - rect.top;
+                    let corrected_x = right_edge - actual_w;
+                    if corrected_x != rect.left {
+                        let _ = SetWindowPos(
+                            hwnd_raw,
+                            zero_hwnd,
+                            corrected_x,
+                            phys_y,
+                            actual_w,
+                            actual_h,
+                            SWP_NOZORDER | SWP_NOACTIVATE,
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn atomic_set_window_rect(
+    window: &tauri::Window,
+    phys_x: i32,
+    phys_y: i32,
+    phys_w: i32,
+    phys_h: i32,
+    _align_right_edge: Option<i32>,
+) {
+    let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize {
+        width: phys_w.max(1) as u32,
+        height: phys_h.max(1) as u32,
+    }));
+    let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
+        x: phys_x,
+        y: phys_y,
+    }));
+}
+
 #[tauri::command]
 fn set_mini_player_mode(window: tauri::Window, enabled: bool) -> Result<(), String> {
     if enabled {
@@ -799,15 +909,14 @@ fn set_mini_player_mode(window: tauri::Window, enabled: bool) -> Result<(), Stri
         let _ = window.set_resizable(false);
         let _ = window.set_maximizable(false);
         let _ = window.set_always_on_top(true);
-        let _ = window.set_min_size(Some(tauri::Size::Logical(tauri::LogicalSize {
-            width: 340.0,
-            height: 120.0,
-        })));
+        let _ = window.set_min_size(None::<tauri::Size>);
+        configure_window_dwm_frame(&window, true);
         let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
             width: 380.0,
             height: 140.0,
         }));
     } else {
+        configure_window_dwm_frame(&window, false);
         let _ = window.set_always_on_top(false);
         let _ = window.set_resizable(true);
         let _ = window.set_maximizable(true);
@@ -819,41 +928,29 @@ fn set_mini_player_mode(window: tauri::Window, enabled: bool) -> Result<(), Stri
             width: 800.0,
             height: 550.0,
         })));
-    }
-    Ok(())
-}
-
-#[cfg(target_os = "windows")]
-fn get_dwm_frame_offset_left(window: &tauri::Window, scale_factor: f64) -> f64 {
-    use windows_sys::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_EXTENDED_FRAME_BOUNDS};
-    use windows_sys::Win32::UI::WindowsAndMessaging::GetWindowRect;
-    use windows_sys::Win32::Foundation::RECT;
-
-    if let Ok(hwnd) = window.hwnd() {
-        let hwnd_raw = hwnd.0 as windows_sys::Win32::Foundation::HWND;
-        let mut win_rect = RECT { left: 0, top: 0, right: 0, bottom: 0 };
-        let mut frame_rect = RECT { left: 0, top: 0, right: 0, bottom: 0 };
-        unsafe {
-            if GetWindowRect(hwnd_raw, &mut win_rect) != 0 {
-                let hr = DwmGetWindowAttribute(
-                    hwnd_raw,
-                    DWMWA_EXTENDED_FRAME_BOUNDS as u32,
-                    &mut frame_rect as *mut _ as *mut _,
-                    std::mem::size_of::<RECT>() as u32,
-                );
-                if hr == 0 {
-                    let offset_left = (frame_rect.left - win_rect.left) as f64 / scale_factor;
-                    return offset_left.max(0.0);
+        if let Ok(Some(monitor)) = window.current_monitor() {
+            let mon_pos = monitor.position();
+            let mon_size = monitor.size();
+            let scale = monitor.scale_factor();
+            let target_w = (1050.0 * scale).round() as i32;
+            let target_h = (720.0 * scale).round() as i32;
+            if let Ok(win_pos) = window.outer_position() {
+                let min_x = mon_pos.x;
+                let max_x = (mon_pos.x + mon_size.width as i32 - target_w).max(min_x);
+                let min_y = mon_pos.y;
+                let max_y = (mon_pos.y + mon_size.height as i32 - target_h).max(min_y);
+                let clamped_x = win_pos.x.clamp(min_x, max_x);
+                let clamped_y = win_pos.y.clamp(min_y, max_y);
+                if clamped_x != win_pos.x || clamped_y != win_pos.y {
+                    let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
+                        x: clamped_x,
+                        y: clamped_y,
+                    }));
                 }
             }
         }
     }
-    0.0
-}
-
-#[cfg(not(target_os = "windows"))]
-fn get_dwm_frame_offset_left(_window: &tauri::Window, _scale_factor: f64) -> f64 {
-    0.0
+    Ok(())
 }
 
 #[tauri::command]
@@ -861,6 +958,8 @@ fn dock_mini_player(window: tauri::Window, side: String) -> Result<String, Strin
     let _ = window.unmaximize();
     let _ = window.set_resizable(false);
     let _ = window.set_maximizable(false);
+    let _ = window.set_min_size(None::<tauri::Size>);
+    configure_window_dwm_frame(&window, true);
 
     let monitor = window
         .current_monitor()
@@ -871,44 +970,101 @@ fn dock_mini_player(window: tauri::Window, side: String) -> Result<String, Strin
     let mon_size = monitor.size();
     let scale_factor = monitor.scale_factor();
 
-    let mon_logical_pos = mon_pos.to_logical::<f64>(scale_factor);
-    let mon_logical_size = mon_size.to_logical::<f64>(scale_factor);
+    let win_pos = window.outer_position().unwrap_or(*mon_pos);
+    let win_size = window
+        .outer_size()
+        .unwrap_or(tauri::PhysicalSize { width: 380, height: 140 });
 
-    let win_pos = window
-        .outer_position()
-        .unwrap_or(*mon_pos)
-        .to_logical::<f64>(scale_factor);
+    let docked_w_phys = (36.0 * scale_factor).round() as i32;
+    let docked_h_phys = (68.0 * scale_factor).round() as i32;
+    let expanded_threshold_phys = (100.0 * scale_factor).round() as i32;
 
-    let docked_w = 34.0;
-    let docked_h = 48.0;
-
-    let offset_left = get_dwm_frame_offset_left(&window, scale_factor);
-
-    let target_x = if side == "left" {
-        mon_logical_pos.x - offset_left
+    let base_y_phys = if (win_size.height as i32) > expanded_threshold_phys {
+        win_pos.y + ((win_size.height as i32) - docked_h_phys) / 2
     } else {
-        mon_logical_pos.x + mon_logical_size.width - docked_w
+        win_pos.y
     };
 
-    let min_y = mon_logical_pos.y;
-    let max_y = mon_logical_pos.y + mon_logical_size.height - docked_h;
-    let target_y = win_pos.y.clamp(min_y, max_y.max(min_y));
+    let min_y = mon_pos.y;
+    let max_y = (mon_pos.y + (mon_size.height as i32) - docked_h_phys).max(min_y);
+    let target_y = base_y_phys.clamp(min_y, max_y);
 
-    let _ = window.set_min_size(Some(tauri::Size::Logical(tauri::LogicalSize {
-        width: 24.0,
-        height: 36.0,
-    })));
-    let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
-        width: docked_w,
-        height: docked_h,
-    }));
-    let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition {
-        x: target_x,
-        y: target_y,
-    }));
+    if side == "left" {
+        atomic_set_window_rect(
+            &window,
+            mon_pos.x,
+            target_y,
+            docked_w_phys,
+            docked_h_phys,
+            None,
+        );
+    } else {
+        let mon_right = mon_pos.x + (mon_size.width as i32);
+        atomic_set_window_rect(
+            &window,
+            mon_right - docked_w_phys,
+            target_y,
+            docked_w_phys,
+            docked_h_phys,
+            Some(mon_right),
+        );
+    }
 
     let _ = window.emit("mini-player-docked", &side);
     Ok(side)
+}
+
+#[tauri::command]
+fn peek_docked_mini_player(window: tauri::Window, side: String) -> Result<(), String> {
+    let _ = window.unmaximize();
+    let _ = window.set_resizable(false);
+    let _ = window.set_maximizable(false);
+    let _ = window.set_min_size(None::<tauri::Size>);
+    configure_window_dwm_frame(&window, true);
+
+    let monitor = window
+        .current_monitor()
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Nenhum monitor encontrado".to_string())?;
+
+    let mon_pos = monitor.position();
+    let mon_size = monitor.size();
+    let scale_factor = monitor.scale_factor();
+
+    let win_pos = window.outer_position().unwrap_or(*mon_pos);
+    let win_size = window
+        .outer_size()
+        .unwrap_or(tauri::PhysicalSize { width: 36, height: 68 });
+
+    let full_w_phys = (380.0 * scale_factor).round() as i32;
+    let full_h_phys = (140.0 * scale_factor).round() as i32;
+    let collapsed_threshold_phys = (100.0 * scale_factor).round() as i32;
+
+    let base_y_phys = if (win_size.height as i32) <= collapsed_threshold_phys {
+        win_pos.y - (full_h_phys - (win_size.height as i32)) / 2
+    } else {
+        win_pos.y
+    };
+
+    let min_y = mon_pos.y;
+    let max_y = (mon_pos.y + (mon_size.height as i32) - full_h_phys).max(min_y);
+    let target_y = base_y_phys.clamp(min_y, max_y);
+
+    if side == "left" {
+        atomic_set_window_rect(&window, mon_pos.x, target_y, full_w_phys, full_h_phys, None);
+    } else {
+        let mon_right = mon_pos.x + (mon_size.width as i32);
+        atomic_set_window_rect(
+            &window,
+            mon_right - full_w_phys,
+            target_y,
+            full_w_phys,
+            full_h_phys,
+            Some(mon_right),
+        );
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -916,6 +1072,8 @@ fn undock_mini_player(window: tauri::Window, side: Option<String>) -> Result<(),
     let _ = window.unmaximize();
     let _ = window.set_resizable(false);
     let _ = window.set_maximizable(false);
+    let _ = window.set_min_size(None::<tauri::Size>);
+    configure_window_dwm_frame(&window, true);
 
     let monitor = window
         .current_monitor()
@@ -926,42 +1084,35 @@ fn undock_mini_player(window: tauri::Window, side: Option<String>) -> Result<(),
     let mon_size = monitor.size();
     let scale_factor = monitor.scale_factor();
 
-    let mon_logical_pos = mon_pos.to_logical::<f64>(scale_factor);
-    let mon_logical_size = mon_size.to_logical::<f64>(scale_factor);
+    let win_pos = window.outer_position().unwrap_or(*mon_pos);
+    let win_size = window
+        .outer_size()
+        .unwrap_or(tauri::PhysicalSize { width: 380, height: 140 });
 
-    let win_pos = window
-        .outer_position()
-        .unwrap_or(*mon_pos)
-        .to_logical::<f64>(scale_factor);
-
-    let full_w = 380.0;
-    let full_h = 140.0;
+    let full_w_phys = (380.0 * scale_factor).round() as i32;
+    let full_h_phys = (140.0 * scale_factor).round() as i32;
+    let offset_phys = (16.0 * scale_factor).round() as i32;
+    let collapsed_threshold_phys = (100.0 * scale_factor).round() as i32;
 
     let side_str = side.as_deref().unwrap_or("left");
-    let offset = 16.0;
 
     let target_x = if side_str == "left" {
-        mon_logical_pos.x + offset
+        mon_pos.x + offset_phys
     } else {
-        mon_logical_pos.x + mon_logical_size.width - full_w - offset
+        mon_pos.x + (mon_size.width as i32) - full_w_phys - offset_phys
     };
 
-    let min_y = mon_logical_pos.y;
-    let max_y = mon_logical_pos.y + mon_logical_size.height - full_h;
-    let target_y = win_pos.y.clamp(min_y, max_y.max(min_y));
+    let base_y_phys = if (win_size.height as i32) <= collapsed_threshold_phys {
+        win_pos.y - (full_h_phys - (win_size.height as i32)) / 2
+    } else {
+        win_pos.y
+    };
 
-    let _ = window.set_min_size(Some(tauri::Size::Logical(tauri::LogicalSize {
-        width: 340.0,
-        height: 120.0,
-    })));
-    let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
-        width: full_w,
-        height: full_h,
-    }));
-    let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition {
-        x: target_x,
-        y: target_y,
-    }));
+    let min_y = mon_pos.y;
+    let max_y = (mon_pos.y + (mon_size.height as i32) - full_h_phys).max(min_y);
+    let target_y = base_y_phys.clamp(min_y, max_y);
+
+    atomic_set_window_rect(&window, target_x, target_y, full_w_phys, full_h_phys, None);
 
     Ok(())
 }
@@ -1061,29 +1212,34 @@ fn move_docked_tab(
     let mon_size = monitor.size();
     let scale_factor = monitor.scale_factor();
 
-    let mon_logical_pos = mon_pos.to_logical::<f64>(scale_factor);
-    let mon_logical_size = mon_size.to_logical::<f64>(scale_factor);
+    let docked_w_phys = (36.0 * scale_factor).round() as i32;
+    let docked_h_phys = (68.0 * scale_factor).round() as i32;
 
-    let docked_w = 34.0;
-    let docked_h = 48.0;
+    let min_y = mon_pos.y;
+    let max_y = (mon_pos.y + (mon_size.height as i32) - docked_h_phys).max(min_y);
+    let desired_y_phys = ((screen_y_logical - grab_offset_y_logical) * scale_factor).round() as i32;
+    let target_y = desired_y_phys.clamp(min_y, max_y);
 
-    let offset_left = get_dwm_frame_offset_left(&window, scale_factor);
-
-    // X é ESTRITAMENTE travado na borda esquerda ou direita sem folga
-    let target_x = if side == "left" {
-        mon_logical_pos.x - offset_left
+    if side == "left" {
+        atomic_set_window_rect(
+            &window,
+            mon_pos.x,
+            target_y,
+            docked_w_phys,
+            docked_h_phys,
+            None,
+        );
     } else {
-        mon_logical_pos.x + mon_logical_size.width - docked_w
-    };
-
-    let min_y = mon_logical_pos.y;
-    let max_y = mon_logical_pos.y + mon_logical_size.height - docked_h;
-    let target_y = (screen_y_logical - grab_offset_y_logical).clamp(min_y, max_y.max(min_y));
-
-    let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition {
-        x: target_x,
-        y: target_y,
-    }));
+        let mon_right = mon_pos.x + (mon_size.width as i32);
+        atomic_set_window_rect(
+            &window,
+            mon_right - docked_w_phys,
+            target_y,
+            docked_w_phys,
+            docked_h_phys,
+            Some(mon_right),
+        );
+    }
 
     Ok(())
 }
@@ -1277,6 +1433,7 @@ pub fn run() {
             start_drag_window,
             set_mini_player_mode,
             dock_mini_player,
+            peek_docked_mini_player,
             undock_mini_player,
             check_and_snap_mini_player,
             start_drag_and_snap,

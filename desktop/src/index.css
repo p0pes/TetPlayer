@@ -502,3 +502,68 @@ input[type="range"] {
 .animate-icon-pop {
   animation: icon-pop 150ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* Gaveta Inteligente Auto-Slide do Mini Player (144 FPS GPU-Accelerated) */
+@keyframes mini-drawer-in-left {
+  from {
+    opacity: 0;
+    transform: translate3d(-26px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes mini-drawer-in-right {
+  from {
+    opacity: 0;
+    transform: translate3d(26px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes mini-drawer-out-left {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(-30px, 0, 0);
+  }
+}
+
+@keyframes mini-drawer-out-right {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(30px, 0, 0);
+  }
+}
+
+.animate-drawer-in-left {
+  animation: mini-drawer-in-left 160ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.animate-drawer-in-right {
+  animation: mini-drawer-in-right 160ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.animate-drawer-out-left {
+  animation: mini-drawer-out-left 120ms cubic-bezier(0.4, 0, 1, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.animate-drawer-out-right {
+  animation: mini-drawer-out-right 120ms cubic-bezier(0.4, 0, 1, 1) forwards;
+  will-change: transform, opacity;
+}
