@@ -8,7 +8,6 @@ import {
   Pencil,
   Trash2,
   Copy,
-  Check,
   Download,
   Loader2,
   Disc3,
@@ -68,7 +67,6 @@ export function CollectionContextMenu({
   onRemoveCollectionDownloads,
 }: CollectionContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isClosing, setIsClosing] = useState(false);
   const [downloadState, setDownloadState] = useState(() => ({
     isDownloading: false,
@@ -140,11 +138,12 @@ export function CollectionContextMenu({
   const safeY = Math.min(position.y, window.innerHeight - menuHeight - 16);
 
   function showToast(msg: string) {
-    setToastMessage(msg);
-    setTimeout(() => {
-      setToastMessage(null);
-      handleClose();
-    }, 900);
+    window.dispatchEvent(
+      new CustomEvent("tetplayer:toast", {
+        detail: { message: msg },
+      })
+    );
+    handleClose();
   }
 
   function handlePlayAction(shuffle = false) {
@@ -299,34 +298,35 @@ export function CollectionContextMenu({
           <span>{item.isPinned ? "Desafixar do Topo" : "Fixar no Topo"}</span>
         </button>
 
-        {/* Opção Download Offline da Coleção */}
-        <button
-          type="button"
-          role="menuitem"
-          disabled={downloadState.isDownloading}
-          onClick={handleDownloadAction}
-          className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-[#c4c8d8] hover:text-white hover:bg-[var(--accent-subtle)] hover:border-[var(--accent-border)] border border-transparent transition-all cursor-pointer group text-left"
-        >
-          {downloadState.isDownloading ? (
-            <Loader2 className="w-4 h-4 text-[var(--accent)] animate-spin shrink-0" />
-          ) : (
-            <Download className="w-4 h-4 text-[var(--accent-text)] group-hover:scale-110 transition-transform shrink-0" />
-          )}
-          <span>
-            {downloadState.isDownloading
-              ? "Baixando faixas offline..."
-              : isPlaylist
-              ? "Baixar Playlist Offline"
-              : "Baixar Álbum Offline"}
-          </span>
-        </button>
-
-        {/* Opção Remover Downloads da Coleção */}
-        {(downloadState.isAvailableOffline || downloadState.isDownloaded) && (
+        {/* Opção Download Offline da Coleção (oculta quando já 100% baixada) */}
+        {(!downloadState.isDownloaded || downloadState.isDownloading) && (
           <button
             type="button"
             role="menuitem"
             disabled={downloadState.isDownloading}
+            onClick={handleDownloadAction}
+            className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-[#c4c8d8] hover:text-white hover:bg-[var(--accent-subtle)] hover:border-[var(--accent-border)] border border-transparent transition-all cursor-pointer group text-left"
+          >
+            {downloadState.isDownloading ? (
+              <Loader2 className="w-4 h-4 text-[var(--accent)] animate-spin shrink-0" />
+            ) : (
+              <Download className="w-4 h-4 text-[var(--accent-text)] group-hover:scale-110 transition-transform shrink-0" />
+            )}
+            <span>
+              {downloadState.isDownloading
+                ? "Baixando faixas offline..."
+                : isPlaylist
+                ? "Baixar Playlist Offline"
+                : "Baixar Álbum Offline"}
+            </span>
+          </button>
+        )}
+
+        {/* Opção Remover Downloads da Coleção (também permite cancelar download em curso) */}
+        {(downloadState.isAvailableOffline || downloadState.isDownloaded || downloadState.isDownloading) && (
+          <button
+            type="button"
+            role="menuitem"
             onClick={handleRemoveDownloadsAction}
             className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-rose-400 hover:text-rose-200 hover:bg-rose-500/15 border border-transparent transition-all cursor-pointer group text-left"
           >
@@ -392,14 +392,6 @@ export function CollectionContextMenu({
           </button>
         )}
       </div>
-
-      {/* Toast Feedback Temporário */}
-      {toastMessage && (
-        <div className="fixed bottom-24 right-6 z-50 flex items-center gap-2 px-4 py-2 rounded-xl bg-[#12141f] border border-[var(--accent)] text-white text-xs font-semibold shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-150">
-          <Check className="w-3.5 h-3.5 text-emerald-400" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
     </>
   );
 }

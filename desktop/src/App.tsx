@@ -1245,10 +1245,11 @@ function AppContent({
             id: d.video_id,
             title: d.title,
             artist: d.artist,
+            duration_seconds: d.duration_seconds,
             duration: d.duration_seconds
               ? `${Math.floor(d.duration_seconds / 60)}:${String(d.duration_seconds % 60).padStart(2, "0")}`
               : "",
-            thumbnail: d.artwork_url || "",
+            artwork_url: d.artwork_url,
           }));
 
         const matchedAlbums = albums.filter(
@@ -1652,11 +1653,23 @@ function AppContent({
 
   const handleAddToQueueFromMenu = useCallback(
     async (item: CollectionContextItem) => {
+      const isOffline = !NetworkService.isOnline();
+      const enqueueAvailable = (tracks: Track[]) => {
+        const playable = isOffline
+          ? tracks.filter((t) => DownloadsService.isDownloaded(t.id))
+          : tracks;
+        if (playable.length > 0) {
+          handleAddTracksToQueue(playable);
+        } else if (isOffline) {
+          showPlaylistToast("Nenhuma música desta coleção está disponível offline.");
+        }
+      };
+
       if (item.kind === "playlist") {
         try {
           const cached = LocalCacheService.getCachedPlaylistTracks(item.playlist.id);
           let tracks = cached;
-          if (!tracks || tracks.length === 0) {
+          if ((!tracks || tracks.length === 0) && !isOffline) {
             tracks = await invoke<Track[]>("get_playlist_tracks", {
               playlistId: item.playlist.id,
             });
@@ -1665,7 +1678,7 @@ function AppContent({
             }
           }
           if (tracks && tracks.length > 0) {
-            handleAddTracksToQueue(tracks);
+            enqueueAvailable(tracks);
           }
         } catch (err) {
           console.error("Erro ao adicionar playlist à fila:", err);
@@ -1674,7 +1687,7 @@ function AppContent({
         try {
           const cached = LocalCacheService.getCachedAlbumDetail(item.album.id);
           let tracks = cached?.tracks;
-          if (!tracks || tracks.length === 0) {
+          if ((!tracks || tracks.length === 0) && !isOffline) {
             const detail = await invoke<AlbumDetail>("get_album_details", {
               browseId: item.album.id,
             });
@@ -1684,14 +1697,14 @@ function AppContent({
             }
           }
           if (tracks && tracks.length > 0) {
-            handleAddTracksToQueue(tracks);
+            enqueueAvailable(tracks);
           }
         } catch (err) {
           console.error("Erro ao adicionar álbum à fila:", err);
         }
       }
     },
-    [handleAddTracksToQueue]
+    [handleAddTracksToQueue, showPlaylistToast]
   );
 
   const handleTogglePinFromMenu = useCallback(
@@ -2418,8 +2431,12 @@ function AppContent({
 
                 {activeTab === "stats" && (
                   <StatsView
-                    onPlayTrack={(track) =>
-                      playTrackWithQueue(track, [track], 0)
+                    onPlayTrack={(track, queue, index) =>
+                      playTrackWithQueue(
+                        track,
+                        queue && queue.length > 0 ? queue : [track],
+                        index ?? 0
+                      )
                     }
                   />
                 )}

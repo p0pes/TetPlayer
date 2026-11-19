@@ -15,9 +15,10 @@ import {
 import { PlaybackStats, Track } from "../../types";
 import { upgradeArtworkQuality, handleArtworkError } from "../../utils/artwork";
 import { StatsShareModal } from "./StatsShareModal";
+import { ConfirmDeleteModal } from "../Modals/ConfirmDeleteModal";
 
 interface StatsViewProps {
-  onPlayTrack: (track: Track) => void;
+  onPlayTrack: (track: Track, queue?: Track[], index?: number) => void;
 }
 
 export const StatsView = React.memo(function StatsView({ onPlayTrack }: StatsViewProps) {
@@ -25,6 +26,7 @@ export const StatsView = React.memo(function StatsView({ onPlayTrack }: StatsVie
   const [stats, setStats] = useState<PlaybackStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isConfirmClearOpen, setIsConfirmClearOpen] = useState(false);
 
   useEffect(() => {
     loadStats();
@@ -44,20 +46,13 @@ export const StatsView = React.memo(function StatsView({ onPlayTrack }: StatsVie
     }
   }
 
-  async function handleClearStats() {
-    if (
-      window.confirm(
-        "Tem certeza que deseja apagar todo o seu histórico de estatísticas de reprodução?"
-      )
-    ) {
-      try {
-        await invoke("clear_playback_stats");
-        await loadStats();
-      } catch (err) {
-        console.error("Erro ao limpar estatísticas:", err);
-      }
-    }
+  async function handleConfirmClearStats() {
+    await invoke("clear_playback_stats");
+    await loadStats();
   }
+
+  const timeframeLabel =
+    timeframe === 7 ? "Resumo Semanal" : timeframe === 30 ? "Resumo Mensal" : "Histórico Completo";
 
   function formatDurationTotal(seconds: number): string {
     if (!seconds || seconds <= 0) return "0 min";
@@ -77,7 +72,7 @@ export const StatsView = React.memo(function StatsView({ onPlayTrack }: StatsVie
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-[var(--accent-text)] uppercase tracking-wider bg-[var(--accent-subtle)] px-2.5 py-1 rounded-md border border-[var(--accent-border)] flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-[var(--accent-text)]" />
-              Resumo Semanal
+              {timeframeLabel}
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
@@ -125,7 +120,7 @@ export const StatsView = React.memo(function StatsView({ onPlayTrack }: StatsVie
           </div>
 
           <button
-            onClick={handleClearStats}
+            onClick={() => setIsConfirmClearOpen(true)}
             title="Limpar Histórico de Estatísticas"
             className="p-2 rounded-xl text-[#71778c] hover:text-[var(--accent-text)] hover:bg-[var(--accent-subtle)] border border-[#232736] transition-colors cursor-pointer"
           >
@@ -309,15 +304,16 @@ export const StatsView = React.memo(function StatsView({ onPlayTrack }: StatsVie
                       </span>
 
                       <button
-                        onClick={() =>
-                          onPlayTrack({
-                            id: track.track_id,
-                            title: track.title,
-                            artist: track.artist,
-                            album: track.album,
-                            artwork_url: track.artwork_url,
-                          })
-                        }
+                        onClick={() => {
+                          const topQueue: Track[] = stats.top_tracks.map((t) => ({
+                            id: t.track_id,
+                            title: t.title,
+                            artist: t.artist,
+                            album: t.album,
+                            artwork_url: t.artwork_url,
+                          }));
+                          onPlayTrack(topQueue[idx], topQueue, idx);
+                        }}
                         title={`Tocar ${track.title}`}
                         className="w-8 h-8 rounded-full bg-[var(--accent)] hover:opacity-90 text-white flex items-center justify-center shadow-md shadow-[var(--accent-glow)] transition-transform active:scale-95 cursor-pointer"
                       >
@@ -340,6 +336,15 @@ export const StatsView = React.memo(function StatsView({ onPlayTrack }: StatsVie
           onClose={() => setIsShareModalOpen(false)}
         />
       )}
+
+      <ConfirmDeleteModal
+        isOpen={isConfirmClearOpen}
+        title="Limpar Estatísticas"
+        itemName="todo o histórico de estatísticas de reprodução"
+        description="Esta ação apagará permanentemente as contagens de reproduções e tempo total salvos no banco local."
+        onClose={() => setIsConfirmClearOpen(false)}
+        onConfirm={handleConfirmClearStats}
+      />
     </div>
   );
 });

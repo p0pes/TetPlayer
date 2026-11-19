@@ -464,6 +464,19 @@ export function PlayerProvider({
     index: number,
     playlistId?: string
   ) {
+    if (!NetworkService.isOnline() && !DownloadsService.isDownloaded(track.id)) {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("tetplayer:toast", {
+            detail: {
+              message: "Faixa indisponível offline: Baixe a música para ouvir sem conexão.",
+            },
+          })
+        );
+      }
+      return;
+    }
+
     setErrorMessage(null);
 
     markPlaylistListened(playlistId);
@@ -522,10 +535,22 @@ export function PlayerProvider({
     const queue = activeQueueRef.current;
     if (idx >= 0 && idx < queue.length) {
       const track = queue[idx];
+      if (!NetworkService.isOnline() && !DownloadsService.isDownloaded(track.id)) {
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("tetplayer:toast", {
+              detail: {
+                message: "Faixa indisponível offline: Baixe a música para ouvir sem conexão.",
+              },
+            })
+          );
+        }
+        return;
+      }
       recordTrackPlayed(track);
       dispatchQueue({ type: "PLAY_FROM_QUEUE", payload: { index: idx } });
       hasStartedPlaybackRef.current = true;
-    loadAndPlayVideo(track.id, 0, true);
+      loadAndPlayVideo(track.id, 0, true);
     }
   }
 
@@ -735,6 +760,18 @@ export function PlayerProvider({
   }
 
   function handleStartRadio(track: Track) {
+    if (!NetworkService.isOnline()) {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("tetplayer:toast", {
+            detail: {
+              message: "Modo Offline: Rádio automática indisponível sem conexão.",
+            },
+          })
+        );
+      }
+      return;
+    }
     playTrackWithQueue(track, [track], 0);
     invoke<Track[]>("get_radio_tracks", { videoId: track.id })
       .then((radioTracks) => {
@@ -850,6 +887,7 @@ export function PlayerProvider({
 
   // 1. Pré-carregamento IMEDIATO da próxima faixa assim que a fila ou a faixa muda (latência zero no pulo manual)
   useEffect(() => {
+    if (!NetworkService.isOnline()) return;
     const nextTrack = upcomingTracks[0];
     const secondNextTrack = upcomingTracks[1];
     if (nextTrack?.id && prefetchedTrackIdRef.current !== nextTrack.id) {
@@ -865,6 +903,7 @@ export function PlayerProvider({
 
   // 2. Antecipação de rádio contínua quando a faixa atual estiver perto do fim
   useEffect(() => {
+    if (!NetworkService.isOnline()) return;
     if (!duration || duration <= 15 || currentTime <= 10) return;
     const nextTrack = upcomingTracks[0];
 

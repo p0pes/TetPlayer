@@ -122,7 +122,7 @@ describe("Menus de Contexto — Opções de Download e Remoção Offline", () =>
   });
 
   describe("CollectionContextMenu (Playlists e Álbuns)", () => {
-    it("deve exibir 'Remover Downloads da Playlist' quando a playlist tiver faixas baixadas offline", () => {
+    it("deve exibir apenas 'Remover Downloads da Playlist' quando a playlist estiver 100% baixada offline", () => {
       vi.spyOn(DownloadsService, "isPlaylistDownloading").mockReturnValue(false);
       vi.spyOn(DownloadsService, "isPlaylistDownloaded").mockReturnValue(true);
       vi.spyOn(DownloadsService, "isCollectionAvailableOffline").mockReturnValue(true);
@@ -147,7 +147,7 @@ describe("Menus de Contexto — Opções de Download e Remoção Offline", () =>
       );
 
       expect(screen.getByText("Remover Downloads da Playlist")).toBeInTheDocument();
-      expect(screen.getByText("Baixar Playlist Offline")).toBeInTheDocument();
+      expect(screen.queryByText("Baixar Playlist Offline")).not.toBeInTheDocument();
     });
 
     it("deve exibir 'Remover Downloads do Álbum' quando o álbum tiver faixas baixadas offline", () => {

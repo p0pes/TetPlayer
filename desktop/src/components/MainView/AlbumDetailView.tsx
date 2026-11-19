@@ -129,11 +129,10 @@ const AlbumTrackRow = React.memo(function AlbumTrackRow({
         e.stopPropagation();
         triggerTrackContextMenu(e, track);
       }}
-      className={`flex items-center justify-between py-2.5 px-3 rounded-xl transition-all cursor-pointer group ${
-        isCurrent
-          ? "bg-[#181b28] text-[var(--accent-text)]"
-          : "hover:bg-white/[0.04] text-zinc-300 hover:text-white"
-      } ${isUnavailableOffline ? "opacity-45" : ""}`}
+      className={`flex items-center justify-between py-2.5 px-3 rounded-xl transition-all cursor-pointer group ${isCurrent
+        ? "bg-[#181b28] text-[var(--accent-text)]"
+        : "hover:bg-white/[0.04] text-zinc-300 hover:text-white"
+        } ${isUnavailableOffline ? "opacity-45" : ""}`}
     >
       <div className="flex items-center gap-4 min-w-0 flex-1">
         {/* Numeração de Vinil / Indicador de Play */}
@@ -163,9 +162,8 @@ const AlbumTrackRow = React.memo(function AlbumTrackRow({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 min-w-0">
             <p
-              className={`text-xs sm:text-sm font-semibold truncate ${
-                isCurrent ? "text-[var(--accent-text)]" : "text-white"
-              }`}
+              className={`text-xs sm:text-sm font-semibold truncate ${isCurrent ? "text-[var(--accent-text)]" : "text-white"
+                }`}
             >
               {track.title}
             </p>
@@ -209,11 +207,10 @@ const AlbumTrackRow = React.memo(function AlbumTrackRow({
           onClick={toggleLike}
           title={isLiked ? "Remover dos Favoritos" : "Curtir música"}
           aria-label={isLiked ? "Remover dos Favoritos" : "Curtir música"}
-          className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-            isLiked
-              ? "text-rose-500 opacity-100 hover:bg-rose-500/10"
-              : "text-[#71778c] opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-rose-400 hover:bg-white/10"
-          }`}
+          className={`p-1.5 rounded-lg transition-all cursor-pointer ${isLiked
+            ? "text-rose-500 opacity-100 hover:bg-rose-500/10"
+            : "text-[#71778c] opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-rose-400 hover:bg-white/10"
+            }`}
         >
           <Heart className={`w-3.5 h-3.5 ${isLiked ? "fill-rose-500" : ""}`} />
         </button>
@@ -229,11 +226,10 @@ const AlbumTrackRow = React.memo(function AlbumTrackRow({
           }}
           title={queuedFeedback ? "Adicionada para tocar a seguir!" : "Tocar a seguir na fila"}
           aria-label="Tocar a seguir"
-          className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-            queuedFeedback
-              ? "text-emerald-400 bg-emerald-500/15 opacity-100"
-              : "text-[#71778c] hover:text-white hover:bg-white/10 opacity-0 group-hover:opacity-100 focus:opacity-100"
-          }`}
+          className={`p-1.5 rounded-lg transition-all cursor-pointer ${queuedFeedback
+            ? "text-emerald-400 bg-emerald-500/15 opacity-100"
+            : "text-[#71778c] hover:text-white hover:bg-white/10 opacity-0 group-hover:opacity-100 focus:opacity-100"
+            }`}
         >
           {queuedFeedback ? (
             <Check className="w-3.5 h-3.5 text-emerald-400" />
@@ -373,6 +369,18 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
     }
   };
 
+  const onRemoveDownloadsWithFeedback = async () => {
+    try {
+      await handleRemoveAlbumDownloads();
+      setDownloadFeedback({
+        type: "info",
+        message: `Downloads offline de "${displayAlbum.title}" removidos do disco.`,
+      });
+    } catch {
+      // ignore
+    }
+  };
+
   const handlePlayAlbumClick = () => {
     if (tracks.length === 0) return;
     if (isCurrentAlbumPlaying && onTogglePlayPause) {
@@ -411,8 +419,8 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
     displayAlbum.album_type === "ep"
       ? "EP"
       : displayAlbum.album_type === "single"
-      ? "SINGLE"
-      : "ÁLBUM";
+        ? "SINGLE"
+        : "ÁLBUM";
 
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
@@ -566,7 +574,7 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
                 ) : isAllDownloaded ? (
                   <button
                     type="button"
-                    onClick={handleRemoveAlbumDownloads}
+                    onClick={onRemoveDownloadsWithFeedback}
                     aria-label="Remover download do álbum"
                     className="w-10 h-10 flex items-center justify-center rounded-full bg-emerald-950/50 hover:bg-red-950/50 border border-emerald-600/50 hover:border-red-600/50 text-emerald-300 hover:text-red-300 transition-all cursor-pointer shadow-sm group"
                     title="Álbum salvo para ouvir offline (Clique para remover do disco)"
@@ -596,11 +604,10 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
                   onClick={(e) => onTogglePinAlbum(album.id, e)}
                   title={isPinned ? "Desafixar álbum da barra lateral" : "Fixar álbum na barra lateral"}
                   aria-label={isPinned ? "Desafixar álbum" : "Fixar álbum"}
-                  className={`w-10 h-10 flex items-center justify-center rounded-full active:scale-95 border transition-all cursor-pointer ${
-                    isPinned
-                      ? "bg-[var(--accent-subtle)] border-[var(--accent-border)] text-[var(--accent-text)] shadow-sm"
-                      : "bg-white/5 hover:bg-white/10 border-white/10 text-white"
-                  }`}
+                  className={`w-10 h-10 flex items-center justify-center rounded-full active:scale-95 border transition-all cursor-pointer ${isPinned
+                    ? "bg-[var(--accent-subtle)] border-[var(--accent-border)] text-[var(--accent-text)] shadow-sm"
+                    : "bg-white/5 hover:bg-white/10 border-white/10 text-white"
+                    }`}
                 >
                   <Pin className={`w-4 h-4 ${isPinned ? "fill-current text-[var(--accent-text)]" : ""}`} />
                 </button>
@@ -701,13 +708,12 @@ export const AlbumDetailView = React.memo(function AlbumDetailView({
         <div
           role="status"
           aria-live="polite"
-          className={`fixed bottom-24 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-2xl border text-xs font-medium animate-fade-in ${
-            downloadFeedback.type === "success"
-              ? "bg-emerald-950/95 border-emerald-500/50 text-emerald-200 shadow-emerald-950/50"
-              : downloadFeedback.type === "error"
+          className={`fixed bottom-24 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-2xl border text-xs font-medium animate-fade-in ${downloadFeedback.type === "success"
+            ? "bg-emerald-950/95 border-emerald-500/50 text-emerald-200 shadow-emerald-950/50"
+            : downloadFeedback.type === "error"
               ? "bg-red-950/95 border-red-500/50 text-red-200 shadow-red-950/50"
               : "bg-[#181c2b]/95 border-[#2b3248] text-[#c4c8d8]"
-          }`}
+            }`}
         >
           {downloadFeedback.type === "success" ? (
             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />

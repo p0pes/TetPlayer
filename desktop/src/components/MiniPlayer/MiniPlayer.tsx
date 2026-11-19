@@ -59,6 +59,8 @@ export function MiniPlayer() {
   const isPointerDownInsideRef = useRef(false);
   const pendingCloseAfterPointerUpRef = useRef(false);
   const isDraggingWindowRef = useRef(false);
+  const isCollapsingRef = useRef(false);
+  const isManualCollapsingRef = useRef(false);
 
   // Controle de arrasto vertical da alça recolhida na borda
   const isDraggingTabRef = useRef(false);
@@ -82,6 +84,7 @@ export function MiniPlayer() {
   }, []);
 
   const cancelAutoCollapse = useCallback(() => {
+    if (isManualCollapsingRef.current) return;
     pendingCloseAfterPointerUpRef.current = false;
     if (autoCloseTimerRef.current !== null) {
       window.clearTimeout(autoCloseTimerRef.current);
@@ -90,15 +93,19 @@ export function MiniPlayer() {
     if (collapseFinishTimerRef.current !== null) {
       window.clearTimeout(collapseFinishTimerRef.current);
       collapseFinishTimerRef.current = null;
+      isCollapsingRef.current = false;
       setIsDrawerAnimatingOut(false);
     }
   }, []);
 
   const collapseDockedDrawerNow = useCallback(
-    (sideOverride?: "left" | "right", instant = false) => {
+    (sideOverride?: "left" | "right", instant = false, isManual = false) => {
       const side = sideOverride || isDockedRef.current;
       if (!side) return;
+      if (isCollapsingRef.current) return;
       clearAllDrawerTimers();
+      isCollapsingRef.current = true;
+      isManualCollapsingRef.current = isManual;
       isPointerDownInsideRef.current = false;
       pendingCloseAfterPointerUpRef.current = false;
       setIsDrawerAnimatingOut(true);
@@ -106,6 +113,8 @@ export function MiniPlayer() {
       const animDuration = instant ? 60 : 90;
       collapseFinishTimerRef.current = window.setTimeout(async () => {
         collapseFinishTimerRef.current = null;
+        isCollapsingRef.current = false;
+        isManualCollapsingRef.current = false;
         const activeSide = sideOverride || isDockedRef.current;
         if (!activeSide) return;
         collapseCooldownUntilRef.current = performance.now() + 240;
@@ -151,6 +160,8 @@ export function MiniPlayer() {
     async (sideOverride?: "left" | "right") => {
       const side = sideOverride || isDockedRef.current || "right";
       clearAllDrawerTimers();
+      isCollapsingRef.current = false;
+      isManualCollapsingRef.current = false;
       pendingCloseAfterPointerUpRef.current = false;
       expandTimestampRef.current = performance.now();
       setIsDrawerAnimatingOut(false);
@@ -433,6 +444,7 @@ export function MiniPlayer() {
       >
         <div
           onMouseEnter={handleTabMouseEnter}
+          onMouseMove={handleTabMouseEnter}
           onMouseLeave={handleTabMouseLeave}
           onPointerDown={handleTabPointerDown}
           onPointerMove={handleTabPointerMove}
@@ -570,7 +582,7 @@ export function MiniPlayer() {
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation();
-                  collapseDockedDrawerNow();
+                  collapseDockedDrawerNow(undefined, true, true);
                 }}
                 title="Esconder gaveta agora"
                 className="p-1 rounded text-[#71778c] hover:text-white hover:bg-[#202536] transition-colors cursor-pointer"

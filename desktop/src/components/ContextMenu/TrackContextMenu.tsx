@@ -6,7 +6,6 @@ import {
   Link2,
   Copy,
   Search,
-  Check,
   Disc3,
   FolderPlus,
   FolderMinus,
@@ -44,7 +43,6 @@ export function TrackContextMenu({
   const { isLiked, toggleLike } = useLikedTrack(track);
   const { isDownloaded, isDownloading, progress } = useTrackDownload(track);
   const menuRef = useRef<HTMLDivElement>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isClosing, setIsClosing] = useState(false);
 
   const handleClose = useCallback(() => {
@@ -92,32 +90,40 @@ export function TrackContextMenu({
   const safeX = Math.min(position.x, window.innerWidth - menuWidth - 16);
   const safeY = Math.min(position.y, window.innerHeight - menuHeight - 16);
 
+  function emitGlobalToast(message: string) {
+    window.dispatchEvent(
+      new CustomEvent("tetplayer:toast", {
+        detail: { message },
+      })
+    );
+  }
+
   function showToast(msg: string) {
-    setToastMessage(msg);
-    setTimeout(() => {
-      setToastMessage(null);
-      handleClose();
-    }, 900);
+    emitGlobalToast(msg);
+    handleClose();
   }
 
   async function onToggleDownload() {
     if (!track || !track.id) return;
     if (isDownloading) return;
 
+    const targetTrack = track;
     if (isDownloaded) {
-      const ok = await DownloadsService.removeDownload(track.id);
-      if (ok) {
-        showToast("Música removida dos downloads offline!");
-      } else {
-        showToast("Falha ao remover música do disco");
-      }
+      handleClose();
+      const ok = await DownloadsService.removeDownload(targetTrack.id);
+      emitGlobalToast(
+        ok
+          ? "Música removida dos downloads offline!"
+          : "Falha ao remover música do disco"
+      );
     } else {
-      showToast("Baixando música para ouvir offline...");
+      emitGlobalToast(`Baixando "${targetTrack.title}" para ouvir offline...`);
+      handleClose();
       try {
-        await DownloadsService.downloadTrack(track);
-        showToast("Música salva para ouvir offline!");
+        await DownloadsService.downloadTrack(targetTrack);
+        emitGlobalToast(`"${targetTrack.title}" salva para ouvir offline!`);
       } catch {
-        showToast("Falha ao baixar música offline");
+        emitGlobalToast(`Falha ao baixar "${targetTrack.title}" offline`);
       }
     }
   }
@@ -382,14 +388,6 @@ export function TrackContextMenu({
           <span className="truncate">Ir para o artista ({track.artist})</span>
         </button>
       </div>
-
-      {/* Toast Feedback Temporário */}
-      {toastMessage && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--accent)] text-white text-xs font-bold shadow-2xl shadow-[var(--accent-glow)] animate-in fade-in slide-in-from-bottom-2 duration-150">
-          <Check className="w-4 h-4 shrink-0" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
     </>
   );
 }

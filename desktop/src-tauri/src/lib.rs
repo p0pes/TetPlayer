@@ -690,7 +690,24 @@ fn is_track_downloaded(video_id: String) -> Result<bool, String> {
 
 #[tauri::command]
 fn get_downloaded_tracks() -> Result<Vec<stats::DownloadedTrack>, String> {
-    stats::get_all_downloads()
+    let records = stats::get_all_downloads()?;
+    let storage_dir = stats::get_app_storage_dir();
+    let music_dir = storage_dir.join("music");
+
+    let mut valid = Vec::with_capacity(records.len());
+    for rec in records {
+        let recorded_exists = std::path::Path::new(&rec.file_path).exists();
+        let fallback_exists = music_dir.join(format!("{}.opus", rec.video_id)).exists()
+            || music_dir.join(format!("{}.m4a", rec.video_id)).exists()
+            || music_dir.join(format!("{}.webm", rec.video_id)).exists();
+
+        if recorded_exists || fallback_exists {
+            valid.push(rec);
+        } else {
+            let _ = stats::delete_download_record(&rec.video_id);
+        }
+    }
+    Ok(valid)
 }
 
 #[tauri::command]

@@ -1021,6 +1021,18 @@ Todos os **148 apontamentos técnicos (#01 a #148)** catalogados em auditorias t
 
 ---
 
+### 154. Auditoria Geral: Blindagem Offline, Menus de Contexto Instantâneos, Consistência de Estatísticas e Refinamento do Auto-Slide
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/components/MiniPlayer/MiniPlayer.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MiniPlayer/MiniPlayer.tsx), [`desktop/src/context/PlayerContext.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/context/PlayerContext.tsx), [`desktop/src/App.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/App.tsx), [`desktop/src/components/ContextMenu/TrackContextMenu.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/ContextMenu/TrackContextMenu.tsx), [`desktop/src/components/ContextMenu/CollectionContextMenu.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/ContextMenu/CollectionContextMenu.tsx), [`desktop/src/components/StatsView/StatsView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/StatsView/StatsView.tsx), [`desktop/src/components/MainView/AlbumDetailView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/AlbumDetailView.tsx), [`desktop/src/components/QueueView/QueueView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/QueueView/QueueView.tsx), [`desktop/src/components/SettingsModal/SettingsModal.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/SettingsModal/SettingsModal.tsx), [`desktop/src/services/cache.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/services/cache.ts), [`desktop/src-tauri/src/lib.rs:691-715`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/lib.rs#L691-L715)
+* **Solução Implementada:**
+  1. **Mini Player Auto-Slide (`MiniPlayer.tsx`):** Adicionadas travas `isCollapsingRef` e `isManualCollapsingRef` impedindo que `onMouseMove` cancele o fechamento manual ao clicar no botão de recolher, além de `onMouseMove` na alça recolhida para reabertura imediata caso o cursor já esteja estacionado sobre a borda após o cooldown;
+  2. **Blindagem Offline (`PlayerContext.tsx` & `App.tsx`):** Bloqueio antecipado em `playTrackWithQueue`, `handlePlayFromQueue` e `handleStartRadio` quando offline e a faixa não está baixada (evitando interrupção da faixa atual e gravação de plays fantasma no SQLite), bloqueio de `prefetchStreamInfo`/rádio automática quando offline, filtragem de faixas baixadas em `handleAddToQueueFromMenu` e correção de `artwork_url` / `duration_seconds` nos resultados de busca offline em `App.tsx`;
+  3. **Menus de Contexto (`TrackContextMenu.tsx` & `CollectionContextMenu.tsx`):** Fechamento imediato após ação com disparo via toast global (`tetplayer:toast`), ocultação da opção redundante de download quando a coleção já está 100% baixada e liberação da remoção/cancelamento durante downloads em lote;
+  4. **Consistência de UI/UX (`StatsView.tsx`, `AlbumDetailView.tsx`, `QueueView.tsx`, `SettingsModal.tsx`):** Substituição de `window.confirm` por `<ConfirmDeleteModal>`, badge dinâmico de período e enfileiramento completo do Top 10 no `TetStats`; feedback visual ao remover downloads em `AlbumDetailView`; esmaecimento `opacity-40` para faixas indisponíveis offline na `QueueView`; e barra de progresso GPU (`scaleX`) no `SettingsModal`;
+  5. **Integridade de Cache e Disco (`cache.ts` & `lib.rs`):** Proteção no `clearCache` para coleções com downloads parciais e validação física em `get_downloaded_tracks` removendo registros órfãos do SQLite caso o arquivo seja apagado manualmente do disco.
+
+---
+
 
 
 

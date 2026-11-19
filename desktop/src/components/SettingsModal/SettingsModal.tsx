@@ -1099,8 +1099,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           </div>
                           <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
                             <div
-                              className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 transition-all duration-300 ease-out"
-                              style={{ width: `${inAppProgress.percent}%` }}
+                              className="w-full h-full origin-left bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 transition-transform duration-300 ease-out will-change-transform"
+                              style={{ transform: `scaleX(${Math.max(0, Math.min(1, inAppProgress.percent / 100))})` }}
                             />
                           </div>
                           <div className="flex items-center justify-between text-[10px] font-mono text-zinc-400">

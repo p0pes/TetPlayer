@@ -3,8 +3,11 @@ import { ChevronDown, Play, Pause, Trash2, ListMusic, MoreVertical, GripVertical
 import { usePlayer } from "../../context/PlayerContext";
 import { formatTime } from "../../hooks/useLyrics";
 import { upgradeArtworkQuality, handleArtworkError } from "../../utils/artwork";
+import { useNetworkStatus } from "../../services/network";
+import { DownloadsService } from "../../services/downloads";
 
 export function QueueView() {
+  const { isOnline } = useNetworkStatus();
   const {
     currentTrack,
     pastTracks,
@@ -92,12 +95,16 @@ export function QueueView() {
 
           {showPastTracks && (
             <div className="space-y-1 opacity-70 hover:opacity-100 transition-opacity animate-view-fade">
-              {pastTracks.map((track, idx) => (
+              {pastTracks.map((track, idx) => {
+                const isUnavailableOffline = !isOnline && !DownloadsService.isDownloaded(track.id);
+                return (
                 <div
                   key={`past-${track.id}-${idx}`}
                   onClick={() => handlePlayFromQueue(idx)}
                   onContextMenu={(e) => openContextMenu(e, track)}
-                  className="flex items-center justify-between p-2.5 rounded-xl bg-[#12141c]/60 hover:bg-[#1a1e2c] border border-transparent hover:border-[#282d3d] transition-all cursor-pointer group [content-visibility:auto] [contain-intrinsic-size:0_56px]"
+                  className={`flex items-center justify-between p-2.5 rounded-xl bg-[#12141c]/60 hover:bg-[#1a1e2c] border border-transparent hover:border-[#282d3d] transition-all cursor-pointer group [content-visibility:auto] [contain-intrinsic-size:0_56px] ${
+                    isUnavailableOffline ? "opacity-40" : ""
+                  }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-5 flex items-center justify-center shrink-0">
@@ -145,7 +152,8 @@ export function QueueView() {
                     </button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -235,6 +243,7 @@ export function QueueView() {
               const actualIdx = currentQueueIndex + 1 + relativeIdx;
               const isBeingDragged = draggedIdx === actualIdx;
               const isDragOver = dragOverIdx === actualIdx;
+              const isUnavailableOffline = !isOnline && !DownloadsService.isDownloaded(track.id);
 
               return (
                 <div
@@ -242,7 +251,9 @@ export function QueueView() {
                   data-queue-idx={actualIdx}
                   onClick={() => handlePlayFromQueue(actualIdx)}
                   onContextMenu={(e) => openContextMenu(e, track)}
-                  className={`flex items-center justify-between p-2.5 rounded-xl transition-all duration-150 ease-out cursor-pointer group [content-visibility:auto] [contain-intrinsic-size:0_60px] ${isBeingDragged
+                  className={`flex items-center justify-between p-2.5 rounded-xl transition-all duration-150 ease-out cursor-pointer group [content-visibility:auto] [contain-intrinsic-size:0_60px] ${
+                    isUnavailableOffline ? "opacity-40" : ""
+                  } ${isBeingDragged
                       ? "opacity-35 scale-[0.98] border-dashed border-[var(--accent)] bg-[#1e2334] shadow-inner"
                       : isDragOver
                         ? "border-t-2 border-t-[var(--accent)] bg-[#1c2030] shadow-md shadow-[var(--accent-glow)]/30 -translate-y-0.5"

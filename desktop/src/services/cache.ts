@@ -31,16 +31,47 @@ function saveAlbumLruList(list: string[]): void {
 }
 
 function getProtectedCollectionIds(): Set<string> {
+  const protectedIds = new Set<string>();
   try {
     const raw = localStorage.getItem("tetplayer_downloaded_collection_ids");
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return new Set(parsed);
+      if (Array.isArray(parsed)) {
+        for (const id of parsed) {
+          if (typeof id === "string") protectedIds.add(id);
+        }
+      }
+    }
+
+    const rawTracks = localStorage.getItem("tetplayer_downloaded_ids");
+    if (rawTracks) {
+      const downloadedTrackIds = new Set<string>(JSON.parse(rawTracks) || []);
+      if (downloadedTrackIds.size > 0) {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (!key) continue;
+          if (key.startsWith(PLAYLIST_TRACKS_CACHE_PREFIX)) {
+            const id = key.slice(PLAYLIST_TRACKS_CACHE_PREFIX.length);
+            if (protectedIds.has(id)) continue;
+            const list = JSON.parse(localStorage.getItem(key) || "[]") as Track[];
+            if (Array.isArray(list) && list.some((t) => t?.id && downloadedTrackIds.has(t.id))) {
+              protectedIds.add(id);
+            }
+          } else if (key.startsWith(ALBUM_DETAIL_CACHE_PREFIX)) {
+            const id = key.slice(ALBUM_DETAIL_CACHE_PREFIX.length);
+            if (protectedIds.has(id)) continue;
+            const detail = JSON.parse(localStorage.getItem(key) || "{}") as AlbumDetail;
+            if (detail?.tracks && Array.isArray(detail.tracks) && detail.tracks.some((t) => t?.id && downloadedTrackIds.has(t.id))) {
+              protectedIds.add(id);
+            }
+          }
+        }
+      }
     }
   } catch {
     // ignore
   }
-  return new Set();
+  return protectedIds;
 }
 
 function touchAlbumLru(albumId: string): void {
