@@ -47,6 +47,8 @@ export function MiniPlayer() {
   const [volumeBadge, setVolumeBadge] = useState<number | null>(null);
   const volumeBadgeTimerRef = useRef<number | null>(null);
   const volumeContainerRef = useRef<HTMLDivElement | null>(null);
+  const isDraggingVolumeRef = useRef(false);
+  const volumeLeftWhileDraggingRef = useRef(false);
 
   const isDockedRef = useRef<"left" | "right" | null>(null);
   const isDrawerExpandedRef = useRef(false);
@@ -760,12 +762,22 @@ export function MiniPlayer() {
               </span>
             )}
 
-            {/* Popover horizontal de volume ao clicar no ícone */}
+            {/* Popover horizontal de volume ao clicar no ícone (centralizado na linha de controles, fecha ao sair com o mouse) */}
             {isVolumeOpen && (
               <div
                 role="dialog"
                 aria-label="Ajuste de volume"
-                className="absolute bottom-8 right-0 px-2 py-1.5 rounded-lg bg-[#121522]/95 border border-[#2c334a] shadow-xl flex items-center gap-1.5 z-40 whitespace-nowrap"
+                onMouseEnter={() => {
+                  volumeLeftWhileDraggingRef.current = false;
+                }}
+                onMouseLeave={() => {
+                  if (isDraggingVolumeRef.current) {
+                    volumeLeftWhileDraggingRef.current = true;
+                    return;
+                  }
+                  setIsVolumeOpen(false);
+                }}
+                className="absolute top-1/2 -translate-y-1/2 right-0 px-2.5 py-1.5 rounded-xl bg-[#1b2032] border border-[#3a4362] shadow-[0_6px_20px_rgba(0,0,0,0.85)] flex items-center gap-1.5 z-40 whitespace-nowrap"
               >
                 <button
                   type="button"
@@ -787,13 +799,24 @@ export function MiniPlayer() {
                   step={0.01}
                   value={isMuted ? 0 : volume}
                   onChange={handleVolumeChange}
+                  onPointerDown={() => {
+                    isDraggingVolumeRef.current = true;
+                    volumeLeftWhileDraggingRef.current = false;
+                  }}
+                  onPointerUp={() => {
+                    isDraggingVolumeRef.current = false;
+                    if (volumeLeftWhileDraggingRef.current) {
+                      volumeLeftWhileDraggingRef.current = false;
+                      setIsVolumeOpen(false);
+                    }
+                  }}
                   aria-label="Volume no Mini Player"
                   aria-valuemin={0}
                   aria-valuemax={1}
                   aria-valuenow={isMuted ? 0 : volume}
-                  className="w-20 h-1 bg-[#232733] rounded-full accent-[var(--accent)] cursor-pointer"
+                  className="w-20 h-1 bg-[#2a3147] rounded-full accent-[var(--accent)] cursor-pointer"
                 />
-                <span className="text-[9px] font-mono text-[#8c91a4] w-7 text-right">
+                <span className="text-[9px] font-mono text-[#c2c7d6] w-7 text-right">
                   {Math.round((isMuted ? 0 : volume) * 100)}%
                 </span>
               </div>

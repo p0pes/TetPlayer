@@ -214,7 +214,7 @@ describe("MiniPlayer — Gaveta Inteligente Auto-Slide", () => {
     expect(handleSeekToMock).toHaveBeenCalledWith(90);
   });
 
-  it("deve ajustar volume com scroll sobre o ícone de áudio (exibindo badge) e abrir slider horizontal ao clicar", () => {
+  it("deve ajustar volume com scroll sobre o ícone de áudio (exibindo badge), abrir slider horizontal ao clicar e fechar ao sair com o mouse", () => {
     render(<MiniPlayer />);
 
     const volBtn = screen.getByRole("button", { name: /Controle de volume/i });
@@ -225,7 +225,11 @@ describe("MiniPlayer — Gaveta Inteligente Auto-Slide", () => {
     expect(screen.getByRole("status", { name: /Volume 55%/i })).toBeInTheDocument();
 
     fireEvent.click(volBtn);
-    expect(screen.getByRole("dialog", { name: /Ajuste de volume/i })).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: /Ajuste de volume/i });
+    expect(dialog).toBeInTheDocument();
     expect(screen.getByRole("slider", { name: /Volume no Mini Player/i })).toBeInTheDocument();
+
+    fireEvent.mouseLeave(dialog);
+    expect(screen.queryByRole("dialog", { name: /Ajuste de volume/i })).not.toBeInTheDocument();
   });
 });
