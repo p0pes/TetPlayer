@@ -119,12 +119,14 @@ export const TimelineScrubber = memo(function TimelineScrubber({
       if (disabled || duration <= 0 || !containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       const relativeX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
-      const ratio = relativeX / rect.width;
+      const ratio = rect.width > 0 ? relativeX / rect.width : 0;
       const targetSec = ratio * duration;
+      const pad = Math.min(84, rect.width / 2);
+      const clampedX = rect.width > 0 ? Math.max(pad, Math.min(rect.width - pad, relativeX)) : relativeX;
 
       const snippet = findLyricSnippetForTime(parsedLyrics, targetSec);
       setHoverState({
-        x: relativeX,
+        x: clampedX,
         time: targetSec,
         lyric: snippet,
       });
@@ -205,7 +207,7 @@ export const TimelineScrubber = memo(function TimelineScrubber({
           aria-valuemax={duration || 100}
           aria-valuenow={displayTime}
           data-testid="scrubber-range-input"
-          className="w-full h-1 hover:h-1.5 bg-[#232733] hover:bg-[#2e3344] rounded-full accent-[var(--accent)] cursor-pointer disabled:cursor-not-allowed transition-all duration-150 ease-out"
+          className="w-full h-1 bg-[#232733] hover:bg-[#2e3344] rounded-full accent-[var(--accent)] cursor-pointer disabled:cursor-not-allowed origin-center hover:scale-y-150 transition-[transform,background-color] duration-150 ease-out will-change-transform"
         />
       </div>
 

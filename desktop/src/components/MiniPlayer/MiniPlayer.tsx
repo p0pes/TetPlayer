@@ -187,18 +187,25 @@ export function MiniPlayer() {
     [clearAllDrawerTimers]
   );
 
-  // Dispara a transição contínua de entrada no próximo frame após montar a gaveta
+  // Dispara a transição contínua de entrada via duplo rAF após montar a gaveta
   useEffect(() => {
     if (!isDocked || !isDrawerExpanded) {
       setIsDrawerOpenVisual(false);
       return;
     }
-    const rafId = window.requestAnimationFrame(() => {
-      if (isDockedRef.current && isDrawerExpandedRef.current && !isCollapsingRef.current) {
-        setIsDrawerOpenVisual(true);
-      }
+    let raf1 = 0;
+    let raf2 = 0;
+    raf1 = window.requestAnimationFrame(() => {
+      raf2 = window.requestAnimationFrame(() => {
+        if (isDockedRef.current && isDrawerExpandedRef.current && !isCollapsingRef.current) {
+          setIsDrawerOpenVisual(true);
+        }
+      });
     });
-    return () => window.cancelAnimationFrame(rafId);
+    return () => {
+      window.cancelAnimationFrame(raf1);
+      window.cancelAnimationFrame(raf2);
+    };
   }, [isDocked, isDrawerExpanded]);
 
   useEffect(() => {
@@ -539,19 +546,19 @@ export function MiniPlayer() {
   // Transição contínua GPU (permite reverter suavemente se o mouse voltar no meio do fechamento)
   const drawerTransitionStyle: React.CSSProperties = isDocked
     ? {
-        transform: isDrawerOpenVisual
-          ? "translate3d(0, 0, 0)"
-          : activeDockSide === "left"
-            ? "translate3d(-102%, 0, 0)"
-            : "translate3d(102%, 0, 0)",
-        opacity: isDrawerOpenVisual ? 1 : 0.35,
-        transitionProperty: "transform, opacity",
-        transitionDuration: isDrawerFastOut ? "90ms" : isDrawerOpenVisual ? "210ms" : "170ms",
-        transitionTimingFunction: isDrawerOpenVisual
-          ? "cubic-bezier(0.22, 1, 0.36, 1)"
-          : "cubic-bezier(0.4, 0, 0.2, 1)",
-        willChange: "transform, opacity",
-      }
+      transform: isDrawerOpenVisual
+        ? "translate3d(0, 0, 0)"
+        : activeDockSide === "left"
+          ? "translate3d(-102%, 0, 0)"
+          : "translate3d(102%, 0, 0)",
+      opacity: isDrawerOpenVisual ? 1 : 0.35,
+      transitionProperty: "transform, opacity",
+      transitionDuration: isDrawerFastOut ? "90ms" : isDrawerOpenVisual ? "210ms" : "170ms",
+      transitionTimingFunction: isDrawerOpenVisual
+        ? "cubic-bezier(0.22, 1, 0.36, 1)"
+        : "cubic-bezier(0.4, 0, 0.2, 1)",
+      willChange: "transform, opacity",
+    }
     : {};
 
   const containerShapeClass = isDocked
@@ -565,10 +572,12 @@ export function MiniPlayer() {
   return (
     <div
       data-testid="miniplayer-expanded-root"
-      onMouseDown={handleStartDrag}
       onPointerDownCapture={(e) => {
         const target = e.target as HTMLElement;
-        if (target && target.tagName === "INPUT") {
+        if (
+          target &&
+          (target.tagName === "INPUT" || target.closest('[role="slider"]'))
+        ) {
           isPointerDownInsideRef.current = true;
         }
         cancelAutoCollapse();
@@ -611,265 +620,267 @@ export function MiniPlayer() {
         className={`w-full h-full bg-[#0c0e17] border border-[#262b3d] flex flex-col justify-between overflow-hidden relative ${containerShapeClass}`}
       >
 
-      {/* Glow Aurora de fundo sutil */}
-      <div
-        className="absolute inset-0 opacity-25 pointer-events-none rounded-[inherit]"
-        style={{
-          background:
-            "radial-gradient(circle at 20% 50%, var(--aurora-1-glow) 0%, transparent 60%)",
-        }}
-      />
-
-      {/* Ações discretas de janela no canto superior direito (sem barra de título dedicada) */}
-      <div
-        data-no-drag
-        onMouseDown={(e) => e.stopPropagation()}
-        onPointerDown={(e) => e.stopPropagation()}
-        className="absolute top-1 right-1.5 flex items-center gap-0.5 z-30 opacity-60 hover:opacity-100 transition-opacity"
-      >
-        {isDocked ? (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleUndock();
-            }}
-            title="Desafixar da borda (Manter sempre aberto)"
-            className="p-1 rounded text-[var(--accent)] hover:text-white hover:bg-[#202536] transition-colors cursor-pointer"
-          >
-            <PinOff className="w-3 h-3" />
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleManualDock();
-            }}
-            title="Ancorar na borda (Gaveta Auto-Slide ao passar o mouse)"
-            className="p-1 rounded text-[#71778c] hover:text-white hover:bg-[#202536] transition-colors cursor-pointer"
-          >
-            <ChevronsRight className="w-3 h-3" />
-          </button>
-        )}
-
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            clearAllDrawerTimers();
-            toggleMiniPlayer();
+        {/* Glow Aurora de fundo sutil */}
+        <div
+          className="absolute inset-0 opacity-25 pointer-events-none rounded-[inherit]"
+          style={{
+            background:
+              "radial-gradient(circle at 20% 50%, var(--aurora-1-glow) 0%, transparent 60%)",
           }}
-          title="Expandir para o Player Completo"
-          className="p-1 rounded text-[#71778c] hover:text-white hover:bg-[#202536] transition-colors cursor-pointer"
+        />
+
+        {/* Ações discretas de janela no canto superior direito (sem barra de título dedicada) */}
+        <div
+          data-no-drag
+          onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          className="absolute top-1 right-1.5 flex items-center gap-0.5 z-30 opacity-60 hover:opacity-100 transition-opacity"
         >
-          <Maximize2 className="w-3 h-3" />
-        </button>
-
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleClose(e);
-          }}
-          title="Fechar"
-          className="p-1 rounded text-[#71778c] hover:text-[var(--accent-text)] hover:bg-[var(--accent-subtle)] transition-colors cursor-pointer"
-        >
-          <X className="w-3 h-3" />
-        </button>
-      </div>
-
-      {/* Faixa superior invisível para arrastar a janela com cursor de mãozinha */}
-      <div
-        aria-hidden="true"
-        className="absolute top-0 inset-x-0 h-3 cursor-grab active:cursor-grabbing z-20"
-      />
-
-      {/* Conteúdo Compacto: Capa, Título/Artista e Controles */}
-      <div className="flex-1 px-3 pt-3 pb-2.5 flex items-center justify-between gap-2.5 min-h-0 z-10 cursor-default">
-        {/* Capa e Informações da Faixa */}
-        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          <div className="w-11 h-11 rounded-xl bg-[#1a1d28] border border-[#232738] overflow-hidden shrink-0 flex items-center justify-center relative shadow-md group/cover">
-            {currentTrack?.artwork_url || currentTrack?.id ? (
-              <img
-                src={upgradeArtworkQuality(currentTrack?.artwork_url, currentTrack?.id)}
-                alt={currentTrack?.title || "Capa do álbum"}
-                referrerPolicy="no-referrer"
-                onError={(e) => handleArtworkError(e, currentTrack?.id)}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <Music className="w-4 h-4 text-[#5e6479]" />
-            )}
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-bold text-white truncate">
-              {currentTrack?.title || "Nenhuma faixa tocando"}
-            </p>
-            <p className="text-[11px] text-[#8c91a4] truncate">
-              {currentTrack?.artist || "TetPlayer"}
-            </p>
-          </div>
-        </div>
-
-        {/* Controles de Reprodução */}
-        <div className="flex items-center gap-0.5 shrink-0">
-          {currentTrack && (
+          {isDocked ? (
             <button
               type="button"
-              onClick={toggleLike}
-              title={isLiked ? "Remover dos favoritos (Descurtir)" : "Adicionar às Músicas Curtidas"}
-              aria-label={isLiked ? "Descurtir" : "Curtir"}
-              className={`p-1 rounded-lg transition-all cursor-pointer ${isLiked
-                ? "text-[var(--accent)] drop-shadow-[0_0_6px_var(--accent-glow)]"
-                : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
-                }`}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleUndock();
+              }}
+              title="Desafixar da borda (Manter sempre aberto)"
+              className="p-1 rounded text-[var(--accent)] hover:text-white hover:bg-[#202536] transition-colors cursor-pointer"
             >
-              <Heart className={`w-3.5 h-3.5 ${isLiked ? "fill-current" : ""}`} />
+              <PinOff className="w-3 h-3" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleManualDock();
+              }}
+              title="Ancorar na borda (Gaveta Auto-Slide ao passar o mouse)"
+              className="p-1 rounded text-[#71778c] hover:text-white hover:bg-[#202536] transition-colors cursor-pointer"
+            >
+              <ChevronsRight className="w-3 h-3" />
             </button>
           )}
-          <button
-            type="button"
-            onClick={handlePrevTrack}
-            title="Faixa Anterior"
-            aria-label="Faixa anterior"
-            className="p-1 rounded-lg text-[#8c91a4] hover:text-white hover:bg-[#1a1d28] transition-colors cursor-pointer"
-          >
-            <SkipBack className="w-3.5 h-3.5 fill-current" />
-          </button>
 
           <button
             type="button"
-            onClick={togglePlayPause}
-            disabled={!currentTrack}
-            title={isPlaying ? "Pausar" : "Tocar"}
-            aria-label={isPlaying ? "Pausar" : "Tocar"}
-            className="w-7 h-7 mx-0.5 rounded-full bg-[var(--accent)] hover:opacity-90 text-white flex items-center justify-center shadow-md shadow-[var(--accent-glow)] transition-transform active:scale-95 disabled:opacity-40 cursor-pointer"
-          >
-            {isPlaying ? (
-              <Pause className="w-3.5 h-3.5 fill-current" />
-            ) : (
-              <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleNextTrack}
-            title="Próxima Faixa"
-            aria-label="Próxima faixa"
-            className="p-1 rounded-lg text-[#8c91a4] hover:text-white hover:bg-[#1a1d28] transition-colors cursor-pointer"
-          >
-            <SkipForward className="w-3.5 h-3.5 fill-current" />
-          </button>
-
-          {/* Volume V1: Scroll no ícone altera volume com badge; clique abre slider horizontal */}
-          <div
-            ref={volumeContainerRef}
-            data-no-drag
-            onMouseDown={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            onWheel={(e) => {
+            onClick={(e) => {
               e.stopPropagation();
-              applyWheelVolume(e, true);
+              clearAllDrawerTimers();
+              toggleMiniPlayer();
             }}
-            className="relative flex items-center"
+            title="Expandir para o Player Completo"
+            className="p-1 rounded text-[#71778c] hover:text-white hover:bg-[#202536] transition-colors cursor-pointer"
           >
+            <Maximize2 className="w-3 h-3" />
+          </button>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleClose(e);
+            }}
+            title="Fechar"
+            className="p-1 rounded text-[#71778c] hover:text-[var(--accent-text)] hover:bg-[var(--accent-subtle)] transition-colors cursor-pointer"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+
+        {/* Faixa superior invisível para arrastar a janela com cursor de mãozinha */}
+        <div
+          aria-hidden="true"
+          data-drag-handle
+          onMouseDown={handleStartDrag}
+          className="absolute top-0 inset-x-0 h-3 cursor-grab active:cursor-grabbing z-20"
+        />
+
+        {/* Conteúdo Compacto: Capa, Título/Artista e Controles */}
+        <div className="flex-1 px-3 pt-3 pb-2.5 flex items-center justify-between gap-2.5 min-h-0 z-10 cursor-default">
+          {/* Capa e Informações da Faixa */}
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <div className="w-11 h-11 rounded-xl bg-[#1a1d28] border border-[#232738] overflow-hidden shrink-0 flex items-center justify-center relative shadow-md group/cover">
+              {currentTrack?.artwork_url || currentTrack?.id ? (
+                <img
+                  src={upgradeArtworkQuality(currentTrack?.artwork_url, currentTrack?.id)}
+                  alt={currentTrack?.title || "Capa do álbum"}
+                  referrerPolicy="no-referrer"
+                  onError={(e) => handleArtworkError(e, currentTrack?.id)}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <Music className="w-4 h-4 text-[#5e6479]" />
+              )}
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-white truncate">
+                {currentTrack?.title || "Nenhuma faixa tocando"}
+              </p>
+              <p className="text-[11px] text-[#8c91a4] truncate">
+                {currentTrack?.artist || "TetPlayer"}
+              </p>
+            </div>
+          </div>
+
+          {/* Controles de Reprodução */}
+          <div className="flex items-center gap-0.5 shrink-0">
+            {currentTrack && (
+              <button
+                type="button"
+                onClick={toggleLike}
+                title={isLiked ? "Remover dos favoritos (Descurtir)" : "Adicionar às Músicas Curtidas"}
+                aria-label={isLiked ? "Descurtir" : "Curtir"}
+                className={`p-1 rounded-lg transition-all cursor-pointer ${isLiked
+                  ? "text-[var(--accent)] drop-shadow-[0_0_6px_var(--accent-glow)]"
+                  : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
+                  }`}
+              >
+                <Heart className={`w-3.5 h-3.5 ${isLiked ? "fill-current" : ""}`} />
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => setIsVolumeOpen((prev) => !prev)}
-              title="Volume (role para ajustar ou clique para abrir o slider)"
-              aria-label="Controle de volume"
-              aria-expanded={isVolumeOpen}
-              className={`p-1 rounded-lg transition-colors cursor-pointer ${isVolumeOpen
-                ? "text-white bg-[#202536]"
-                : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
-                }`}
+              onClick={handlePrevTrack}
+              title="Faixa Anterior"
+              aria-label="Faixa anterior"
+              className="p-1 rounded-lg text-[#8c91a4] hover:text-white hover:bg-[#1a1d28] transition-colors cursor-pointer"
             >
-              {isMuted || volume === 0 ? (
-                <VolumeX className="w-3.5 h-3.5" />
+              <SkipBack className="w-3.5 h-3.5 fill-current" />
+            </button>
+
+            <button
+              type="button"
+              onClick={togglePlayPause}
+              disabled={!currentTrack}
+              title={isPlaying ? "Pausar" : "Tocar"}
+              aria-label={isPlaying ? "Pausar" : "Tocar"}
+              className="w-7 h-7 mx-0.5 rounded-full bg-[var(--accent)] hover:opacity-90 text-white flex items-center justify-center shadow-md shadow-[var(--accent-glow)] transition-transform active:scale-95 disabled:opacity-40 cursor-pointer"
+            >
+              {isPlaying ? (
+                <Pause className="w-3.5 h-3.5 fill-current" />
               ) : (
-                <Volume2 className="w-3.5 h-3.5" />
+                <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
               )}
             </button>
 
-            {/* Badge rápido de porcentagem ao usar scroll sem clicar */}
-            {volumeBadge !== null && !isVolumeOpen && (
-              <span
-                role="status"
-                aria-label={`Volume ${volumeBadge}%`}
-                className="absolute -top-6 right-0 px-1.5 py-0.5 rounded bg-[#121522]/95 border border-[#2c334a] text-[9px] font-mono font-semibold text-white shadow-lg pointer-events-none whitespace-nowrap z-40"
-              >
-                {volumeBadge}%
-              </span>
-            )}
+            <button
+              type="button"
+              onClick={handleNextTrack}
+              title="Próxima Faixa"
+              aria-label="Próxima faixa"
+              className="p-1 rounded-lg text-[#8c91a4] hover:text-white hover:bg-[#1a1d28] transition-colors cursor-pointer"
+            >
+              <SkipForward className="w-3.5 h-3.5 fill-current" />
+            </button>
 
-            {/* Popover horizontal de volume ao clicar no ícone (centralizado na linha de controles, fecha ao sair com o mouse) */}
-            {isVolumeOpen && (
-              <div
-                role="dialog"
-                aria-label="Ajuste de volume"
-                onMouseEnter={() => {
-                  volumeLeftWhileDraggingRef.current = false;
-                }}
-                onMouseLeave={() => {
-                  if (isDraggingVolumeRef.current) {
-                    volumeLeftWhileDraggingRef.current = true;
-                    return;
-                  }
-                  setIsVolumeOpen(false);
-                }}
-                className="absolute top-1/2 -translate-y-1/2 right-0 px-2.5 py-1.5 rounded-xl bg-[#1b2032] border border-[#3a4362] shadow-[0_6px_20px_rgba(0,0,0,0.85)] flex items-center gap-1.5 z-40 whitespace-nowrap"
+            {/* Volume V1: Scroll no ícone altera volume com badge; clique abre slider horizontal */}
+            <div
+              ref={volumeContainerRef}
+              data-no-drag
+              onMouseDown={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onWheel={(e) => {
+                e.stopPropagation();
+                applyWheelVolume(e, true);
+              }}
+              className="relative flex items-center"
+            >
+              <button
+                type="button"
+                onClick={() => setIsVolumeOpen((prev) => !prev)}
+                title="Volume (role para ajustar ou clique para abrir o slider)"
+                aria-label="Controle de volume"
+                aria-expanded={isVolumeOpen}
+                className={`p-1 rounded-lg transition-colors cursor-pointer ${isVolumeOpen
+                  ? "text-white bg-[#202536]"
+                  : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
+                  }`}
               >
-                <button
-                  type="button"
-                  onClick={toggleMute}
-                  title={isMuted ? "Desativar Mudo" : "Silenciar"}
-                  aria-label={isMuted ? "Desativar Mudo" : "Silenciar"}
-                  className="p-0.5 rounded text-[#8c91a4] hover:text-white transition-colors cursor-pointer"
+                {isMuted || volume === 0 ? (
+                  <VolumeX className="w-3.5 h-3.5" />
+                ) : (
+                  <Volume2 className="w-3.5 h-3.5" />
+                )}
+              </button>
+
+              {/* Badge rápido de porcentagem ao usar scroll sem clicar */}
+              {volumeBadge !== null && !isVolumeOpen && (
+                <span
+                  role="status"
+                  aria-label={`Volume ${volumeBadge}%`}
+                  className="absolute -top-6 right-0 px-1.5 py-0.5 rounded bg-[#121522]/95 border border-[#2c334a] text-[9px] font-mono font-semibold text-white shadow-lg pointer-events-none whitespace-nowrap z-40"
                 >
-                  {isMuted || volume === 0 ? (
-                    <VolumeX className="w-3 h-3" />
-                  ) : (
-                    <Volume2 className="w-3 h-3" />
-                  )}
-                </button>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={isMuted ? 0 : volume}
-                  onChange={handleVolumeChange}
-                  onPointerDown={() => {
-                    isDraggingVolumeRef.current = true;
+                  {volumeBadge}%
+                </span>
+              )}
+
+              {/* Popover horizontal de volume ao clicar no ícone (centralizado na linha de controles, fecha ao sair com o mouse) */}
+              {isVolumeOpen && (
+                <div
+                  role="dialog"
+                  aria-label="Ajuste de volume"
+                  onMouseEnter={() => {
                     volumeLeftWhileDraggingRef.current = false;
                   }}
-                  onPointerUp={() => {
-                    isDraggingVolumeRef.current = false;
-                    if (volumeLeftWhileDraggingRef.current) {
-                      volumeLeftWhileDraggingRef.current = false;
-                      setIsVolumeOpen(false);
+                  onMouseLeave={() => {
+                    if (isDraggingVolumeRef.current) {
+                      volumeLeftWhileDraggingRef.current = true;
+                      return;
                     }
+                    setIsVolumeOpen(false);
                   }}
-                  aria-label="Volume no Mini Player"
-                  aria-valuemin={0}
-                  aria-valuemax={1}
-                  aria-valuenow={isMuted ? 0 : volume}
-                  className="w-20 h-1 bg-[#2a3147] rounded-full accent-[var(--accent)] cursor-pointer"
-                />
-                <span className="text-[9px] font-mono text-[#c2c7d6] w-7 text-right">
-                  {Math.round((isMuted ? 0 : volume) * 100)}%
-                </span>
-              </div>
-            )}
+                  className="absolute top-1/2 -translate-y-1/2 right-0 px-2.5 py-1.5 rounded-xl bg-[#1b2032] border border-[#3a4362] shadow-[0_6px_20px_rgba(0,0,0,0.85)] flex items-center gap-1.5 z-40 whitespace-nowrap"
+                >
+                  <button
+                    type="button"
+                    onClick={toggleMute}
+                    title={isMuted ? "Desativar Mudo" : "Silenciar"}
+                    aria-label={isMuted ? "Desativar Mudo" : "Silenciar"}
+                    className="p-0.5 rounded text-[#8c91a4] hover:text-white transition-colors cursor-pointer"
+                  >
+                    {isMuted || volume === 0 ? (
+                      <VolumeX className="w-3 h-3" />
+                    ) : (
+                      <Volume2 className="w-3 h-3" />
+                    )}
+                  </button>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={isMuted ? 0 : volume}
+                    onChange={handleVolumeChange}
+                    onPointerDown={() => {
+                      isDraggingVolumeRef.current = true;
+                      volumeLeftWhileDraggingRef.current = false;
+                    }}
+                    onPointerUp={() => {
+                      isDraggingVolumeRef.current = false;
+                      if (volumeLeftWhileDraggingRef.current) {
+                        volumeLeftWhileDraggingRef.current = false;
+                        setIsVolumeOpen(false);
+                      }
+                    }}
+                    aria-label="Volume no Mini Player"
+                    aria-valuemin={0}
+                    aria-valuemax={1}
+                    aria-valuenow={isMuted ? 0 : volume}
+                    className="w-20 h-1 bg-[#2a3147] rounded-full accent-[var(--accent)] cursor-pointer"
+                  />
+                  <span className="text-[9px] font-mono text-[#c2c7d6] w-7 text-right">
+                    {Math.round((isMuted ? 0 : volume) * 100)}%
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Edge Line de 3px integrada à borda inferior (isolada de re-renders via PlaybackProgressContext) */}
-      <MiniPlayerScrubber disabled={!currentTrack} onSeek={handleSeekTo} />
+        {/* Edge Line de 3px integrada à borda inferior (isolada de re-renders via PlaybackProgressContext) */}
+        <MiniPlayerScrubber disabled={!currentTrack} onSeek={handleSeekTo} />
       </div>
     </div>
   );
@@ -922,8 +933,33 @@ const MiniPlayerScrubber = React.memo(function MiniPlayerScrubber({
         if (!isSeekingRef.current) return;
         seekFromClientX(e.currentTarget, e.clientX);
       }}
+      onKeyDown={(e) => {
+        if (disabled || safeDuration <= 0) return;
+        const step = 5;
+        if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+          e.preventDefault();
+          onSeek(Math.max(0, currentTime - step));
+        } else if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+          e.preventDefault();
+          onSeek(Math.min(safeDuration, currentTime + step));
+        } else if (e.key === "Home") {
+          e.preventDefault();
+          onSeek(0);
+        } else if (e.key === "End") {
+          e.preventDefault();
+          onSeek(safeDuration);
+        }
+      }}
       onPointerUp={(e) => {
         if (!isSeekingRef.current) return;
+        isSeekingRef.current = false;
+        try {
+          e.currentTarget.releasePointerCapture(e.pointerId);
+        } catch {
+          // ignore
+        }
+      }}
+      onPointerCancel={(e) => {
         isSeekingRef.current = false;
         try {
           e.currentTarget.releasePointerCapture(e.pointerId);

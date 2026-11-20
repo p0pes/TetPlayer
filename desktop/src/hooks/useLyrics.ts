@@ -398,14 +398,17 @@ export function useLyrics({
     }
   }
 
-  function handleLyricClick(time: number, onSeek: (time: number) => void) {
+  function handleLyricClick(time: number, onSeek: (time: number) => void, lineIndex?: number) {
     userScrollingLyricsRef.current = false;
     setIsUserScrolledAway(false);
     if (userScrollTimeoutRef.current) window.clearTimeout(userScrollTimeoutRef.current);
 
     onSeek(time);
 
-    const targetIdx = parsedLyrics.findIndex((l) => l.time === time);
+    const targetIdx =
+      typeof lineIndex === "number" && lineIndex >= 0 && lineIndex < parsedLyrics.length
+        ? lineIndex
+        : parsedLyrics.findIndex((l) => l.time === time);
     if (targetIdx !== -1) {
       setActiveLyricIndex(targetIdx);
       if (lyricsContainerRef.current) {

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Music,
   Play,
@@ -52,17 +52,32 @@ export const TrackRow = React.memo(function TrackRow({
   onContextMenu,
 }: TrackRowProps) {
   const { isLiked, toggleLike } = useLikedTrack(track);
-  const { isDownloaded } = useTrackDownload(track);
+  const { isDownloaded, isDownloading } = useTrackDownload(track);
   const { isOnline } = useNetworkStatus();
   const [addedNextFeedback, setAddedNextFeedback] = useState(false);
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPlayable = isOnline || isDownloaded;
+
+  useEffect(() => {
+    return () => {
+      if (feedbackTimerRef.current) {
+        clearTimeout(feedbackTimerRef.current);
+      }
+    };
+  }, []);
 
   function handlePlayNextClick(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
     triggerPlayNext?.(track);
     setAddedNextFeedback(true);
-    setTimeout(() => setAddedNextFeedback(false), 1200);
+    if (feedbackTimerRef.current) {
+      clearTimeout(feedbackTimerRef.current);
+    }
+    feedbackTimerRef.current = setTimeout(() => {
+      feedbackTimerRef.current = null;
+      setAddedNextFeedback(false);
+    }, 1200);
   }
 
   function handleContextMenu(e: React.MouseEvent) {
@@ -194,14 +209,19 @@ export const TrackRow = React.memo(function TrackRow({
             >
               {track.title}
             </span>
-            {isDownloaded && (
+            {isDownloading ? (
+              <Loader2
+                className="w-3.5 h-3.5 text-[var(--accent)] animate-spin shrink-0"
+                aria-label="Baixando para reprodução offline..."
+              />
+            ) : isDownloaded ? (
               <span
                 title="Disponível offline no disco"
                 className="shrink-0 text-emerald-400 inline-flex items-center"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
               </span>
-            )}
+            ) : null}
           </div>
           <p className="text-xs text-[#8c91a4] truncate">
             <span

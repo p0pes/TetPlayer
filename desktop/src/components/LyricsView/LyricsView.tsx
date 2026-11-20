@@ -95,8 +95,8 @@ export function LyricsView() {
   });
 
   const onLyricClick = useCallback(
-    (time: number) => {
-      handleLyricClick(time, handleSeekTo);
+    (time: number, lineIndex: number) => {
+      handleLyricClick(time, handleSeekTo, lineIndex);
     },
     [handleLyricClick, handleSeekTo]
   );
@@ -157,7 +157,7 @@ export function LyricsView() {
                   isPast={isPast}
                   isFastScrolling={isFastScrolling}
                   activeLyricRef={isActive ? activeLyricRef : undefined}
-                  onClick={() => onLyricClick(line.time)}
+                  onClick={() => onLyricClick(line.time, idx)}
                 />
               );
             })}

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Search, Loader2, Music, X, SearchX, Disc3, LayoutGrid } from "lucide-react";
 import { Track, Album } from "../../types";
 import { VirtualizedTrackList } from "./VirtualizedTrackList";
@@ -46,6 +46,21 @@ export const SearchView = React.memo(function SearchView({
   hasSearched = false,
 }: SearchViewProps) {
   const [filterSection, setFilterSection] = useState<SearchFilterSection>("all");
+
+  // Reseta filtro ativo ao iniciar nova busca ou quando a aba filtrada ficar sem resultados tendo resultados em outra categoria
+  useEffect(() => {
+    if (isSearching) {
+      setFilterSection("all");
+    }
+  }, [isSearching]);
+
+  useEffect(() => {
+    if (filterSection === "albums" && searchAlbums.length === 0 && searchResults.length > 0) {
+      setFilterSection("all");
+    } else if (filterSection === "tracks" && searchResults.length === 0 && searchAlbums.length > 0) {
+      setFilterSection("all");
+    }
+  }, [filterSection, searchAlbums.length, searchResults.length]);
 
   const totalResults = searchResults.length + searchAlbums.length;
 

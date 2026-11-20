@@ -18,8 +18,8 @@ import {
   WifiOff,
 } from "lucide-react";
 import { Playlist, Album } from "../../types";
-import { upgradeArtworkQuality } from "../../utils/artwork";
-import { NetworkService } from "../../services/network";
+import { upgradeArtworkQuality, handleArtworkError } from "../../utils/artwork";
+import { NetworkService, useNetworkStatus } from "../../services/network";
 
 export interface CommandPaletteProps {
   isOpen: boolean;
@@ -100,6 +100,8 @@ export const CommandPalette = React.memo(function CommandPalette({
 }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [failedArtworkIds, setFailedArtworkIds] = useState<Record<string, boolean>>({});
+  const { isSimulatedOffline } = useNetworkStatus();
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -107,6 +109,7 @@ export const CommandPalette = React.memo(function CommandPalette({
     if (isOpen) {
       setQuery("");
       setSelectedIndex(0);
+      setFailedArtworkIds({});
       requestAnimationFrame(() => {
         inputRef.current?.focus();
       });
@@ -251,12 +254,12 @@ export const CommandPalette = React.memo(function CommandPalette({
       quickActions.push({
         id: "act-dev-toggle-offline",
         kind: "action",
-        title: NetworkService.isSimulatedOffline()
+        title: isSimulatedOffline
           ? "Dev: Restabelecer Conexão de Internet"
           : "Dev: Cortar Conexão à Internet (Simular Offline)",
         subtitle: "Ferramenta de teste de resiliência e reprodução offline",
         shortcut: "Ctrl+Alt+O",
-        icon: NetworkService.isSimulatedOffline() ? (
+        icon: isSimulatedOffline ? (
           <Wifi className="w-4 h-4 text-emerald-400" />
         ) : (
           <WifiOff className="w-4 h-4 text-amber-400" />
@@ -283,6 +286,7 @@ export const CommandPalette = React.memo(function CommandPalette({
     albums,
     isPlaying,
     isShuffle,
+    isSimulatedOffline,
     onTogglePlayPause,
     onNextTrack,
     onToggleShuffle,
@@ -412,11 +416,17 @@ export const CommandPalette = React.memo(function CommandPalette({
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     {entry.kind === "playlist" || entry.kind === "album" ? (
                       <div className="w-9 h-9 rounded-lg overflow-hidden bg-[#181b28] border border-white/10 shrink-0 flex items-center justify-center">
-                        {entry.artworkUrl ? (
+                        {entry.artworkUrl && !failedArtworkIds[entry.id] ? (
                           <img
                             src={upgradeArtworkQuality(entry.artworkUrl, undefined, "thumb")}
                             alt={entry.title}
                             referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              handleArtworkError(e);
+                              if (e.currentTarget.getAttribute("data-artwork-failed") === "true") {
+                                setFailedArtworkIds((prev) => ({ ...prev, [entry.id]: true }));
+                              }
+                            }}
                             className="w-full h-full object-cover"
                           />
                         ) : entry.kind === "album" ? (

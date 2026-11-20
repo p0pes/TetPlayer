@@ -1049,3 +1049,21 @@ Todos os **148 apontamentos técnicos (#01 a #148)** catalogados em auditorias t
      - **Ao clicar:** abre um popover horizontal compacto dentro da janela do Mini Player com botão de mudo rápido, slider `<input type="range">` e leitura percentual, fechando ao clicar fora ou pressionar `Escape`.
 
 ---
+
+### 156. Polimento de Animações Contínuas do Mini Player & Auditoria Geral de Performance, UI e UX (11 Correções)
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`MiniPlayer.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MiniPlayer/MiniPlayer.tsx), [`TimelineScrubber.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/Player/TimelineScrubber.tsx), [`TrackRow.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/TrackRow.tsx), [`SearchView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MainView/SearchView.tsx), [`CommandPalette.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/CommandPalette/CommandPalette.tsx), [`useLyrics.ts`](file:///d:/progrmação/programas/TetPlayer/desktop/src/hooks/useLyrics.ts), [`LyricsView.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/LyricsView/LyricsView.tsx)
+* **Solução Implementada:**
+  1. **Mini Player (`MiniPlayer.tsx`):**
+     - Popover de volume centralizado verticalmente (`top-1/2 -translate-y-1/2 right-0`), fundo sólido de alto contraste (`bg-[#1b2032]`) e fechamento automático em `onMouseLeave`;
+     - Cursor padrão no corpo e arrasto da janela restrito à faixa superior (`cursor-grab` com `data-drag-handle`);
+     - Transição contínua reversível via duplo `requestAnimationFrame` (`translate3d`), wrapper estático de hit-testing evitando falso `mouseleave`, LED fixo na borda do monitor (sem piscar no fim da animação) e proteção contra fechamento durante arrasto do `MiniPlayerScrubber` (`role="slider"`) + navegação por setas do teclado (`ArrowLeft`/`ArrowRight`/`Home`/`End`) e `onPointerCancel`;
+  2. **Player Bar & Virtualização (`TimelineScrubber.tsx` & `TrackRow.tsx`):**
+     - Substituída animação de `height` (`hover:h-1.5`) por `hover:scale-y-150` acelerado por GPU e aplicado *clamp* horizontal no tooltip flutuante de preview de letra;
+     - Limpeza segura de `setTimeout` no unmount de `TrackRow` (`feedbackTimerRef`) e exibição de indicador de download em andamento (`isDownloading`);
+  3. **Busca, Paleta & Letras (`SearchView.tsx`, `CommandPalette.tsx`, `useLyrics.ts`, `LyricsView.tsx`):**
+     - Reset automático do filtro da busca (`filterSection`) para `"all"` ao iniciar nova pesquisa ou quando a aba filtrada vier vazia havendo itens na outra categoria;
+     - Fallback `handleArtworkError` e reatividade ao modo offline simulado (`useNetworkStatus`) no `CommandPalette`;
+     - Suporte ao índice exato da estrofe em `handleLyricClick` para letras com timestamps duplicados.
+
+---
