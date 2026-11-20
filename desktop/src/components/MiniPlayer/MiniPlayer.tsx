@@ -499,15 +499,15 @@ export function MiniPlayer() {
           onWheel={handleWheelVolume}
           title="TetPlayer Auto-Slide — Encoste o mouse para abrir, gire o scroll para volume ou arraste verticalmente"
           className={`w-[10px] h-[64px] bg-[#0c0e17]/95 hover:bg-[#141826] border border-[#2b3042] hover:border-[var(--accent)]/80 flex items-center justify-center overflow-hidden cursor-pointer group transition-colors duration-150 select-none relative ${activeDockSide === "left"
-              ? "border-l-0 rounded-r-full"
-              : "border-r-0 rounded-l-full"
+            ? "border-l-0 rounded-r-full"
+            : "border-r-0 rounded-l-full"
             }`}
         >
           {/* Indicador vertical lateral mais espesso (sem seta) */}
           <div
             className={`w-[4.5px] h-[44px] rounded-full transition-colors duration-200 ${isPlaying
-                ? "bg-[var(--accent)] shadow-[0_0_12px_var(--accent-glow)]"
-                : "bg-[#606884] group-hover:bg-[var(--accent)]"
+              ? "bg-[var(--accent)] shadow-[0_0_12px_var(--accent-glow)]"
+              : "bg-[#606884] group-hover:bg-[var(--accent)]"
               }`}
           />
         </div>
@@ -642,8 +642,14 @@ export function MiniPlayer() {
         </button>
       </div>
 
-      {/* Conteúdo Compacto: Capa, Título/Artista e Controles (arrastável em qualquer área vazia) */}
-      <div className="flex-1 px-3 pt-3 pb-2.5 flex items-center justify-between gap-2.5 min-h-0 z-10 cursor-move">
+      {/* Faixa superior invisível para arrastar a janela com cursor de mãozinha */}
+      <div
+        aria-hidden="true"
+        className="absolute top-0 inset-x-0 h-3 cursor-grab active:cursor-grabbing z-20"
+      />
+
+      {/* Conteúdo Compacto: Capa, Título/Artista e Controles */}
+      <div className="flex-1 px-3 pt-3 pb-2.5 flex items-center justify-between gap-2.5 min-h-0 z-10 cursor-default">
         {/* Capa e Informações da Faixa */}
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
           <div className="w-11 h-11 rounded-xl bg-[#1a1d28] border border-[#232738] overflow-hidden shrink-0 flex items-center justify-center relative shadow-md group/cover">
@@ -679,8 +685,8 @@ export function MiniPlayer() {
               title={isLiked ? "Remover dos favoritos (Descurtir)" : "Adicionar às Músicas Curtidas"}
               aria-label={isLiked ? "Descurtir" : "Curtir"}
               className={`p-1 rounded-lg transition-all cursor-pointer ${isLiked
-                  ? "text-[var(--accent)] drop-shadow-[0_0_6px_var(--accent-glow)]"
-                  : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
+                ? "text-[var(--accent)] drop-shadow-[0_0_6px_var(--accent-glow)]"
+                : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
                 }`}
             >
               <Heart className={`w-3.5 h-3.5 ${isLiked ? "fill-current" : ""}`} />
@@ -740,8 +746,8 @@ export function MiniPlayer() {
               aria-label="Controle de volume"
               aria-expanded={isVolumeOpen}
               className={`p-1 rounded-lg transition-colors cursor-pointer ${isVolumeOpen
-                  ? "text-white bg-[#202536]"
-                  : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
+                ? "text-white bg-[#202536]"
+                : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
                 }`}
             >
               {isMuted || volume === 0 ? (
