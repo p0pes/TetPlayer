@@ -40,7 +40,7 @@ export function MiniPlayer() {
   // Estado de ancoragem na borda ('left' | 'right' | null) e expansão da Gaveta Auto-Slide
   const [isDocked, setIsDocked] = useState<"left" | "right" | null>(null);
   const [isDrawerExpanded, setIsDrawerExpanded] = useState(false);
-  const [isDrawerAnimatingOut, setIsDrawerAnimatingOut] = useState(false);
+  const [isDrawerOpenVisual, setIsDrawerOpenVisual] = useState(false);
   const [isDrawerFastOut, setIsDrawerFastOut] = useState(false);
 
   // V1 Volume: popover horizontal ao clicar + badge ao usar scroll sobre o ícone
@@ -98,7 +98,8 @@ export function MiniPlayer() {
       window.clearTimeout(collapseFinishTimerRef.current);
       collapseFinishTimerRef.current = null;
       isCollapsingRef.current = false;
-      setIsDrawerAnimatingOut(false);
+      setIsDrawerFastOut(false);
+      setIsDrawerOpenVisual(true);
     }
   }, []);
 
@@ -113,7 +114,7 @@ export function MiniPlayer() {
       isPointerDownInsideRef.current = false;
       pendingCloseAfterPointerUpRef.current = false;
       setIsDrawerFastOut(instant);
-      setIsDrawerAnimatingOut(true);
+      setIsDrawerOpenVisual(false);
 
       const animDuration = instant ? 90 : 170;
       collapseFinishTimerRef.current = window.setTimeout(async () => {
@@ -123,16 +124,16 @@ export function MiniPlayer() {
         const activeSide = sideOverride || isDockedRef.current;
         if (!activeSide) return;
         collapseCooldownUntilRef.current = performance.now() + 240;
-        setIsDrawerFastOut(false);
-        setIsDrawerAnimatingOut(false);
-        setIsDrawerExpanded(false);
         setIsVolumeOpen(false);
         isDrawerExpandedRef.current = false;
         try {
+          // Redimensiona o HWND para 36x68 enquanto o card ainda está fora da tela (translate3d ±102%)
           await invoke("dock_mini_player", { side: activeSide });
         } catch (err) {
           console.error("Erro ao recolher gaveta auto-slide:", err);
         }
+        setIsDrawerFastOut(false);
+        setIsDrawerExpanded(false);
       }, animDuration);
     },
     [clearAllDrawerTimers]
@@ -171,9 +172,9 @@ export function MiniPlayer() {
       isManualCollapsingRef.current = false;
       pendingCloseAfterPointerUpRef.current = false;
       setIsDrawerFastOut(false);
-      setIsDrawerAnimatingOut(false);
+      setIsDrawerOpenVisual(false);
       try {
-        // Expande o HWND transparente primeiro para que o slide-in de 102% -> 0% rode sem tranco de redimensionamento
+        // Expande o HWND transparente primeiro para que a transição CSS 102% -> 0% rode sem tranco
         await invoke("peek_docked_mini_player", { side });
       } catch (err) {
         console.error("Erro ao deslizar gaveta do mini player:", err);
@@ -186,6 +187,20 @@ export function MiniPlayer() {
     [clearAllDrawerTimers]
   );
 
+  // Dispara a transição contínua de entrada no próximo frame após montar a gaveta
+  useEffect(() => {
+    if (!isDocked || !isDrawerExpanded) {
+      setIsDrawerOpenVisual(false);
+      return;
+    }
+    const rafId = window.requestAnimationFrame(() => {
+      if (isDockedRef.current && isDrawerExpandedRef.current && !isCollapsingRef.current) {
+        setIsDrawerOpenVisual(true);
+      }
+    });
+    return () => window.cancelAnimationFrame(rafId);
+  }, [isDocked, isDrawerExpanded]);
+
   useEffect(() => {
     let unlistenDocked: (() => void) | undefined;
     let unlistenAutoCollapse: (() => void) | undefined;
@@ -196,7 +211,7 @@ export function MiniPlayer() {
         isDrawerExpandedRef.current = false;
         setIsDocked(event.payload);
         setIsDrawerExpanded(false);
-        setIsDrawerAnimatingOut(false);
+        setIsDrawerOpenVisual(false);
       }
     })
       .then((fn) => {
@@ -279,13 +294,13 @@ export function MiniPlayer() {
           isDrawerExpandedRef.current = false;
           setIsDocked(snapped);
           setIsDrawerExpanded(false);
-          setIsDrawerAnimatingOut(false);
+          setIsDrawerOpenVisual(false);
         } else {
           isDockedRef.current = null;
           isDrawerExpandedRef.current = false;
           setIsDocked(null);
           setIsDrawerExpanded(false);
-          setIsDrawerAnimatingOut(false);
+          setIsDrawerOpenVisual(false);
         }
       } catch (err) {
         console.error("Erro ao arrastar janela:", err);
@@ -356,7 +371,7 @@ export function MiniPlayer() {
         isDrawerExpandedRef.current = false;
         setIsDocked(autoSnapped);
         setIsDrawerExpanded(false);
-        setIsDrawerAnimatingOut(false);
+        setIsDrawerOpenVisual(false);
       } else {
         const side = await invoke<string>("dock_mini_player", { side: "right" });
         const validSide = (side === "left" ? "left" : "right") as "left" | "right";
@@ -364,7 +379,7 @@ export function MiniPlayer() {
         isDrawerExpandedRef.current = false;
         setIsDocked(validSide);
         setIsDrawerExpanded(false);
-        setIsDrawerAnimatingOut(false);
+        setIsDrawerOpenVisual(false);
       }
     } catch (err) {
       console.error("Erro ao recolher mini player:", err);
@@ -379,7 +394,7 @@ export function MiniPlayer() {
       isDrawerExpandedRef.current = false;
       setIsDocked(null);
       setIsDrawerExpanded(false);
-      setIsDrawerAnimatingOut(false);
+      setIsDrawerOpenVisual(false);
       await invoke("undock_mini_player", { side: currentSide });
     } catch (err) {
       console.error("Erro ao desencaixar mini player:", err);
@@ -505,8 +520,8 @@ export function MiniPlayer() {
           onWheel={handleWheelVolume}
           title="TetPlayer Auto-Slide — Encoste o mouse para abrir, gire o scroll para volume ou arraste verticalmente"
           className={`w-[10px] h-[64px] bg-[#0c0e17]/95 hover:bg-[#141826] border border-[#2b3042] hover:border-[var(--accent)]/80 flex items-center justify-center overflow-hidden cursor-pointer group transition-[background-color,border-color,transform] duration-150 ease-out hover:scale-y-[1.08] origin-center select-none relative ${activeDockSide === "left"
-            ? "border-l-0 rounded-r-full animate-tab-in-left"
-            : "border-r-0 rounded-l-full animate-tab-in-right"
+            ? "border-l-0 rounded-r-full"
+            : "border-r-0 rounded-l-full"
             }`}
         >
           {/* Indicador vertical lateral mais espesso (sem seta) */}
@@ -521,18 +536,23 @@ export function MiniPlayer() {
     );
   }
 
-  // Classes de animação e formato para Gaveta Auto-Slide vs Flutuante Livre
-  const drawerAnimationClass = isDocked
-    ? isDrawerAnimatingOut
-      ? `${
-          activeDockSide === "left"
-            ? "animate-drawer-out-left"
-            : "animate-drawer-out-right"
-        } ${isDrawerFastOut ? "animate-drawer-out-fast" : ""}`
-      : activeDockSide === "left"
-        ? "animate-drawer-in-left"
-        : "animate-drawer-in-right"
-    : "";
+  // Transição contínua GPU (permite reverter suavemente se o mouse voltar no meio do fechamento)
+  const drawerTransitionStyle: React.CSSProperties = isDocked
+    ? {
+        transform: isDrawerOpenVisual
+          ? "translate3d(0, 0, 0)"
+          : activeDockSide === "left"
+            ? "translate3d(-102%, 0, 0)"
+            : "translate3d(102%, 0, 0)",
+        opacity: isDrawerOpenVisual ? 1 : 0.35,
+        transitionProperty: "transform, opacity",
+        transitionDuration: isDrawerFastOut ? "90ms" : isDrawerOpenVisual ? "210ms" : "170ms",
+        transitionTimingFunction: isDrawerOpenVisual
+          ? "cubic-bezier(0.22, 1, 0.36, 1)"
+          : "cubic-bezier(0.4, 0, 0.2, 1)",
+        willChange: "transform, opacity",
+      }
+    : {};
 
   const containerShapeClass = isDocked
     ? activeDockSide === "left"
@@ -541,7 +561,7 @@ export function MiniPlayer() {
     : "rounded-2xl";
 
   // Visualização Expandida (Gaveta Auto-Slide na borda ou Mini Player Flutuante)
-  // Wrapper externo estático para hit-testing estável (impede mouseleave falso durante translate3d do slide-in)
+  // Wrapper externo estático para hit-testing estável e LED fixo na borda do monitor (sem piscar)
   return (
     <div
       data-testid="miniplayer-expanded-root"
@@ -573,21 +593,23 @@ export function MiniPlayer() {
         }
       }}
       onWheel={handleWheelVolume}
-      className="w-full h-full bg-transparent overflow-hidden select-none"
+      className="w-full h-full bg-transparent overflow-hidden select-none relative"
     >
-      <div
-        className={`w-full h-full bg-[#0c0e17] border border-[#262b3d] flex flex-col justify-between overflow-hidden relative ${containerShapeClass} ${drawerAnimationClass}`}
-      >
-      {/* Filete luminoso lateral quando ancorado como Gaveta Auto-Slide */}
+      {/* Filete luminoso fixo na borda do monitor (não viaja com o card, evitando piscar) */}
       {isDocked && (
         <div
-          className={`absolute top-3 bottom-3 w-[2.5px] rounded-full z-30 pointer-events-none ${activeDockSide === "left" ? "left-0" : "right-0"
+          className={`absolute top-3 bottom-3 w-[2.5px] rounded-full z-40 pointer-events-none ${activeDockSide === "left" ? "left-0" : "right-0"
             } ${isPlaying
               ? "bg-[var(--accent)] shadow-[0_0_10px_var(--accent-glow)]"
               : "bg-[#343b52]"
             }`}
         />
       )}
+
+      <div
+        style={drawerTransitionStyle}
+        className={`w-full h-full bg-[#0c0e17] border border-[#262b3d] flex flex-col justify-between overflow-hidden relative ${containerShapeClass}`}
+      >
 
       {/* Glow Aurora de fundo sutil */}
       <div
@@ -664,11 +686,7 @@ export function MiniPlayer() {
       />
 
       {/* Conteúdo Compacto: Capa, Título/Artista e Controles */}
-      <div
-        className={`flex-1 px-3 pt-3 pb-2.5 flex items-center justify-between gap-2.5 min-h-0 z-10 cursor-default ${
-          isDocked && !isDrawerAnimatingOut ? "animate-drawer-content-in" : ""
-        }`}
-      >
+      <div className="flex-1 px-3 pt-3 pb-2.5 flex items-center justify-between gap-2.5 min-h-0 z-10 cursor-default">
         {/* Capa e Informações da Faixa */}
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
           <div className="w-11 h-11 rounded-xl bg-[#1a1d28] border border-[#232738] overflow-hidden shrink-0 flex items-center justify-center relative shadow-md group/cover">
