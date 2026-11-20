@@ -108,13 +108,13 @@ describe("MiniPlayer — Gaveta Inteligente Auto-Slide", () => {
       vi.advanceTimersByTime(450);
     });
 
-    const unpinBtn = screen.getByTitle(/Desafixar da borda/i);
-    const expandedRoot = unpinBtn.closest("div.w-full.h-full") as HTMLElement;
+    const expandedRoot = screen.getByTestId("miniplayer-expanded-root");
     expect(expandedRoot).toBeTruthy();
 
     await act(async () => {
+      vi.advanceTimersByTime(260);
       fireEvent.mouseLeave(expandedRoot);
-      vi.advanceTimersByTime(400);
+      vi.advanceTimersByTime(300);
     });
 
     expect(invokeMock).toHaveBeenCalledWith("dock_mini_player", {

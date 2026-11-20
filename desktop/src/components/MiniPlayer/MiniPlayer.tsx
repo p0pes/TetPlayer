@@ -541,8 +541,10 @@ export function MiniPlayer() {
     : "rounded-2xl";
 
   // Visualização Expandida (Gaveta Auto-Slide na borda ou Mini Player Flutuante)
+  // Wrapper externo estático para hit-testing estável (impede mouseleave falso durante translate3d do slide-in)
   return (
     <div
+      data-testid="miniplayer-expanded-root"
       onMouseDown={handleStartDrag}
       onPointerDownCapture={(e) => {
         const target = e.target as HTMLElement;
@@ -564,13 +566,18 @@ export function MiniPlayer() {
       onMouseLeave={() => {
         if (isDockedRef.current && isDrawerExpandedRef.current) {
           const elapsed = performance.now() - expandTimestampRef.current;
-          const remainingGuard = Math.max(0, 130 - elapsed);
-          scheduleAutoCollapse(remainingGuard + 70);
+          if (elapsed < 260) {
+            return;
+          }
+          scheduleAutoCollapse(70);
         }
       }}
       onWheel={handleWheelVolume}
-      className={`w-full h-full bg-[#0c0e17] border border-[#262b3d] flex flex-col justify-between overflow-hidden relative select-none ${containerShapeClass} ${drawerAnimationClass}`}
+      className="w-full h-full bg-transparent overflow-hidden select-none"
     >
+      <div
+        className={`w-full h-full bg-[#0c0e17] border border-[#262b3d] flex flex-col justify-between overflow-hidden relative ${containerShapeClass} ${drawerAnimationClass}`}
+      >
       {/* Filete luminoso lateral quando ancorado como Gaveta Auto-Slide */}
       {isDocked && (
         <div
@@ -845,6 +852,7 @@ export function MiniPlayer() {
 
       {/* Edge Line de 3px integrada à borda inferior (isolada de re-renders via PlaybackProgressContext) */}
       <MiniPlayerScrubber disabled={!currentTrack} onSeek={handleSeekTo} />
+      </div>
     </div>
   );
 }
