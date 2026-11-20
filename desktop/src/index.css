@@ -506,8 +506,8 @@ input[type="range"] {
 /* Gaveta Inteligente Auto-Slide do Mini Player (144 FPS GPU-Accelerated) */
 @keyframes mini-drawer-in-left {
   from {
-    opacity: 0;
-    transform: translate3d(-26px, 0, 0);
+    opacity: 0.35;
+    transform: translate3d(-102%, 0, 0);
   }
   to {
     opacity: 1;
@@ -517,8 +517,8 @@ input[type="range"] {
 
 @keyframes mini-drawer-in-right {
   from {
-    opacity: 0;
-    transform: translate3d(26px, 0, 0);
+    opacity: 0.35;
+    transform: translate3d(102%, 0, 0);
   }
   to {
     opacity: 1;
@@ -532,8 +532,8 @@ input[type="range"] {
     transform: translate3d(0, 0, 0);
   }
   to {
-    opacity: 0;
-    transform: translate3d(-30px, 0, 0);
+    opacity: 0.25;
+    transform: translate3d(-102%, 0, 0);
   }
 }
 
@@ -543,27 +543,79 @@ input[type="range"] {
     transform: translate3d(0, 0, 0);
   }
   to {
+    opacity: 0.25;
+    transform: translate3d(102%, 0, 0);
+  }
+}
+
+@keyframes mini-tab-in-left {
+  from {
     opacity: 0;
-    transform: translate3d(30px, 0, 0);
+    transform: translate3d(-6px, 0, 0) scaleY(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scaleY(1);
+  }
+}
+
+@keyframes mini-tab-in-right {
+  from {
+    opacity: 0;
+    transform: translate3d(6px, 0, 0) scaleY(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scaleY(1);
+  }
+}
+
+@keyframes mini-drawer-content-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 2px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
   }
 }
 
 .animate-drawer-in-left {
-  animation: mini-drawer-in-left 160ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: mini-drawer-in-left 220ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
   will-change: transform, opacity;
 }
 
 .animate-drawer-in-right {
-  animation: mini-drawer-in-right 160ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: mini-drawer-in-right 220ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
   will-change: transform, opacity;
 }
 
 .animate-drawer-out-left {
-  animation: mini-drawer-out-left 120ms cubic-bezier(0.4, 0, 1, 1) forwards;
+  animation: mini-drawer-out-left 170ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
   will-change: transform, opacity;
 }
 
 .animate-drawer-out-right {
-  animation: mini-drawer-out-right 120ms cubic-bezier(0.4, 0, 1, 1) forwards;
+  animation: mini-drawer-out-right 170ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.animate-drawer-out-fast {
+  animation-duration: 90ms;
+}
+
+.animate-tab-in-left {
+  animation: mini-tab-in-left 140ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.animate-tab-in-right {
+  animation: mini-tab-in-right 140ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.animate-drawer-content-in {
+  animation: mini-drawer-content-in 200ms cubic-bezier(0.22, 1, 0.36, 1) 40ms both;
   will-change: transform, opacity;
 }

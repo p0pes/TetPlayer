@@ -9,7 +9,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 }));
 
 vi.mock("@tauri-apps/api/event", () => ({
-  listen: vi.fn(() => Promise.resolve(() => {})),
+  listen: vi.fn(() => Promise.resolve(() => { })),
 }));
 
 const setVolumeMock = vi.fn();
@@ -114,7 +114,7 @@ describe("MiniPlayer — Gaveta Inteligente Auto-Slide", () => {
 
     await act(async () => {
       fireEvent.mouseLeave(expandedRoot);
-      vi.advanceTimersByTime(320);
+      vi.advanceTimersByTime(400);
     });
 
     expect(invokeMock).toHaveBeenCalledWith("dock_mini_player", {
@@ -207,7 +207,7 @@ describe("MiniPlayer — Gaveta Inteligente Auto-Slide", () => {
       height: 10,
       x: 0,
       y: 0,
-      toJSON: () => {},
+      toJSON: () => { },
     });
 
     fireEvent.pointerDown(scrubber, { button: 0, clientX: 150 });

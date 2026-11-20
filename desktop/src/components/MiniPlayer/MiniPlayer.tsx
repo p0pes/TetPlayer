@@ -41,6 +41,7 @@ export function MiniPlayer() {
   const [isDocked, setIsDocked] = useState<"left" | "right" | null>(null);
   const [isDrawerExpanded, setIsDrawerExpanded] = useState(false);
   const [isDrawerAnimatingOut, setIsDrawerAnimatingOut] = useState(false);
+  const [isDrawerFastOut, setIsDrawerFastOut] = useState(false);
 
   // V1 Volume: popover horizontal ao clicar + badge ao usar scroll sobre o ícone
   const [isVolumeOpen, setIsVolumeOpen] = useState(false);
@@ -111,9 +112,10 @@ export function MiniPlayer() {
       isManualCollapsingRef.current = isManual;
       isPointerDownInsideRef.current = false;
       pendingCloseAfterPointerUpRef.current = false;
+      setIsDrawerFastOut(instant);
       setIsDrawerAnimatingOut(true);
 
-      const animDuration = instant ? 60 : 90;
+      const animDuration = instant ? 90 : 170;
       collapseFinishTimerRef.current = window.setTimeout(async () => {
         collapseFinishTimerRef.current = null;
         isCollapsingRef.current = false;
@@ -121,6 +123,7 @@ export function MiniPlayer() {
         const activeSide = sideOverride || isDockedRef.current;
         if (!activeSide) return;
         collapseCooldownUntilRef.current = performance.now() + 240;
+        setIsDrawerFastOut(false);
         setIsDrawerAnimatingOut(false);
         setIsDrawerExpanded(false);
         setIsVolumeOpen(false);
@@ -167,15 +170,18 @@ export function MiniPlayer() {
       isCollapsingRef.current = false;
       isManualCollapsingRef.current = false;
       pendingCloseAfterPointerUpRef.current = false;
-      expandTimestampRef.current = performance.now();
+      setIsDrawerFastOut(false);
       setIsDrawerAnimatingOut(false);
-      setIsDrawerExpanded(true);
-      isDrawerExpandedRef.current = true;
       try {
+        // Expande o HWND transparente primeiro para que o slide-in de 102% -> 0% rode sem tranco de redimensionamento
         await invoke("peek_docked_mini_player", { side });
       } catch (err) {
         console.error("Erro ao deslizar gaveta do mini player:", err);
       }
+      if (!isDockedRef.current) return;
+      expandTimestampRef.current = performance.now();
+      setIsDrawerExpanded(true);
+      isDrawerExpandedRef.current = true;
     },
     [clearAllDrawerTimers]
   );
@@ -498,14 +504,14 @@ export function MiniPlayer() {
           }}
           onWheel={handleWheelVolume}
           title="TetPlayer Auto-Slide — Encoste o mouse para abrir, gire o scroll para volume ou arraste verticalmente"
-          className={`w-[10px] h-[64px] bg-[#0c0e17]/95 hover:bg-[#141826] border border-[#2b3042] hover:border-[var(--accent)]/80 flex items-center justify-center overflow-hidden cursor-pointer group transition-colors duration-150 select-none relative ${activeDockSide === "left"
-            ? "border-l-0 rounded-r-full"
-            : "border-r-0 rounded-l-full"
+          className={`w-[10px] h-[64px] bg-[#0c0e17]/95 hover:bg-[#141826] border border-[#2b3042] hover:border-[var(--accent)]/80 flex items-center justify-center overflow-hidden cursor-pointer group transition-[background-color,border-color,transform] duration-150 ease-out hover:scale-y-[1.08] origin-center select-none relative ${activeDockSide === "left"
+            ? "border-l-0 rounded-r-full animate-tab-in-left"
+            : "border-r-0 rounded-l-full animate-tab-in-right"
             }`}
         >
           {/* Indicador vertical lateral mais espesso (sem seta) */}
           <div
-            className={`w-[4.5px] h-[44px] rounded-full transition-colors duration-200 ${isPlaying
+            className={`w-[4.5px] h-[44px] rounded-full transition-[background-color,box-shadow,transform] duration-150 group-hover:scale-y-[1.06] ${isPlaying
               ? "bg-[var(--accent)] shadow-[0_0_12px_var(--accent-glow)]"
               : "bg-[#606884] group-hover:bg-[var(--accent)]"
               }`}
@@ -518,9 +524,11 @@ export function MiniPlayer() {
   // Classes de animação e formato para Gaveta Auto-Slide vs Flutuante Livre
   const drawerAnimationClass = isDocked
     ? isDrawerAnimatingOut
-      ? activeDockSide === "left"
-        ? "animate-drawer-out-left"
-        : "animate-drawer-out-right"
+      ? `${
+          activeDockSide === "left"
+            ? "animate-drawer-out-left"
+            : "animate-drawer-out-right"
+        } ${isDrawerFastOut ? "animate-drawer-out-fast" : ""}`
       : activeDockSide === "left"
         ? "animate-drawer-in-left"
         : "animate-drawer-in-right"
@@ -649,7 +657,11 @@ export function MiniPlayer() {
       />
 
       {/* Conteúdo Compacto: Capa, Título/Artista e Controles */}
-      <div className="flex-1 px-3 pt-3 pb-2.5 flex items-center justify-between gap-2.5 min-h-0 z-10 cursor-default">
+      <div
+        className={`flex-1 px-3 pt-3 pb-2.5 flex items-center justify-between gap-2.5 min-h-0 z-10 cursor-default ${
+          isDocked && !isDrawerAnimatingOut ? "animate-drawer-content-in" : ""
+        }`}
+      >
         {/* Capa e Informações da Faixa */}
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
           <div className="w-11 h-11 rounded-xl bg-[#1a1d28] border border-[#232738] overflow-hidden shrink-0 flex items-center justify-center relative shadow-md group/cover">
