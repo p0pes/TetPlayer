@@ -1012,8 +1012,8 @@ fn set_mini_player_mode(window: tauri::Window, enabled: bool) -> Result<(), Stri
         let _ = window.set_min_size(None::<tauri::Size>);
         configure_window_dwm_frame(&window, true);
         let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
-            width: 380.0,
-            height: 140.0,
+            width: 304.0,
+            height: 84.0,
         }));
     } else {
         configure_window_dwm_frame(&window, false);
@@ -1074,13 +1074,13 @@ fn dock_mini_player(window: tauri::Window, side: String) -> Result<String, Strin
     let win_pos = window.outer_position().unwrap_or(*mon_pos);
     let win_size = window
         .outer_size()
-        .unwrap_or(tauri::PhysicalSize { width: 380, height: 140 });
+        .unwrap_or(tauri::PhysicalSize { width: 304, height: 84 });
 
     let docked_w_phys = (36.0 * scale_factor).round() as i32;
     let docked_h_phys = (68.0 * scale_factor).round() as i32;
     let expanded_threshold_phys = (100.0 * scale_factor).round() as i32;
 
-    let base_y_phys = if (win_size.height as i32) > expanded_threshold_phys {
+    let base_y_phys = if (win_size.width as i32) > expanded_threshold_phys {
         win_pos.y + ((win_size.height as i32) - docked_h_phys) / 2
     } else {
         win_pos.y
@@ -1137,11 +1137,11 @@ fn peek_docked_mini_player(window: tauri::Window, side: String) -> Result<(), St
         .outer_size()
         .unwrap_or(tauri::PhysicalSize { width: 36, height: 68 });
 
-    let full_w_phys = (380.0 * scale_factor).round() as i32;
-    let full_h_phys = (140.0 * scale_factor).round() as i32;
+    let full_w_phys = (304.0 * scale_factor).round() as i32;
+    let full_h_phys = (84.0 * scale_factor).round() as i32;
     let collapsed_threshold_phys = (100.0 * scale_factor).round() as i32;
 
-    let base_y_phys = if (win_size.height as i32) <= collapsed_threshold_phys {
+    let base_y_phys = if (win_size.width as i32) <= collapsed_threshold_phys {
         win_pos.y - (full_h_phys - (win_size.height as i32)) / 2
     } else {
         win_pos.y
@@ -1190,10 +1190,10 @@ fn undock_mini_player(window: tauri::Window, side: Option<String>) -> Result<(),
     let win_pos = window.outer_position().unwrap_or(*mon_pos);
     let win_size = window
         .outer_size()
-        .unwrap_or(tauri::PhysicalSize { width: 380, height: 140 });
+        .unwrap_or(tauri::PhysicalSize { width: 304, height: 84 });
 
-    let full_w_phys = (380.0 * scale_factor).round() as i32;
-    let full_h_phys = (140.0 * scale_factor).round() as i32;
+    let full_w_phys = (304.0 * scale_factor).round() as i32;
+    let full_h_phys = (84.0 * scale_factor).round() as i32;
     let offset_phys = (16.0 * scale_factor).round() as i32;
     let collapsed_threshold_phys = (100.0 * scale_factor).round() as i32;
 
@@ -1205,7 +1205,7 @@ fn undock_mini_player(window: tauri::Window, side: Option<String>) -> Result<(),
         mon_pos.x + (mon_size.width as i32) - full_w_phys - offset_phys
     };
 
-    let base_y_phys = if (win_size.height as i32) <= collapsed_threshold_phys {
+    let base_y_phys = if (win_size.width as i32) <= collapsed_threshold_phys {
         win_pos.y - (full_h_phys - (win_size.height as i32)) / 2
     } else {
         win_pos.y

@@ -10,17 +10,12 @@ import {
   Volume2,
   VolumeX,
   X,
-  Minus,
   Music,
-  ChevronLeft,
-  ChevronRight,
   ChevronsRight,
   PinOff,
   Heart,
 } from "lucide-react";
 import { usePlayer, usePlaybackProgress } from "../../context/PlayerContext";
-import { formatTime } from "../../hooks/useLyrics";
-import { SpectrumVisualizer } from "../Visualizer/SpectrumVisualizer";
 import { upgradeArtworkQuality, handleArtworkError } from "../../utils/artwork";
 import { useLikedTrack } from "../../services/likes";
 import { SettingsService } from "../../services/settings";
@@ -46,6 +41,12 @@ export function MiniPlayer() {
   const [isDocked, setIsDocked] = useState<"left" | "right" | null>(null);
   const [isDrawerExpanded, setIsDrawerExpanded] = useState(false);
   const [isDrawerAnimatingOut, setIsDrawerAnimatingOut] = useState(false);
+
+  // V1 Volume: popover horizontal ao clicar + badge ao usar scroll sobre o ícone
+  const [isVolumeOpen, setIsVolumeOpen] = useState(false);
+  const [volumeBadge, setVolumeBadge] = useState<number | null>(null);
+  const volumeBadgeTimerRef = useRef<number | null>(null);
+  const volumeContainerRef = useRef<HTMLDivElement | null>(null);
 
   const isDockedRef = useRef<"left" | "right" | null>(null);
   const isDrawerExpandedRef = useRef(false);
@@ -120,6 +121,7 @@ export function MiniPlayer() {
         collapseCooldownUntilRef.current = performance.now() + 240;
         setIsDrawerAnimatingOut(false);
         setIsDrawerExpanded(false);
+        setIsVolumeOpen(false);
         isDrawerExpandedRef.current = false;
         try {
           await invoke("dock_mini_player", { side: activeSide });
@@ -285,10 +287,37 @@ export function MiniPlayer() {
     }
   }
 
-  function handleMinimize(e?: React.MouseEvent) {
-    if (e) e.stopPropagation();
-    invoke("minimize_window").catch(console.error);
-  }
+  // Fecha o popover de volume ao clicar fora ou pressionar Escape
+  useEffect(() => {
+    if (!isVolumeOpen) return;
+    const handlePointerDownOutside = (e: PointerEvent) => {
+      if (
+        volumeContainerRef.current &&
+        !volumeContainerRef.current.contains(e.target as Node)
+      ) {
+        setIsVolumeOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsVolumeOpen(false);
+      }
+    };
+    window.addEventListener("pointerdown", handlePointerDownOutside, true);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDownOutside, true);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isVolumeOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (volumeBadgeTimerRef.current !== null) {
+        window.clearTimeout(volumeBadgeTimerRef.current);
+      }
+    };
+  }, []);
 
   async function handleClose(e?: React.MouseEvent) {
     if (e) e.stopPropagation();
@@ -349,12 +378,26 @@ export function MiniPlayer() {
     }
   }
 
-  // Controle de volume rápido via scroll do mouse (tanto na alça quanto na gaveta)
-  function handleWheelVolume(e: React.WheelEvent) {
+  // Controle de volume rápido via scroll do mouse (alça, card ou ícone de áudio)
+  function applyWheelVolume(e: React.WheelEvent, showBadge = false) {
     const step = e.deltaY < 0 ? 0.05 : -0.05;
     const baseVol = isMuted ? 0 : volume;
     const nextVol = Math.min(1, Math.max(0, Number((baseVol + step).toFixed(2))));
     setVolume(nextVol);
+    if (showBadge) {
+      setVolumeBadge(Math.round(nextVol * 100));
+      if (volumeBadgeTimerRef.current !== null) {
+        window.clearTimeout(volumeBadgeTimerRef.current);
+      }
+      volumeBadgeTimerRef.current = window.setTimeout(() => {
+        volumeBadgeTimerRef.current = null;
+        setVolumeBadge(null);
+      }, 1100);
+    }
+  }
+
+  function handleWheelVolume(e: React.WheelEvent) {
+    applyWheelVolume(e, false);
   }
 
   // Hover na alça recolhida para abrir automaticamente (Auto-Slide 0 cliques)
@@ -431,16 +474,15 @@ export function MiniPlayer() {
   // Visualização Recolhida da Gaveta Auto-Slide (Alça minimalista simétrica na borda da tela)
   const isCompactMode = Boolean(
     (isDocked && !isDrawerExpanded) ||
-      (!isDrawerExpanded && typeof window !== "undefined" && window.innerWidth < 150)
+    (!isDrawerExpanded && typeof window !== "undefined" && window.innerWidth < 150)
   );
   const activeDockSide = isDocked || "right";
 
   if (isCompactMode) {
     return (
       <div
-        className={`w-full h-full bg-transparent flex items-center select-none ${
-          activeDockSide === "left" ? "justify-start" : "justify-end"
-        }`}
+        className={`w-full h-full bg-transparent flex items-center select-none ${activeDockSide === "left" ? "justify-start" : "justify-end"
+          }`}
       >
         <div
           onMouseEnter={handleTabMouseEnter}
@@ -454,19 +496,17 @@ export function MiniPlayer() {
           }}
           onWheel={handleWheelVolume}
           title="TetPlayer Auto-Slide — Encoste o mouse para abrir, gire o scroll para volume ou arraste verticalmente"
-          className={`w-[10px] h-[64px] bg-[#0c0e17]/95 hover:bg-[#141826] border border-[#2b3042] hover:border-[var(--accent)]/80 flex items-center justify-center overflow-hidden cursor-pointer group transition-colors duration-150 select-none relative ${
-            activeDockSide === "left"
+          className={`w-[10px] h-[64px] bg-[#0c0e17]/95 hover:bg-[#141826] border border-[#2b3042] hover:border-[var(--accent)]/80 flex items-center justify-center overflow-hidden cursor-pointer group transition-colors duration-150 select-none relative ${activeDockSide === "left"
               ? "border-l-0 rounded-r-full"
               : "border-r-0 rounded-l-full"
-          }`}
+            }`}
         >
           {/* Indicador vertical lateral mais espesso (sem seta) */}
           <div
-            className={`w-[4.5px] h-[44px] rounded-full transition-colors duration-200 ${
-              isPlaying
+            className={`w-[4.5px] h-[44px] rounded-full transition-colors duration-200 ${isPlaying
                 ? "bg-[var(--accent)] shadow-[0_0_12px_var(--accent-glow)]"
                 : "bg-[#606884] group-hover:bg-[var(--accent)]"
-            }`}
+              }`}
           />
         </div>
       </div>
@@ -524,13 +564,11 @@ export function MiniPlayer() {
       {/* Filete luminoso lateral quando ancorado como Gaveta Auto-Slide */}
       {isDocked && (
         <div
-          className={`absolute top-3 bottom-3 w-[2.5px] rounded-full z-30 pointer-events-none ${
-            activeDockSide === "left" ? "left-0" : "right-0"
-          } ${
-            isPlaying
+          className={`absolute top-3 bottom-3 w-[2.5px] rounded-full z-30 pointer-events-none ${activeDockSide === "left" ? "left-0" : "right-0"
+            } ${isPlaying
               ? "bg-[var(--accent)] shadow-[0_0_10px_var(--accent-glow)]"
               : "bg-[#343b52]"
-          }`}
+            }`}
         />
       )}
 
@@ -543,127 +581,70 @@ export function MiniPlayer() {
         }}
       />
 
-      {/* Header com Drag e Controles de Janela */}
-      <div className="h-7 px-2.5 bg-[#121522] border-b border-[#1c2030] flex items-center justify-between cursor-move shrink-0 z-20">
-        <div className="flex items-center gap-1.5 pointer-events-none select-none">
-          <div className="w-2 h-2 rounded-full bg-[var(--accent)] animate-pulse" />
-          <span className="text-[10px] font-bold text-[#8c91a4] tracking-wider uppercase">
-            {isDocked ? "Mini Player • Auto" : "Mini Player"}
-          </span>
-        </div>
+      {/* Ações discretas de janela no canto superior direito (sem barra de título dedicada) */}
+      <div
+        data-no-drag
+        onMouseDown={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        className="absolute top-1 right-1.5 flex items-center gap-0.5 z-30 opacity-60 hover:opacity-100 transition-opacity"
+      >
+        {isDocked ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleUndock();
+            }}
+            title="Desafixar da borda (Manter sempre aberto)"
+            className="p-1 rounded text-[var(--accent)] hover:text-white hover:bg-[#202536] transition-colors cursor-pointer"
+          >
+            <PinOff className="w-3 h-3" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleManualDock();
+            }}
+            title="Ancorar na borda (Gaveta Auto-Slide ao passar o mouse)"
+            className="p-1 rounded text-[#71778c] hover:text-white hover:bg-[#202536] transition-colors cursor-pointer"
+          >
+            <ChevronsRight className="w-3 h-3" />
+          </button>
+        )}
 
-        <div
-          data-no-drag
-          onMouseDown={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-          className="flex items-center gap-1 z-30"
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            clearAllDrawerTimers();
+            toggleMiniPlayer();
+          }}
+          title="Expandir para o Player Completo"
+          className="p-1 rounded text-[#71778c] hover:text-white hover:bg-[#202536] transition-colors cursor-pointer"
         >
-          {isDocked ? (
-            <>
-              {/* Desafixar da borda para manter sempre aberto como janela flutuante */}
-              <button
-                type="button"
-                onMouseDown={(e) => e.stopPropagation()}
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleUndock();
-                }}
-                title="Desafixar da borda (Manter sempre aberto)"
-                className="p-1 rounded text-[var(--accent)] hover:text-white hover:bg-[#202536] transition-colors cursor-pointer"
-              >
-                <PinOff className="w-3 h-3" />
-              </button>
+          <Maximize2 className="w-3 h-3" />
+        </button>
 
-              {/* Recolher imediatamente para a borda */}
-              <button
-                type="button"
-                onMouseDown={(e) => e.stopPropagation()}
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  collapseDockedDrawerNow(undefined, true, true);
-                }}
-                title="Esconder gaveta agora"
-                className="p-1 rounded text-[#71778c] hover:text-white hover:bg-[#202536] transition-colors cursor-pointer"
-              >
-                {activeDockSide === "left" ? (
-                  <ChevronLeft className="w-3 h-3" />
-                ) : (
-                  <ChevronRight className="w-3 h-3" />
-                )}
-              </button>
-            </>
-          ) : (
-            /* Recolher na borda da tela (Ativar Gaveta Auto-Slide) */
-            <button
-              type="button"
-              onMouseDown={(e) => e.stopPropagation()}
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleManualDock();
-              }}
-              title="Ancorar na borda (Gaveta Auto-Slide ao passar o mouse)"
-              className="p-1 rounded text-[#71778c] hover:text-white hover:bg-[#202536] transition-colors cursor-pointer"
-            >
-              <ChevronsRight className="w-3 h-3" />
-            </button>
-          )}
-
-          {/* Restaurar para janela normal */}
-          <button
-            type="button"
-            onMouseDown={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              clearAllDrawerTimers();
-              toggleMiniPlayer();
-            }}
-            title="Expandir para o Player Completo"
-            className="p-1 rounded text-[#71778c] hover:text-white hover:bg-[#202536] transition-colors cursor-pointer"
-          >
-            <Maximize2 className="w-3 h-3" />
-          </button>
-
-          {/* Minimizar */}
-          <button
-            type="button"
-            onMouseDown={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleMinimize(e);
-            }}
-            title="Minimizar"
-            className="p-1 rounded text-[#71778c] hover:text-white hover:bg-[#202536] transition-colors cursor-pointer"
-          >
-            <Minus className="w-3 h-3" />
-          </button>
-
-          {/* Fechar */}
-          <button
-            type="button"
-            onMouseDown={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleClose(e);
-            }}
-            title="Fechar"
-            className="p-1 rounded text-[#71778c] hover:text-[var(--accent-text)] hover:bg-[var(--accent-subtle)] transition-colors cursor-pointer"
-          >
-            <X className="w-3 h-3" />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleClose(e);
+          }}
+          title="Fechar"
+          className="p-1 rounded text-[#71778c] hover:text-[var(--accent-text)] hover:bg-[var(--accent-subtle)] transition-colors cursor-pointer"
+        >
+          <X className="w-3 h-3" />
+        </button>
       </div>
 
-      {/* Conteúdo Central: Capa, Título e Controles */}
-      <div className="flex-1 px-3 py-1 flex items-center justify-between gap-3 min-h-0 z-10">
+      {/* Conteúdo Compacto: Capa, Título/Artista e Controles (arrastável em qualquer área vazia) */}
+      <div className="flex-1 px-3 pt-3 pb-2.5 flex items-center justify-between gap-2.5 min-h-0 z-10 cursor-move">
         {/* Capa e Informações da Faixa */}
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          <div className="w-12 h-12 rounded-xl bg-[#1a1d28] border border-[#232738] overflow-hidden shrink-0 flex items-center justify-center relative shadow-md">
+          <div className="w-11 h-11 rounded-xl bg-[#1a1d28] border border-[#232738] overflow-hidden shrink-0 flex items-center justify-center relative shadow-md group/cover">
             {currentTrack?.artwork_url || currentTrack?.id ? (
               <img
                 src={upgradeArtworkQuality(currentTrack?.artwork_url, currentTrack?.id)}
@@ -673,17 +654,14 @@ export function MiniPlayer() {
                 className="w-full h-full object-cover"
               />
             ) : (
-              <Music className="w-5 h-5 text-[#5e6479]" />
+              <Music className="w-4 h-4 text-[#5e6479]" />
             )}
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <p className="text-xs font-bold text-white truncate">
-                {currentTrack?.title || "Nenhuma faixa tocando"}
-              </p>
-              <SpectrumVisualizer isPlaying={isPlaying} track={currentTrack} variant="mini" barCount={4} />
-            </div>
+            <p className="text-xs font-bold text-white truncate">
+              {currentTrack?.title || "Nenhuma faixa tocando"}
+            </p>
             <p className="text-[11px] text-[#8c91a4] truncate">
               {currentTrack?.artist || "TetPlayer"}
             </p>
@@ -691,36 +669,38 @@ export function MiniPlayer() {
         </div>
 
         {/* Controles de Reprodução */}
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-0.5 shrink-0">
           {currentTrack && (
             <button
+              type="button"
               onClick={toggleLike}
               title={isLiked ? "Remover dos favoritos (Descurtir)" : "Adicionar às Músicas Curtidas"}
               aria-label={isLiked ? "Descurtir" : "Curtir"}
-              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                isLiked
+              className={`p-1 rounded-lg transition-all cursor-pointer ${isLiked
                   ? "text-[var(--accent)] drop-shadow-[0_0_6px_var(--accent-glow)]"
                   : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
-              }`}
+                }`}
             >
               <Heart className={`w-3.5 h-3.5 ${isLiked ? "fill-current" : ""}`} />
             </button>
           )}
           <button
+            type="button"
             onClick={handlePrevTrack}
             title="Faixa Anterior"
             aria-label="Faixa anterior"
-            className="p-1.5 rounded-lg text-[#8c91a4] hover:text-white hover:bg-[#1a1d28] transition-colors cursor-pointer"
+            className="p-1 rounded-lg text-[#8c91a4] hover:text-white hover:bg-[#1a1d28] transition-colors cursor-pointer"
           >
             <SkipBack className="w-3.5 h-3.5 fill-current" />
           </button>
 
           <button
+            type="button"
             onClick={togglePlayPause}
             disabled={!currentTrack}
             title={isPlaying ? "Pausar" : "Tocar"}
             aria-label={isPlaying ? "Pausar" : "Tocar"}
-            className="w-8 h-8 rounded-full bg-[var(--accent)] hover:opacity-90 text-white flex items-center justify-center shadow-md shadow-[var(--accent-glow)] transition-transform active:scale-95 disabled:opacity-40 cursor-pointer"
+            className="w-7 h-7 mx-0.5 rounded-full bg-[var(--accent)] hover:opacity-90 text-white flex items-center justify-center shadow-md shadow-[var(--accent-glow)] transition-transform active:scale-95 disabled:opacity-40 cursor-pointer"
           >
             {isPlaying ? (
               <Pause className="w-3.5 h-3.5 fill-current" />
@@ -730,20 +710,37 @@ export function MiniPlayer() {
           </button>
 
           <button
+            type="button"
             onClick={handleNextTrack}
             title="Próxima Faixa"
             aria-label="Próxima faixa"
-            className="p-1.5 rounded-lg text-[#8c91a4] hover:text-white hover:bg-[#1a1d28] transition-colors cursor-pointer"
+            className="p-1 rounded-lg text-[#8c91a4] hover:text-white hover:bg-[#1a1d28] transition-colors cursor-pointer"
           >
             <SkipForward className="w-3.5 h-3.5 fill-current" />
           </button>
 
-          {/* Mute & Mini Volume Slider */}
-          <div className="flex items-center gap-1 group/vol">
+          {/* Volume V1: Scroll no ícone altera volume com badge; clique abre slider horizontal */}
+          <div
+            ref={volumeContainerRef}
+            data-no-drag
+            onMouseDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onWheel={(e) => {
+              e.stopPropagation();
+              applyWheelVolume(e, true);
+            }}
+            className="relative flex items-center"
+          >
             <button
-              onClick={toggleMute}
-              title={isMuted ? "Desativar Mudo" : "Silenciar"}
-              className="p-1.5 rounded-lg text-[#8c91a4] hover:text-white hover:bg-[#1a1d28] transition-colors cursor-pointer"
+              type="button"
+              onClick={() => setIsVolumeOpen((prev) => !prev)}
+              title="Volume (role para ajustar ou clique para abrir o slider)"
+              aria-label="Controle de volume"
+              aria-expanded={isVolumeOpen}
+              className={`p-1 rounded-lg transition-colors cursor-pointer ${isVolumeOpen
+                  ? "text-white bg-[#202536]"
+                  : "text-[#8c91a4] hover:text-white hover:bg-[#1a1d28]"
+                }`}
             >
               {isMuted || volume === 0 ? (
                 <VolumeX className="w-3.5 h-3.5" />
@@ -751,29 +748,65 @@ export function MiniPlayer() {
                 <Volume2 className="w-3.5 h-3.5" />
               )}
             </button>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={isMuted ? 0 : volume}
-              onChange={handleVolumeChange}
-              aria-label="Volume no Mini Player"
-              aria-valuemin={0}
-              aria-valuemax={1}
-              aria-valuenow={isMuted ? 0 : volume}
-              className="w-12 h-1 bg-[#232733] rounded-full accent-[var(--accent)] cursor-pointer opacity-70 hover:opacity-100 transition-opacity"
-            />
+
+            {/* Badge rápido de porcentagem ao usar scroll sem clicar */}
+            {volumeBadge !== null && !isVolumeOpen && (
+              <span
+                role="status"
+                aria-label={`Volume ${volumeBadge}%`}
+                className="absolute -top-6 right-0 px-1.5 py-0.5 rounded bg-[#121522]/95 border border-[#2c334a] text-[9px] font-mono font-semibold text-white shadow-lg pointer-events-none whitespace-nowrap z-40"
+              >
+                {volumeBadge}%
+              </span>
+            )}
+
+            {/* Popover horizontal de volume ao clicar no ícone */}
+            {isVolumeOpen && (
+              <div
+                role="dialog"
+                aria-label="Ajuste de volume"
+                className="absolute bottom-8 right-0 px-2 py-1.5 rounded-lg bg-[#121522]/95 border border-[#2c334a] shadow-xl flex items-center gap-1.5 z-40 whitespace-nowrap"
+              >
+                <button
+                  type="button"
+                  onClick={toggleMute}
+                  title={isMuted ? "Desativar Mudo" : "Silenciar"}
+                  aria-label={isMuted ? "Desativar Mudo" : "Silenciar"}
+                  className="p-0.5 rounded text-[#8c91a4] hover:text-white transition-colors cursor-pointer"
+                >
+                  {isMuted || volume === 0 ? (
+                    <VolumeX className="w-3 h-3" />
+                  ) : (
+                    <Volume2 className="w-3 h-3" />
+                  )}
+                </button>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={isMuted ? 0 : volume}
+                  onChange={handleVolumeChange}
+                  aria-label="Volume no Mini Player"
+                  aria-valuemin={0}
+                  aria-valuemax={1}
+                  aria-valuenow={isMuted ? 0 : volume}
+                  className="w-20 h-1 bg-[#232733] rounded-full accent-[var(--accent)] cursor-pointer"
+                />
+                <span className="text-[9px] font-mono text-[#8c91a4] w-7 text-right">
+                  {Math.round((isMuted ? 0 : volume) * 100)}%
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Mini Scrubber isolado para evitar re-render de 80ms no container (Mandamento #3) */}
+      {/* Edge Line de 3px integrada à borda inferior (isolada de re-renders via PlaybackProgressContext) */}
       <MiniPlayerScrubber disabled={!currentTrack} onSeek={handleSeekTo} />
     </div>
   );
 }
-
 
 interface MiniPlayerScrubberProps {
   disabled: boolean;
@@ -785,24 +818,61 @@ const MiniPlayerScrubber = React.memo(function MiniPlayerScrubber({
   onSeek,
 }: MiniPlayerScrubberProps) {
   const { currentTime, duration } = usePlaybackProgress();
+  const isSeekingRef = useRef(false);
+  const safeDuration = duration > 0 ? duration : 0;
+  const progress = safeDuration > 0 ? Math.min(1, Math.max(0, currentTime / safeDuration)) : 0;
+
+  const seekFromClientX = (el: HTMLDivElement, clientX: number) => {
+    if (disabled || safeDuration <= 0) return;
+    const rect = el.getBoundingClientRect();
+    const width = rect.width || 1;
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / width));
+    onSeek(ratio * safeDuration);
+  };
 
   return (
-    <div className="px-3 pb-1.5 flex items-center gap-2 text-[9px] text-[#71778c] font-mono z-10">
-      <span>{formatTime(currentTime)}</span>
-      <input
-        type="range"
-        min={0}
-        max={duration || 100}
-        value={currentTime}
-        onChange={(e) => onSeek(parseFloat(e.target.value))}
-        disabled={disabled}
-        aria-label="Linha do tempo"
-        aria-valuemin={0}
-        aria-valuemax={duration || 100}
-        aria-valuenow={currentTime}
-        className="flex-1 h-1 bg-[#232733] rounded-full accent-[var(--accent)] cursor-pointer"
-      />
-      <span>{formatTime(duration)}</span>
+    <div
+      data-no-drag
+      role="slider"
+      tabIndex={disabled ? -1 : 0}
+      aria-label="Linha do tempo"
+      aria-valuemin={0}
+      aria-valuemax={safeDuration || 100}
+      aria-valuenow={currentTime}
+      onMouseDown={(e) => e.stopPropagation()}
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        if (disabled || e.button !== 0) return;
+        isSeekingRef.current = true;
+        try {
+          e.currentTarget.setPointerCapture(e.pointerId);
+        } catch {
+          // ignore
+        }
+        seekFromClientX(e.currentTarget, e.clientX);
+      }}
+      onPointerMove={(e) => {
+        if (!isSeekingRef.current) return;
+        seekFromClientX(e.currentTarget, e.clientX);
+      }}
+      onPointerUp={(e) => {
+        if (!isSeekingRef.current) return;
+        isSeekingRef.current = false;
+        try {
+          e.currentTarget.releasePointerCapture(e.pointerId);
+        } catch {
+          // ignore
+        }
+      }}
+      className={`absolute bottom-0 inset-x-0 h-2.5 flex items-end z-30 group/scrubber ${disabled ? "pointer-events-none opacity-40" : "cursor-pointer"
+        }`}
+    >
+      <div className="w-full h-[3px] bg-[#1c2030] relative overflow-hidden origin-bottom transition-transform duration-150 group-hover/scrubber:scale-y-[1.67]">
+        <div
+          className="h-full w-full bg-[var(--accent)] shadow-[0_0_8px_var(--accent-glow)] origin-left"
+          style={{ transform: `scaleX(${progress})` }}
+        />
+      </div>
     </div>
   );
 });

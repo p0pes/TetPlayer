@@ -1033,7 +1033,19 @@ Todos os **148 apontamentos técnicos (#01 a #148)** catalogados em auditorias t
 
 ---
 
+### 155. Redesign Ultra-Compacto do Mini Player (304×84), Edge Line de 3px e Controle de Volume V1
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src/components/MiniPlayer/MiniPlayer.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MiniPlayer/MiniPlayer.tsx), [`desktop/src-tauri/src/lib.rs:1014-1212`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/lib.rs#L1014-L1212), [`desktop/src/components/__tests__/MiniPlayer.test.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/__tests__/MiniPlayer.test.tsx)
+* **Melhorias Implementadas:**
+  1. **Layout Ultra-Compacto (`304×84` Lógicos):**
+     - Removido o componente `SpectrumVisualizer` ao lado do título da faixa;
+     - Removida a barra de título dedicada (`h-7` "Mini Player • Auto"); o card permanece arrastável em qualquer área vazia e mantém ações discretas no canto superior direito (`PinOff`/`ChevronsRight`, `Maximize2`, `X`) com `data-no-drag`;
+     - Atualizadas as dimensões lógicas do Mini Player em `set_mini_player_mode`, `dock_mini_player`, `peek_docked_mini_player` e `undock_mini_player` no Rust (`304.0 × 84.0`) e corrigida a detecção de estado recolhido vs. expandido para verificar a **largura** (`win_size.width <= 100.0 * scale_factor`), evitando erro de centralização vertical agora que a altura expandida é `84.0`.
+  2. **Edge Line de 3px Integrada à Borda Inferior:**
+     - Substituída a barra inferior com timestamps numéricos por uma linha de progresso de `3px` na borda inferior (`MiniPlayerScrubber`, isolada via `PlaybackProgressContext` e `React.memo`), utilizando exclusivamente `scaleX` / `scaleY` na GPU para progresso e ênfase no hover, com suporte completo a clique e arrasto de seek (`pointerDown`/`pointerMove`).
+  3. **Controle de Volume V1 (Ícone Único + Scroll Direto + Popover Horizontal):**
+     - Exibição apenas do ícone de áudio (`Volume2` / `VolumeX`) na linha de controles;
+     - **Sem clicar:** girar o scroll do mouse sobre o ícone ajusta o volume (`±5%`) e exibe um badge temporário com a porcentagem atual (ex.: `55%`);
+     - **Ao clicar:** abre um popover horizontal compacto dentro da janela do Mini Player com botão de mudo rápido, slider `<input type="range">` e leitura percentual, fechando ao clicar fora ou pressionar `Escape`.
 
-
-
-
+---

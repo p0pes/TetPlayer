@@ -15,6 +15,7 @@ vi.mock("@tauri-apps/api/event", () => ({
 const setVolumeMock = vi.fn();
 const togglePlayPauseMock = vi.fn();
 const toggleMiniPlayerMock = vi.fn();
+const handleSeekToMock = vi.fn();
 
 vi.mock("../../context/PlayerContext", () => ({
   usePlayer: () => ({
@@ -30,7 +31,7 @@ vi.mock("../../context/PlayerContext", () => ({
     handlePrevTrack: vi.fn(),
     handleNextTrack: vi.fn(),
     togglePlayPause: togglePlayPauseMock,
-    handleSeekTo: vi.fn(),
+    handleSeekTo: handleSeekToMock,
     handleVolumeChange: vi.fn(),
     setVolume: setVolumeMock,
     toggleMute: vi.fn(),
@@ -54,6 +55,7 @@ describe("MiniPlayer — Gaveta Inteligente Auto-Slide", () => {
     vi.useFakeTimers();
     invokeMock.mockReset();
     setVolumeMock.mockReset();
+    handleSeekToMock.mockReset();
     invokeMock.mockImplementation((cmd: string) => {
       if (cmd === "check_and_snap_mini_player") return Promise.resolve("right");
       if (cmd === "dock_mini_player") return Promise.resolve("right");
@@ -70,7 +72,7 @@ describe("MiniPlayer — Gaveta Inteligente Auto-Slide", () => {
   it("deve ancorar na borda em modo Auto-Slide (apenas indicador vertical sem seta) e abrir automaticamente ao encostar o mouse", async () => {
     render(<MiniPlayer />);
 
-    expect(screen.getByText("Mini Player")).toBeInTheDocument();
+    expect(screen.getByText("Miku Beam")).toBeInTheDocument();
 
     const dockBtn = screen.getByTitle(/Ancorar na borda/i);
     await act(async () => {
@@ -89,7 +91,7 @@ describe("MiniPlayer — Gaveta Inteligente Auto-Slide", () => {
     expect(invokeMock).toHaveBeenCalledWith("peek_docked_mini_player", {
       side: "right",
     });
-    expect(screen.getByText("Mini Player • Auto")).toBeInTheDocument();
+    expect(screen.getByTitle(/Desafixar da borda/i)).toBeInTheDocument();
   });
 
   it("deve recolher rapidamente de volta para a borda ao retirar o mouse da gaveta", async () => {
@@ -106,8 +108,8 @@ describe("MiniPlayer — Gaveta Inteligente Auto-Slide", () => {
       vi.advanceTimersByTime(450);
     });
 
-    const badge = screen.getByText("Mini Player • Auto");
-    const expandedRoot = badge.closest("div.w-full.h-full") as HTMLElement;
+    const unpinBtn = screen.getByTitle(/Desafixar da borda/i);
+    const expandedRoot = unpinBtn.closest("div.w-full.h-full") as HTMLElement;
     expect(expandedRoot).toBeTruthy();
 
     await act(async () => {
@@ -135,7 +137,7 @@ describe("MiniPlayer — Gaveta Inteligente Auto-Slide", () => {
       vi.advanceTimersByTime(450);
     });
 
-    expect(screen.getByText("Mini Player • Auto")).toBeInTheDocument();
+    expect(screen.getByTitle(/Desafixar da borda/i)).toBeInTheDocument();
 
     await act(async () => {
       fireEvent.blur(window);
@@ -186,6 +188,44 @@ describe("MiniPlayer — Gaveta Inteligente Auto-Slide", () => {
     expect(invokeMock).toHaveBeenCalledWith("undock_mini_player", {
       side: "right",
     });
-    expect(screen.getByText("Mini Player")).toBeInTheDocument();
+    expect(screen.getByTitle(/Ancorar na borda/i)).toBeInTheDocument();
+  });
+
+  it("deve usar layout ultra-compacto sem timestamps numéricos e permitir seek na Edge Line de 3px", () => {
+    render(<MiniPlayer />);
+
+    expect(screen.queryByText("0:42")).not.toBeInTheDocument();
+    expect(screen.queryByText("3:00")).not.toBeInTheDocument();
+
+    const scrubber = screen.getByRole("slider", { name: /Linha do tempo/i });
+    vi.spyOn(scrubber, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      width: 300,
+      top: 0,
+      right: 300,
+      bottom: 10,
+      height: 10,
+      x: 0,
+      y: 0,
+      toJSON: () => {},
+    });
+
+    fireEvent.pointerDown(scrubber, { button: 0, clientX: 150 });
+    expect(handleSeekToMock).toHaveBeenCalledWith(90);
+  });
+
+  it("deve ajustar volume com scroll sobre o ícone de áudio (exibindo badge) e abrir slider horizontal ao clicar", () => {
+    render(<MiniPlayer />);
+
+    const volBtn = screen.getByRole("button", { name: /Controle de volume/i });
+    expect(screen.queryByRole("dialog", { name: /Ajuste de volume/i })).not.toBeInTheDocument();
+
+    fireEvent.wheel(volBtn, { deltaY: -100 });
+    expect(setVolumeMock).toHaveBeenCalledWith(0.55);
+    expect(screen.getByRole("status", { name: /Volume 55%/i })).toBeInTheDocument();
+
+    fireEvent.click(volBtn);
+    expect(screen.getByRole("dialog", { name: /Ajuste de volume/i })).toBeInTheDocument();
+    expect(screen.getByRole("slider", { name: /Volume no Mini Player/i })).toBeInTheDocument();
   });
 });
