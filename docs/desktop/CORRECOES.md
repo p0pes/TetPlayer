@@ -1067,3 +1067,27 @@ Todos os **148 apontamentos técnicos (#01 a #148)** catalogados em auditorias t
      - Suporte ao índice exato da estrofe em `handleLyricClick` para letras com timestamps duplicados.
 
 ---
+
+
+### 157. Blindagem para Jogos em Tela Cheia (Fortnite/COD): Supressão de Dead-Zone Invisível e Detecção de Cursor Oculto no Mini Player
+* **Status:** 🟢 **Resolvido**
+* **Localização:** [`desktop/src-tauri/src/lib.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/lib.rs), [`desktop/src/components/MiniPlayer/MiniPlayer.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MiniPlayer/MiniPlayer.tsx), [`desktop/src/components/__tests__/MiniPlayer.test.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/__tests__/MiniPlayer.test.tsx)
+* **Diagnóstico Técnico da Causa-Raiz:**
+  1. Em jogos de mira e tiro em primeira ou terceira pessoa (como Fortnite, Call of Duty, CS2, Valorant, etc.), a engine do jogo oculta o cursor do mouse (`ShowCursor(FALSE)`) e captura os movimentos físicos do mouse para controlar a mira da câmera 3D;
+  2. No entanto, o subsistema de entrada do Windows ainda atualiza as coordenadas internas do mouse na tela. Ao virar a câmera bruscamente em direção à borda lateral do monitor onde o Mini Player estava ancorado, essas coordenadas cruzavam a janela do Mini Player;
+  3. No modo recolhido anterior, o HWND nativo da janela possuía largura configurada em `36px` no Rust, enquanto o indicador visual CSS media apenas `10px`. Havia portanto `26px` de área 100% invisível/transparente que interceptava o mouse do usuário no jogo;
+  4. Quando o jogador clicava para atirar ou ativava o timer de hover de 65ms, o Windows enviava mensagens de entrada para o HWND do TetPlayer ou expandia a gaveta para `304px`, fazendo com que o jogo perdesse o foco ou a captura do mouse no meio da partida.
+* **Solução Implementada:**
+  1. **Tamanho Milimétrico do HWND Recolhido (Eliminação dos 26px de Dead-Zone):**
+     - Em `dock_mini_player` e `move_docked_tab`, a largura física foi reduzida de `36.0 * scale_factor` para exatamente `(10.0 * scale_factor).round() as i32` (altura ajustada para `64.0`), casando 100% com as dimensões reais do indicador visual;
+     - No JSX (`MiniPlayer.tsx`), o container pai transparente recebeu `pointer-events-none` e apenas o indicador interno de `10px` recebeu `pointer-events-auto`.
+  2. **Detecção Nativa de Cursor Oculto pelo Sistema Win32 (`is_system_cursor_showing`):**
+     - Criada rotina nativa utilizando `GetCursorInfo` e a flag `CURSOR_SHOWING` do Windows (`windows-sys`). Se o jogo ocultou o cursor para mirar, `is_system_cursor_showing()` retorna `false`;
+     - Exposto o comando `can_interact_docked_tab` para o frontend, bloqueando a abertura por hover e cliques caso o cursor não esteja ativamente visível.
+  3. **Click-Through Dinâmico em Background (`spawn_docked_cursor_watcher`):**
+     - Enquanto o Mini Player está recolhido na borda, uma thread de background checa o estado do cursor a cada `50ms`. Ao detectar que o cursor está oculto (jogador em partida no Fortnite/COD), ela aciona dinamicamente `window.set_ignore_cursor_events(true)` (`WS_EX_TRANSPARENT`), fazendo com que **todos os cliques e movimentos do mouse passem 100% direto para o jogo**, sem qualquer roubo de foco ou interrupção de controle;
+     - Assim que o jogador abre um menu, inventário ou retorna ao Windows (cursor visível), o click-through é desativado em 50ms para permitir uso normal da gaveta.
+  4. **Proteção Contra Roubo de Foco (`WS_EX_NOACTIVATE`):**
+     - Aplicado estilo estendido `WS_EX_NOACTIVATE` no HWND durante o modo Mini Player, garantindo que mesmo ao interagir com o player ele não retire o foco em primeiro plano de outros aplicativos e janelas ativas.
+
+---

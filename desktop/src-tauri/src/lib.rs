@@ -810,14 +810,46 @@ fn start_drag_window(window: tauri::Window) -> Result<(), String> {
 }
 
 #[cfg(target_os = "windows")]
+fn is_system_cursor_showing() -> bool {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetCursorInfo, CURSORINFO, CURSOR_SHOWING};
+    unsafe {
+        let mut ci: CURSORINFO = std::mem::zeroed();
+        ci.cbSize = std::mem::size_of::<CURSORINFO>() as u32;
+        if GetCursorInfo(&mut ci) != 0 {
+            (ci.flags & CURSOR_SHOWING) != 0
+        } else {
+            true
+        }
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn is_system_cursor_showing() -> bool {
+    true
+}
+
+#[cfg(target_os = "windows")]
 fn configure_window_dwm_frame(window: &tauri::Window, mini_mode: bool) {
     use windows_sys::Win32::Graphics::Dwm::DwmSetWindowAttribute;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_NOACTIVATE,
+    };
 
     let _ = window.set_shadow(!mini_mode);
 
     if let Ok(hwnd) = window.hwnd() {
         let hwnd_raw = hwnd.0 as windows_sys::Win32::Foundation::HWND;
         unsafe {
+            // Se for mini mode, podemos aplicar WS_EX_NOACTIVATE para não roubar foco de jogos/apps
+            let ex_style = GetWindowLongPtrW(hwnd_raw, GWL_EXSTYLE) as u32;
+            let new_ex_style = if mini_mode {
+                ex_style | WS_EX_NOACTIVATE
+            } else {
+                ex_style & !WS_EX_NOACTIVATE
+            };
+            if new_ex_style != ex_style {
+                SetWindowLongPtrW(hwnd_raw, GWL_EXSTYLE, new_ex_style as isize);
+            }
             // DWMWA_WINDOW_CORNER_PREFERENCE = 33 (1 = DWMWCP_DONOTROUND, 2 = DWMWCP_ROUND)
             let corner_pref: u32 = if mini_mode { 1 } else { 2 };
             let _ = DwmSetWindowAttribute(
@@ -920,10 +952,55 @@ fn atomic_set_window_rect(
 }
 
 static PEEK_WATCHER_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static DOCKED_WATCHER_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 fn cancel_peek_cursor_watcher() {
     PEEK_WATCHER_GEN.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 }
+
+fn cancel_docked_cursor_watcher() {
+    DOCKED_WATCHER_GEN.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+}
+
+#[cfg(target_os = "windows")]
+fn spawn_docked_cursor_watcher(window: tauri::Window) {
+    use std::sync::atomic::Ordering;
+
+    let my_gen = DOCKED_WATCHER_GEN.fetch_add(1, Ordering::SeqCst) + 1;
+
+    std::thread::spawn(move || {
+        let mut was_ignoring = false;
+
+        while DOCKED_WATCHER_GEN.load(Ordering::SeqCst) == my_gen {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            if DOCKED_WATCHER_GEN.load(Ordering::SeqCst) != my_gen {
+                break;
+            }
+
+            let is_showing = is_system_cursor_showing();
+
+            // Proteção crítica para jogos de tiro/ação (Fortnite, COD, CS2, etc.):
+            // Quando um jogo consome o mouse para mira 3D, o cursor do sistema fica oculto (CURSOR_SHOWING == 0).
+            // Nesses momentos, ativamos set_ignore_cursor_events(true) para que a janela fique 100% transparente
+            // aos cliques e movimentos (click-through via WS_EX_TRANSPARENT), garantindo que o jogo NUNCA perca o foco.
+            // Quando o jogador abre menu/inventário ou volta ao Windows, o cursor reaparece e desativamos o ignore.
+            if !is_showing && !was_ignoring {
+                let _ = window.set_ignore_cursor_events(true);
+                was_ignoring = true;
+            } else if is_showing && was_ignoring {
+                let _ = window.set_ignore_cursor_events(false);
+                was_ignoring = false;
+            }
+        }
+
+        if was_ignoring {
+            let _ = window.set_ignore_cursor_events(false);
+        }
+    });
+}
+
+#[cfg(not(target_os = "windows"))]
+fn spawn_docked_cursor_watcher(_window: tauri::Window) {}
 
 #[cfg(target_os = "windows")]
 fn spawn_peek_cursor_watcher(window: tauri::Window) {
@@ -1002,8 +1079,15 @@ fn spawn_peek_cursor_watcher(window: tauri::Window) {
 fn spawn_peek_cursor_watcher(_window: tauri::Window) {}
 
 #[tauri::command]
+fn can_interact_docked_tab() -> bool {
+    is_system_cursor_showing()
+}
+
+#[tauri::command]
 fn set_mini_player_mode(window: tauri::Window, enabled: bool) -> Result<(), String> {
     cancel_peek_cursor_watcher();
+    cancel_docked_cursor_watcher();
+    let _ = window.set_ignore_cursor_events(false);
     if enabled {
         let _ = window.unmaximize();
         let _ = window.set_resizable(false);
@@ -1056,6 +1140,8 @@ fn set_mini_player_mode(window: tauri::Window, enabled: bool) -> Result<(), Stri
 #[tauri::command]
 fn dock_mini_player(window: tauri::Window, side: String) -> Result<String, String> {
     cancel_peek_cursor_watcher();
+    cancel_docked_cursor_watcher();
+    let _ = window.set_ignore_cursor_events(false);
     let _ = window.unmaximize();
     let _ = window.set_resizable(false);
     let _ = window.set_maximizable(false);
@@ -1076,9 +1162,11 @@ fn dock_mini_player(window: tauri::Window, side: String) -> Result<String, Strin
         .outer_size()
         .unwrap_or(tauri::PhysicalSize { width: 304, height: 84 });
 
-    let docked_w_phys = (36.0 * scale_factor).round() as i32;
-    let docked_h_phys = (68.0 * scale_factor).round() as i32;
-    let expanded_threshold_phys = (100.0 * scale_factor).round() as i32;
+    // Tamanho milimetricamente idêntico à alça visual (10px de largura por 64px de altura)
+    // Sem área transparente invisível ou dead-zone que interfira em jogos ou cliques na tela
+    let docked_w_phys = (10.0 * scale_factor).round() as i32;
+    let docked_h_phys = (64.0 * scale_factor).round() as i32;
+    let expanded_threshold_phys = (50.0 * scale_factor).round() as i32;
 
     let base_y_phys = if (win_size.width as i32) > expanded_threshold_phys {
         win_pos.y + ((win_size.height as i32) - docked_h_phys) / 2
@@ -1111,12 +1199,21 @@ fn dock_mini_player(window: tauri::Window, side: String) -> Result<String, Strin
         );
     }
 
+    spawn_docked_cursor_watcher(window.clone());
     let _ = window.emit("mini-player-docked", &side);
     Ok(side)
 }
 
 #[tauri::command]
 fn peek_docked_mini_player(window: tauri::Window, side: String) -> Result<(), String> {
+    cancel_docked_cursor_watcher();
+    let _ = window.set_ignore_cursor_events(false);
+
+    // Validação estrita: se o cursor estiver oculto (ex: Fortnite/COD consumindo mouse), recusa abrir
+    if !is_system_cursor_showing() {
+        return Err("Cursor do sistema oculto por jogo".to_string());
+    }
+
     let _ = window.unmaximize();
     let _ = window.set_resizable(false);
     let _ = window.set_maximizable(false);
@@ -1135,11 +1232,11 @@ fn peek_docked_mini_player(window: tauri::Window, side: String) -> Result<(), St
     let win_pos = window.outer_position().unwrap_or(*mon_pos);
     let win_size = window
         .outer_size()
-        .unwrap_or(tauri::PhysicalSize { width: 36, height: 68 });
+        .unwrap_or(tauri::PhysicalSize { width: 10, height: 64 });
 
     let full_w_phys = (304.0 * scale_factor).round() as i32;
     let full_h_phys = (84.0 * scale_factor).round() as i32;
-    let collapsed_threshold_phys = (100.0 * scale_factor).round() as i32;
+    let collapsed_threshold_phys = (50.0 * scale_factor).round() as i32;
 
     let base_y_phys = if (win_size.width as i32) <= collapsed_threshold_phys {
         win_pos.y - (full_h_phys - (win_size.height as i32)) / 2
@@ -1172,6 +1269,8 @@ fn peek_docked_mini_player(window: tauri::Window, side: String) -> Result<(), St
 #[tauri::command]
 fn undock_mini_player(window: tauri::Window, side: Option<String>) -> Result<(), String> {
     cancel_peek_cursor_watcher();
+    cancel_docked_cursor_watcher();
+    let _ = window.set_ignore_cursor_events(false);
     let _ = window.unmaximize();
     let _ = window.set_resizable(false);
     let _ = window.set_maximizable(false);
@@ -1316,8 +1415,8 @@ fn move_docked_tab(
     let mon_size = monitor.size();
     let scale_factor = monitor.scale_factor();
 
-    let docked_w_phys = (36.0 * scale_factor).round() as i32;
-    let docked_h_phys = (68.0 * scale_factor).round() as i32;
+    let docked_w_phys = (10.0 * scale_factor).round() as i32;
+    let docked_h_phys = (64.0 * scale_factor).round() as i32;
 
     let min_y = mon_pos.y;
     let max_y = (mon_pos.y + (mon_size.height as i32) - docked_h_phys).max(min_y);
@@ -1542,6 +1641,7 @@ pub fn run() {
             check_and_snap_mini_player,
             start_drag_and_snap,
             move_docked_tab,
+            can_interact_docked_tab,
             get_app_storage_info,
             open_app_storage_dir,
             download_track,

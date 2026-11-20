@@ -167,6 +167,13 @@ export function MiniPlayer() {
   const openDockedDrawer = useCallback(
     async (sideOverride?: "left" | "right") => {
       const side = sideOverride || isDockedRef.current || "right";
+      // Proteção para jogos (Fortnite, COD, etc.): se o cursor estiver oculto, recusa abrir a gaveta
+      try {
+        const canInteract = await invoke<boolean>("can_interact_docked_tab");
+        if (!canInteract) return;
+      } catch {
+        // ignore
+      }
       clearAllDrawerTimers();
       isCollapsingRef.current = false;
       isManualCollapsingRef.current = false;
@@ -460,8 +467,14 @@ export function MiniPlayer() {
   }
 
   // Manipulação de pointer na alça recolhida (arrasto vertical na borda ou clique imediato)
-  function handleTabPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+  async function handleTabPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (e.button !== 0) return;
+    try {
+      const canInteract = await invoke<boolean>("can_interact_docked_tab");
+      if (!canInteract) return;
+    } catch {
+      // ignore
+    }
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     isDraggingTabRef.current = true;
     dragStartYRef.current = e.screenY;
@@ -511,7 +524,7 @@ export function MiniPlayer() {
   if (isCompactMode) {
     return (
       <div
-        className={`w-full h-full bg-transparent flex items-center select-none ${activeDockSide === "left" ? "justify-start" : "justify-end"
+        className={`w-full h-full bg-transparent flex items-center select-none pointer-events-none ${activeDockSide === "left" ? "justify-start" : "justify-end"
           }`}
       >
         <div
@@ -526,7 +539,7 @@ export function MiniPlayer() {
           }}
           onWheel={handleWheelVolume}
           title="TetPlayer Auto-Slide — Encoste o mouse para abrir, gire o scroll para volume ou arraste verticalmente"
-          className={`w-[10px] h-[64px] bg-[#0c0e17]/95 hover:bg-[#141826] border border-[#2b3042] hover:border-[var(--accent)]/80 flex items-center justify-center overflow-hidden cursor-pointer group transition-[background-color,border-color,transform] duration-150 ease-out hover:scale-y-[1.08] origin-center select-none relative ${activeDockSide === "left"
+          className={`pointer-events-auto w-[10px] h-[64px] bg-[#0c0e17]/95 hover:bg-[#141826] border border-[#2b3042] hover:border-[var(--accent)]/80 flex items-center justify-center overflow-hidden cursor-pointer group transition-[background-color,border-color,transform] duration-150 ease-out hover:scale-y-[1.08] origin-center select-none relative ${activeDockSide === "left"
             ? "border-l-0 rounded-r-full"
             : "border-r-0 rounded-l-full"
             }`}

@@ -57,6 +57,7 @@ describe("MiniPlayer — Gaveta Inteligente Auto-Slide", () => {
     setVolumeMock.mockReset();
     handleSeekToMock.mockReset();
     invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === "can_interact_docked_tab") return Promise.resolve(true);
       if (cmd === "check_and_snap_mini_player") return Promise.resolve("right");
       if (cmd === "dock_mini_player") return Promise.resolve("right");
       if (cmd === "peek_docked_mini_player") return Promise.resolve();
@@ -85,7 +86,7 @@ describe("MiniPlayer — Gaveta Inteligente Auto-Slide", () => {
 
     await act(async () => {
       fireEvent.mouseEnter(handle);
-      vi.advanceTimersByTime(450);
+      await vi.advanceTimersByTimeAsync(450);
     });
 
     expect(invokeMock).toHaveBeenCalledWith("peek_docked_mini_player", {
@@ -105,16 +106,16 @@ describe("MiniPlayer — Gaveta Inteligente Auto-Slide", () => {
     const handle = screen.getByTitle(/TetPlayer Auto-Slide/i);
     await act(async () => {
       fireEvent.mouseEnter(handle);
-      vi.advanceTimersByTime(450);
+      await vi.advanceTimersByTimeAsync(450);
     });
 
     const expandedRoot = screen.getByTestId("miniplayer-expanded-root");
     expect(expandedRoot).toBeTruthy();
 
     await act(async () => {
-      vi.advanceTimersByTime(260);
+      await vi.advanceTimersByTimeAsync(260);
       fireEvent.mouseLeave(expandedRoot);
-      vi.advanceTimersByTime(300);
+      await vi.advanceTimersByTimeAsync(300);
     });
 
     expect(invokeMock).toHaveBeenCalledWith("dock_mini_player", {
@@ -134,14 +135,14 @@ describe("MiniPlayer — Gaveta Inteligente Auto-Slide", () => {
     const handle = screen.getByTitle(/TetPlayer Auto-Slide/i);
     await act(async () => {
       fireEvent.mouseEnter(handle);
-      vi.advanceTimersByTime(450);
+      await vi.advanceTimersByTimeAsync(450);
     });
 
     expect(screen.getByTitle(/Desafixar da borda/i)).toBeInTheDocument();
 
     await act(async () => {
       fireEvent.blur(window);
-      vi.advanceTimersByTime(100);
+      await vi.advanceTimersByTimeAsync(100);
     });
 
     expect(invokeMock).toHaveBeenCalledWith("dock_mini_player", {
@@ -177,7 +178,7 @@ describe("MiniPlayer — Gaveta Inteligente Auto-Slide", () => {
     const handle = screen.getByTitle(/TetPlayer Auto-Slide/i);
     await act(async () => {
       fireEvent.mouseEnter(handle);
-      vi.advanceTimersByTime(450);
+      await vi.advanceTimersByTimeAsync(450);
     });
 
     const unpinBtn = screen.getByTitle(/Desafixar da borda/i);
@@ -231,5 +232,32 @@ describe("MiniPlayer — Gaveta Inteligente Auto-Slide", () => {
 
     fireEvent.mouseLeave(dialog);
     expect(screen.queryByRole("dialog", { name: /Ajuste de volume/i })).not.toBeInTheDocument();
+  });
+
+  it("não deve abrir a gaveta nem capturar o mouse quando o cursor do sistema estiver oculto por jogos (can_interact_docked_tab = false)", async () => {
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === "can_interact_docked_tab") return Promise.resolve(false);
+      if (cmd === "check_and_snap_mini_player") return Promise.resolve("right");
+      if (cmd === "dock_mini_player") return Promise.resolve("right");
+      return Promise.resolve();
+    });
+
+    render(<MiniPlayer />);
+
+    const dockBtn = screen.getByTitle(/Ancorar na borda/i);
+    await act(async () => {
+      fireEvent.click(dockBtn);
+    });
+
+    const handle = screen.getByTitle(/TetPlayer Auto-Slide/i);
+    expect(handle).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.mouseEnter(handle);
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(invokeMock).not.toHaveBeenCalledWith("peek_docked_mini_player", expect.anything());
+    expect(screen.queryByTitle(/Desafixar da borda/i)).not.toBeInTheDocument();
   });
 });
