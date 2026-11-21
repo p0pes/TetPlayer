@@ -816,7 +816,8 @@ fn is_system_cursor_showing() -> bool {
         let mut ci: CURSORINFO = std::mem::zeroed();
         ci.cbSize = std::mem::size_of::<CURSORINFO>() as u32;
         if GetCursorInfo(&mut ci) != 0 {
-            (ci.flags & CURSOR_SHOWING) != 0
+            // Verifica tanto a flag CURSOR_SHOWING (ShowCursor(FALSE)) quanto hCursor nulo (SetCursor(NULL))
+            (ci.flags & CURSOR_SHOWING) != 0 && !ci.hCursor.is_null()
         } else {
             true
         }
@@ -831,25 +832,12 @@ fn is_system_cursor_showing() -> bool {
 #[cfg(target_os = "windows")]
 fn configure_window_dwm_frame(window: &tauri::Window, mini_mode: bool) {
     use windows_sys::Win32::Graphics::Dwm::DwmSetWindowAttribute;
-    use windows_sys::Win32::UI::WindowsAndMessaging::{
-        GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_NOACTIVATE,
-    };
 
     let _ = window.set_shadow(!mini_mode);
 
     if let Ok(hwnd) = window.hwnd() {
         let hwnd_raw = hwnd.0 as windows_sys::Win32::Foundation::HWND;
         unsafe {
-            // Se for mini mode, podemos aplicar WS_EX_NOACTIVATE para não roubar foco de jogos/apps
-            let ex_style = GetWindowLongPtrW(hwnd_raw, GWL_EXSTYLE) as u32;
-            let new_ex_style = if mini_mode {
-                ex_style | WS_EX_NOACTIVATE
-            } else {
-                ex_style & !WS_EX_NOACTIVATE
-            };
-            if new_ex_style != ex_style {
-                SetWindowLongPtrW(hwnd_raw, GWL_EXSTYLE, new_ex_style as isize);
-            }
             // DWMWA_WINDOW_CORNER_PREFERENCE = 33 (1 = DWMWCP_DONOTROUND, 2 = DWMWCP_ROUND)
             let corner_pref: u32 = if mini_mode { 1 } else { 2 };
             let _ = DwmSetWindowAttribute(
@@ -963,34 +951,92 @@ fn cancel_docked_cursor_watcher() {
 }
 
 #[cfg(target_os = "windows")]
-fn spawn_docked_cursor_watcher(window: tauri::Window) {
+fn spawn_docked_cursor_watcher(window: tauri::Window, side: String, scale_factor: f64) {
     use std::sync::atomic::Ordering;
+    use windows_sys::Win32::Foundation::{POINT, RECT};
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetCursorPos, GetWindowRect};
 
     let my_gen = DOCKED_WATCHER_GEN.fetch_add(1, Ordering::SeqCst) + 1;
+    let Ok(hwnd) = window.hwnd() else { return };
+    let hwnd_isize = hwnd.0 as isize;
+    let tab_w_phys = (10.0 * scale_factor).round().max(1.0) as i32;
+    let tab_h_phys = (64.0 * scale_factor).round().max(1.0) as i32;
 
     std::thread::spawn(move || {
         let mut was_ignoring = false;
+        let mut was_in_tab = false;
+        let mut dragging_tab = false;
+        let mut first_tick = true;
 
         while DOCKED_WATCHER_GEN.load(Ordering::SeqCst) == my_gen {
-            std::thread::sleep(std::time::Duration::from_millis(50));
-            if DOCKED_WATCHER_GEN.load(Ordering::SeqCst) != my_gen {
-                break;
+            if first_tick {
+                first_tick = false;
+            } else {
+                std::thread::sleep(std::time::Duration::from_millis(20));
+                if DOCKED_WATCHER_GEN.load(Ordering::SeqCst) != my_gen {
+                    break;
+                }
             }
 
             let is_showing = is_system_cursor_showing();
+            let hwnd_raw = hwnd_isize as windows_sys::Win32::Foundation::HWND;
+            let mut pt = POINT { x: 0, y: 0 };
+            let mut rect = RECT {
+                left: 0,
+                top: 0,
+                right: 0,
+                bottom: 0,
+            };
 
-            // Proteção crítica para jogos de tiro/ação (Fortnite, COD, CS2, etc.):
-            // Quando um jogo consome o mouse para mira 3D, o cursor do sistema fica oculto (CURSOR_SHOWING == 0).
-            // Nesses momentos, ativamos set_ignore_cursor_events(true) para que a janela fique 100% transparente
-            // aos cliques e movimentos (click-through via WS_EX_TRANSPARENT), garantindo que o jogo NUNCA perca o foco.
-            // Quando o jogador abre menu/inventário ou volta ao Windows, o cursor reaparece e desativamos o ignore.
-            if !is_showing && !was_ignoring {
+            let (in_tab, lbutton_down) = unsafe {
+                let got_cursor = GetCursorPos(&mut pt) != 0 && GetWindowRect(hwnd_raw, &mut rect) != 0;
+                let lb = (GetAsyncKeyState(0x01) as u16 & 0x8000) != 0;
+                if !got_cursor {
+                    (false, lb)
+                } else {
+                    // Mesmo que o Windows 11 imponha largura mínima (SM_CXMINTRACK ~36px) na borda
+                    // esquerda ou direita, restringimos a zona interativa estritamente aos 10x64px da alça visual.
+                    let tab_left = if side == "left" {
+                        rect.left
+                    } else {
+                        rect.right - tab_w_phys
+                    };
+                    let tab_right = tab_left + tab_w_phys;
+                    let tab_top = rect.top + ((rect.bottom - rect.top) - tab_h_phys) / 2;
+                    let tab_bottom = tab_top + tab_h_phys;
+                    let inside = pt.x >= tab_left
+                        && pt.x <= tab_right
+                        && pt.y >= tab_top
+                        && pt.y <= tab_bottom;
+                    (inside, lb)
+                }
+            };
+
+            if !was_ignoring && in_tab && is_showing && lbutton_down {
+                dragging_tab = true;
+            } else if !lbutton_down {
+                dragging_tab = false;
+            }
+
+            // Ativa click-through (WS_EX_TRANSPARENT) se o cursor estiver oculto por jogo
+            // OU se o ponteiro estiver fora dos 10x64px da alça (ex: na sobra transparente de SM_CXMINTRACK).
+            let should_ignore = !is_showing || (!in_tab && !dragging_tab);
+            if should_ignore && !was_ignoring {
                 let _ = window.set_ignore_cursor_events(true);
                 was_ignoring = true;
-            } else if is_showing && was_ignoring {
+            } else if !should_ignore && was_ignoring {
                 let _ = window.set_ignore_cursor_events(false);
                 was_ignoring = false;
             }
+
+            let can_hover_now = is_showing && in_tab && !dragging_tab;
+            if can_hover_now && !was_in_tab {
+                let _ = window.emit("mini-player-tab-hover", ());
+            } else if !can_hover_now && was_in_tab {
+                let _ = window.emit("mini-player-tab-leave", ());
+            }
+            was_in_tab = can_hover_now;
         }
 
         if was_ignoring {
@@ -1000,7 +1046,7 @@ fn spawn_docked_cursor_watcher(window: tauri::Window) {
 }
 
 #[cfg(not(target_os = "windows"))]
-fn spawn_docked_cursor_watcher(_window: tauri::Window) {}
+fn spawn_docked_cursor_watcher(_window: tauri::Window, _side: String, _scale_factor: f64) {}
 
 #[cfg(target_os = "windows")]
 fn spawn_peek_cursor_watcher(window: tauri::Window) {
@@ -1024,6 +1070,12 @@ fn spawn_peek_cursor_watcher(window: tauri::Window) {
                 break;
             }
             total_ticks += 1;
+
+            // Se o usuário voltou para um jogo que oculta o cursor enquanto a gaveta estava aberta, recolhe imediatamente
+            if !is_system_cursor_showing() {
+                let _ = window.emit("mini-player-auto-collapse", "outside-click");
+                break;
+            }
 
             let hwnd_raw = hwnd_isize as windows_sys::Win32::Foundation::HWND;
             let mut pt = POINT { x: 0, y: 0 };
@@ -1077,11 +1129,6 @@ fn spawn_peek_cursor_watcher(window: tauri::Window) {
 
 #[cfg(not(target_os = "windows"))]
 fn spawn_peek_cursor_watcher(_window: tauri::Window) {}
-
-#[tauri::command]
-fn can_interact_docked_tab() -> bool {
-    is_system_cursor_showing()
-}
 
 #[tauri::command]
 fn set_mini_player_mode(window: tauri::Window, enabled: bool) -> Result<(), String> {
@@ -1199,20 +1246,21 @@ fn dock_mini_player(window: tauri::Window, side: String) -> Result<String, Strin
         );
     }
 
-    spawn_docked_cursor_watcher(window.clone());
+    spawn_docked_cursor_watcher(window.clone(), side.clone(), scale_factor);
     let _ = window.emit("mini-player-docked", &side);
     Ok(side)
 }
 
 #[tauri::command]
-fn peek_docked_mini_player(window: tauri::Window, side: String) -> Result<(), String> {
+fn peek_docked_mini_player(window: tauri::Window, side: String) -> Result<bool, String> {
+    // Validação estrita ANTES de cancelar watchers ou alterar click-through:
+    // se o cursor estiver oculto por jogo (Fortnite/COD), mantém a alça protegida e recusa abrir.
+    if !is_system_cursor_showing() {
+        return Ok(false);
+    }
+
     cancel_docked_cursor_watcher();
     let _ = window.set_ignore_cursor_events(false);
-
-    // Validação estrita: se o cursor estiver oculto (ex: Fortnite/COD consumindo mouse), recusa abrir
-    if !is_system_cursor_showing() {
-        return Err("Cursor do sistema oculto por jogo".to_string());
-    }
 
     let _ = window.unmaximize();
     let _ = window.set_resizable(false);
@@ -1263,7 +1311,7 @@ fn peek_docked_mini_player(window: tauri::Window, side: String) -> Result<(), St
     }
 
     spawn_peek_cursor_watcher(window);
-    Ok(())
+    Ok(true)
 }
 
 #[tauri::command]
@@ -1641,7 +1689,6 @@ pub fn run() {
             check_and_snap_mini_player,
             start_drag_and_snap,
             move_docked_tab,
-            can_interact_docked_tab,
             get_app_storage_info,
             open_app_storage_dir,
             download_track,

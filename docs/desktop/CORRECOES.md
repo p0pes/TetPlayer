@@ -1073,21 +1073,20 @@ Todos os **148 apontamentos técnicos (#01 a #148)** catalogados em auditorias t
 * **Status:** 🟢 **Resolvido**
 * **Localização:** [`desktop/src-tauri/src/lib.rs`](file:///d:/progrmação/programas/TetPlayer/desktop/src-tauri/src/lib.rs), [`desktop/src/components/MiniPlayer/MiniPlayer.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/MiniPlayer/MiniPlayer.tsx), [`desktop/src/components/__tests__/MiniPlayer.test.tsx`](file:///d:/progrmação/programas/TetPlayer/desktop/src/components/__tests__/MiniPlayer.test.tsx)
 * **Diagnóstico Técnico da Causa-Raiz:**
-  1. Em jogos de mira e tiro em primeira ou terceira pessoa (como Fortnite, Call of Duty, CS2, Valorant, etc.), a engine do jogo oculta o cursor do mouse (`ShowCursor(FALSE)`) e captura os movimentos físicos do mouse para controlar a mira da câmera 3D;
+  1. Em jogos de mira e tiro em primeira ou terceira pessoa (como Fortnite, Call of Duty, CS2, Valorant, etc.), a engine do jogo oculta o cursor do mouse (`ShowCursor(FALSE)` ou `SetCursor(NULL)`) e captura os movimentos físicos do mouse para controlar a mira da câmera 3D;
   2. No entanto, o subsistema de entrada do Windows ainda atualiza as coordenadas internas do mouse na tela. Ao virar a câmera bruscamente em direção à borda lateral do monitor onde o Mini Player estava ancorado, essas coordenadas cruzavam a janela do Mini Player;
-  3. No modo recolhido anterior, o HWND nativo da janela possuía largura configurada em `36px` no Rust, enquanto o indicador visual CSS media apenas `10px`. Havia portanto `26px` de área 100% invisível/transparente que interceptava o mouse do usuário no jogo;
+  3. No modo recolhido anterior, o HWND nativo da janela possuía largura configurada em `36px` no Rust (e no Windows 11 `SM_CXMINTRACK` pode forçar largura mínima de ~36px mesmo após redução), enquanto o indicador visual CSS media apenas `10px`. Havia portanto ~26px de área invisível/transparente que interceptava o mouse do usuário no jogo;
   4. Quando o jogador clicava para atirar ou ativava o timer de hover de 65ms, o Windows enviava mensagens de entrada para o HWND do TetPlayer ou expandia a gaveta para `304px`, fazendo com que o jogo perdesse o foco ou a captura do mouse no meio da partida.
 * **Solução Implementada:**
-  1. **Tamanho Milimétrico do HWND Recolhido (Eliminação dos 26px de Dead-Zone):**
-     - Em `dock_mini_player` e `move_docked_tab`, a largura física foi reduzida de `36.0 * scale_factor` para exatamente `(10.0 * scale_factor).round() as i32` (altura ajustada para `64.0`), casando 100% com as dimensões reais do indicador visual;
-     - No JSX (`MiniPlayer.tsx`), o container pai transparente recebeu `pointer-events-none` e apenas o indicador interno de `10px` recebeu `pointer-events-auto`.
-  2. **Detecção Nativa de Cursor Oculto pelo Sistema Win32 (`is_system_cursor_showing`):**
-     - Criada rotina nativa utilizando `GetCursorInfo` e a flag `CURSOR_SHOWING` do Windows (`windows-sys`). Se o jogo ocultou o cursor para mirar, `is_system_cursor_showing()` retorna `false`;
-     - Exposto o comando `can_interact_docked_tab` para o frontend, bloqueando a abertura por hover e cliques caso o cursor não esteja ativamente visível.
-  3. **Click-Through Dinâmico em Background (`spawn_docked_cursor_watcher`):**
-     - Enquanto o Mini Player está recolhido na borda, uma thread de background checa o estado do cursor a cada `50ms`. Ao detectar que o cursor está oculto (jogador em partida no Fortnite/COD), ela aciona dinamicamente `window.set_ignore_cursor_events(true)` (`WS_EX_TRANSPARENT`), fazendo com que **todos os cliques e movimentos do mouse passem 100% direto para o jogo**, sem qualquer roubo de foco ou interrupção de controle;
-     - Assim que o jogador abre um menu, inventário ou retorna ao Windows (cursor visível), o click-through é desativado em 50ms para permitir uso normal da gaveta.
-  4. **Proteção Contra Roubo de Foco (`WS_EX_NOACTIVATE`):**
-     - Aplicado estilo estendido `WS_EX_NOACTIVATE` no HWND durante o modo Mini Player, garantindo que mesmo ao interagir com o player ele não retire o foco em primeiro plano de outros aplicativos e janelas ativas.
+  1. **Detecção Nativa Abrangente de Cursor Oculto Win32 (`is_system_cursor_showing`):**
+     - Verifica simultaneamente `(ci.flags & CURSOR_SHOWING) != 0` **e** `!ci.hCursor.is_null()` via `GetCursorInfo`, cobrindo tanto jogos que usam `ShowCursor(FALSE)` quanto engines que usam `SetCursor(NULL)`.
+  2. **Click-Through Dinâmico Estrito na Área Visível `10×64px` (`spawn_docked_cursor_watcher`):**
+     - Dimensão solicitada reduzida para `10px × 64px` em `dock_mini_player` e `move_docked_tab`, removendo escala externa que sofria recorte em `64px` (mantendo a expansão suave apenas no LED interno);
+     - Em background (`20ms`), o watcher compara `GetCursorPos` + `GetWindowRect` restringindo a zona interativa estritamente aos `10×64px` colados à borda (`left` ou `right`). Sempre que o cursor estiver oculto pelo jogo **ou** fora dessa faixa exata (neutralizando eventuais ~26px extras impostos pelo `SM_CXMINTRACK` do Windows 11 em ambas as bordas), aciona `window.set_ignore_cursor_events(true)` (`WS_EX_TRANSPARENT`);
+     - Ao detectar ponteiro visível entrando ou saindo estritamente nos `10×64px`, emite `mini-player-tab-hover` / `mini-player-tab-leave` para abrir sem depender de movimento adicional na WebView2 e protege arrastos verticais ativos (`dragging_tab`).
+  3. **Validação Atômica na Abertura e Preservação de Teclado/Foco:**
+     - `peek_docked_mini_player` retorna `Result<bool, String>` validando `is_system_cursor_showing()` **antes** de cancelar o watcher ou reativar eventos de cursor (retornando `Ok(false)` silenciosamente se o cursor estiver oculto);
+     - Em `MiniPlayer.tsx`, `openDockedDrawer` aborta o estado expandido caso `peek_docked_mini_player` retorne `false` ou falhe, `handleTabPointerDown` permanece síncrono (evitando perda de `currentTarget` e corridas em cliques rápidos) e o `spawn_peek_cursor_watcher` recolhe imediatamente a gaveta caso o cursor passe a ficar oculto enquanto aberta;
+     - Mantida a ativação normal do HWND (sem `WS_EX_NOACTIVATE`) e `SWP_NOACTIVATE` apenas no reposicionamento programático, preservando atalhos de teclado (`Escape`, setas no scrubber/volume) e eventos de `blur`.
 
 ---

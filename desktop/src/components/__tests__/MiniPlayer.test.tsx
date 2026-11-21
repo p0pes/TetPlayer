@@ -57,10 +57,9 @@ describe("MiniPlayer — Gaveta Inteligente Auto-Slide", () => {
     setVolumeMock.mockReset();
     handleSeekToMock.mockReset();
     invokeMock.mockImplementation((cmd: string) => {
-      if (cmd === "can_interact_docked_tab") return Promise.resolve(true);
       if (cmd === "check_and_snap_mini_player") return Promise.resolve("right");
       if (cmd === "dock_mini_player") return Promise.resolve("right");
-      if (cmd === "peek_docked_mini_player") return Promise.resolve();
+      if (cmd === "peek_docked_mini_player") return Promise.resolve(true);
       if (cmd === "undock_mini_player") return Promise.resolve();
       return Promise.resolve();
     });
@@ -234,11 +233,12 @@ describe("MiniPlayer — Gaveta Inteligente Auto-Slide", () => {
     expect(screen.queryByRole("dialog", { name: /Ajuste de volume/i })).not.toBeInTheDocument();
   });
 
-  it("não deve abrir a gaveta nem capturar o mouse quando o cursor do sistema estiver oculto por jogos (can_interact_docked_tab = false)", async () => {
+  it("não deve abrir a gaveta nem alterar o estado expandido quando peek_docked_mini_player recusar por cursor oculto em jogos", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => { });
     invokeMock.mockImplementation((cmd: string) => {
-      if (cmd === "can_interact_docked_tab") return Promise.resolve(false);
       if (cmd === "check_and_snap_mini_player") return Promise.resolve("right");
       if (cmd === "dock_mini_player") return Promise.resolve("right");
+      if (cmd === "peek_docked_mini_player") return Promise.resolve(false);
       return Promise.resolve();
     });
 
@@ -254,10 +254,73 @@ describe("MiniPlayer — Gaveta Inteligente Auto-Slide", () => {
 
     await act(async () => {
       fireEvent.mouseEnter(handle);
-      vi.advanceTimersByTime(500);
+      await vi.advanceTimersByTimeAsync(450);
     });
 
-    expect(invokeMock).not.toHaveBeenCalledWith("peek_docked_mini_player", expect.anything());
+    expect(invokeMock).toHaveBeenCalledWith("peek_docked_mini_player", { side: "right" });
     expect(screen.queryByTitle(/Desafixar da borda/i)).not.toBeInTheDocument();
+    expect(screen.getByTitle(/TetPlayer Auto-Slide/i)).toBeInTheDocument();
+    expect(errorSpy).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("deve manter a alça recolhida em segurança se peek_docked_mini_player rejeitar com erro", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => { });
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === "check_and_snap_mini_player") return Promise.resolve("right");
+      if (cmd === "dock_mini_player") return Promise.resolve("right");
+      if (cmd === "peek_docked_mini_player") return Promise.reject(new Error("Falha nativa"));
+      return Promise.resolve();
+    });
+
+    render(<MiniPlayer />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByTitle(/Ancorar na borda/i));
+    });
+
+    await act(async () => {
+      fireEvent.mouseEnter(screen.getByTitle(/TetPlayer Auto-Slide/i));
+      await vi.advanceTimersByTimeAsync(450);
+    });
+
+    expect(screen.queryByTitle(/Desafixar da borda/i)).not.toBeInTheDocument();
+    expect(screen.getByTitle(/TetPlayer Auto-Slide/i)).toBeInTheDocument();
+    errorSpy.mockRestore();
+  });
+
+  it("deve suportar clique rápido (pointerDown/pointerUp) e arrasto vertical na alça recolhida sem erros assíncronos", async () => {
+    render(<MiniPlayer />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByTitle(/Ancorar na borda/i));
+    });
+
+    const handle = screen.getByTitle(/TetPlayer Auto-Slide/i);
+    handle.setPointerCapture = vi.fn();
+    handle.releasePointerCapture = vi.fn();
+
+    // Arrasto vertical (> 4px) chama move_docked_tab e NÃO abre a gaveta no soltar
+    await act(async () => {
+      fireEvent.pointerDown(handle, { button: 0, pointerId: 1, screenY: 200, clientY: 20 });
+      fireEvent.pointerMove(handle, { pointerId: 1, screenY: 240, clientY: 20 });
+      fireEvent.pointerUp(handle, { pointerId: 1 });
+    });
+
+    expect(invokeMock).toHaveBeenCalledWith("move_docked_tab", {
+      side: "right",
+      screenYLogical: 240,
+      grabOffsetYLogical: 20,
+    });
+    expect(invokeMock).not.toHaveBeenCalledWith("peek_docked_mini_player", expect.anything());
+
+    // Clique simples sem arrasto abre a gaveta imediatamente
+    await act(async () => {
+      fireEvent.pointerDown(handle, { button: 0, pointerId: 2, screenY: 240, clientY: 20 });
+      fireEvent.pointerUp(handle, { pointerId: 2 });
+    });
+
+    expect(invokeMock).toHaveBeenCalledWith("peek_docked_mini_player", { side: "right" });
+    expect(screen.getByTitle(/Desafixar da borda/i)).toBeInTheDocument();
   });
 });

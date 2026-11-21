@@ -167,13 +167,6 @@ export function MiniPlayer() {
   const openDockedDrawer = useCallback(
     async (sideOverride?: "left" | "right") => {
       const side = sideOverride || isDockedRef.current || "right";
-      // Proteção para jogos (Fortnite, COD, etc.): se o cursor estiver oculto, recusa abrir a gaveta
-      try {
-        const canInteract = await invoke<boolean>("can_interact_docked_tab");
-        if (!canInteract) return;
-      } catch {
-        // ignore
-      }
       clearAllDrawerTimers();
       isCollapsingRef.current = false;
       isManualCollapsingRef.current = false;
@@ -181,10 +174,12 @@ export function MiniPlayer() {
       setIsDrawerFastOut(false);
       setIsDrawerOpenVisual(false);
       try {
-        // Expande o HWND transparente primeiro para que a transição CSS 102% -> 0% rode sem tranco
-        await invoke("peek_docked_mini_player", { side });
+        // Expande o HWND transparente primeiro; retorna false se bloqueado por cursor oculto em jogos
+        const opened = await invoke<boolean | void>("peek_docked_mini_player", { side });
+        if (opened === false) return;
       } catch (err) {
         console.error("Erro ao deslizar gaveta do mini player:", err);
+        return;
       }
       if (!isDockedRef.current) return;
       expandTimestampRef.current = performance.now();
@@ -193,6 +188,35 @@ export function MiniPlayer() {
     },
     [clearAllDrawerTimers]
   );
+
+  // Hover na alça recolhida para abrir automaticamente (Auto-Slide 0 cliques)
+  const handleTabMouseEnter = useCallback(() => {
+    if (isDraggingTabRef.current || !isDockedRef.current || isDrawerExpandedRef.current) {
+      return;
+    }
+    if (hoverOpenTimerRef.current !== null) {
+      return;
+    }
+    const remainingCooldown = Math.max(
+      0,
+      collapseCooldownUntilRef.current - performance.now()
+    );
+    const delay = remainingCooldown > 0 ? remainingCooldown + 60 : 65;
+
+    hoverOpenTimerRef.current = window.setTimeout(() => {
+      hoverOpenTimerRef.current = null;
+      if (!isDraggingTabRef.current && isDockedRef.current && !isDrawerExpandedRef.current) {
+        openDockedDrawer();
+      }
+    }, delay);
+  }, [openDockedDrawer]);
+
+  const handleTabMouseLeave = useCallback(() => {
+    if (hoverOpenTimerRef.current !== null) {
+      window.clearTimeout(hoverOpenTimerRef.current);
+      hoverOpenTimerRef.current = null;
+    }
+  }, []);
 
   // Dispara a transição contínua de entrada via duplo rAF após montar a gaveta
   useEffect(() => {
@@ -218,6 +242,8 @@ export function MiniPlayer() {
   useEffect(() => {
     let unlistenDocked: (() => void) | undefined;
     let unlistenAutoCollapse: (() => void) | undefined;
+    let unlistenTabHover: (() => void) | undefined;
+    let unlistenTabLeave: (() => void) | undefined;
 
     listen<string>("mini-player-docked", (event) => {
       if (event.payload === "left" || event.payload === "right") {
@@ -245,6 +271,22 @@ export function MiniPlayer() {
     })
       .then((fn) => {
         unlistenAutoCollapse = fn;
+      })
+      .catch(console.error);
+
+    listen("mini-player-tab-hover", () => {
+      handleTabMouseEnter();
+    })
+      .then((fn) => {
+        unlistenTabHover = fn;
+      })
+      .catch(console.error);
+
+    listen("mini-player-tab-leave", () => {
+      handleTabMouseLeave();
+    })
+      .then((fn) => {
+        unlistenTabLeave = fn;
       })
       .catch(console.error);
 
@@ -278,13 +320,21 @@ export function MiniPlayer() {
     return () => {
       if (unlistenDocked) unlistenDocked();
       if (unlistenAutoCollapse) unlistenAutoCollapse();
+      if (unlistenTabHover) unlistenTabHover();
+      if (unlistenTabLeave) unlistenTabLeave();
       clearAllDrawerTimers();
       window.removeEventListener("pointerup", handleGlobalPointerUp);
       window.removeEventListener("mouseup", handleGlobalPointerUp);
       window.removeEventListener("pointercancel", handleGlobalPointerUp);
       window.removeEventListener("blur", handleWindowBlur);
     };
-  }, [clearAllDrawerTimers, collapseDockedDrawerNow, scheduleAutoCollapse]);
+  }, [
+    clearAllDrawerTimers,
+    collapseDockedDrawerNow,
+    handleTabMouseEnter,
+    handleTabMouseLeave,
+    scheduleAutoCollapse,
+  ]);
 
   // Arrasto da janela do Mini Player Completo com snap automático ao soltar
   async function handleStartDrag(e: React.MouseEvent) {
@@ -437,45 +487,14 @@ export function MiniPlayer() {
     applyWheelVolume(e, false);
   }
 
-  // Hover na alça recolhida para abrir automaticamente (Auto-Slide 0 cliques)
-  function handleTabMouseEnter() {
-    if (isDraggingTabRef.current || !isDockedRef.current || isDrawerExpandedRef.current) {
-      return;
-    }
-    if (hoverOpenTimerRef.current !== null) {
-      window.clearTimeout(hoverOpenTimerRef.current);
-    }
-    const remainingCooldown = Math.max(
-      0,
-      collapseCooldownUntilRef.current - performance.now()
-    );
-    const delay = remainingCooldown > 0 ? remainingCooldown + 60 : 65;
-
-    hoverOpenTimerRef.current = window.setTimeout(() => {
-      hoverOpenTimerRef.current = null;
-      if (!isDraggingTabRef.current && isDockedRef.current && !isDrawerExpandedRef.current) {
-        openDockedDrawer();
-      }
-    }, delay);
-  }
-
-  function handleTabMouseLeave() {
-    if (hoverOpenTimerRef.current !== null) {
-      window.clearTimeout(hoverOpenTimerRef.current);
-      hoverOpenTimerRef.current = null;
-    }
-  }
-
   // Manipulação de pointer na alça recolhida (arrasto vertical na borda ou clique imediato)
-  async function handleTabPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+  function handleTabPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (e.button !== 0) return;
     try {
-      const canInteract = await invoke<boolean>("can_interact_docked_tab");
-      if (!canInteract) return;
+      e.currentTarget.setPointerCapture(e.pointerId);
     } catch {
       // ignore
     }
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     isDraggingTabRef.current = true;
     dragStartYRef.current = e.screenY;
     grabOffsetYRef.current = e.clientY;
@@ -503,7 +522,7 @@ export function MiniPlayer() {
     if (!isDraggingTabRef.current) return;
     isDraggingTabRef.current = false;
     try {
-      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      e.currentTarget.releasePointerCapture(e.pointerId);
     } catch {
       // ignore
     }
@@ -539,14 +558,14 @@ export function MiniPlayer() {
           }}
           onWheel={handleWheelVolume}
           title="TetPlayer Auto-Slide — Encoste o mouse para abrir, gire o scroll para volume ou arraste verticalmente"
-          className={`pointer-events-auto w-[10px] h-[64px] bg-[#0c0e17]/95 hover:bg-[#141826] border border-[#2b3042] hover:border-[var(--accent)]/80 flex items-center justify-center overflow-hidden cursor-pointer group transition-[background-color,border-color,transform] duration-150 ease-out hover:scale-y-[1.08] origin-center select-none relative ${activeDockSide === "left"
+          className={`pointer-events-auto w-[10px] h-[64px] bg-[#0c0e17]/95 hover:bg-[#141826] border border-[#2b3042] hover:border-[var(--accent)]/80 flex items-center justify-center overflow-hidden cursor-pointer group transition-colors duration-150 ease-out select-none relative ${activeDockSide === "left"
             ? "border-l-0 rounded-r-full"
             : "border-r-0 rounded-l-full"
             }`}
         >
-          {/* Indicador vertical lateral mais espesso (sem seta) */}
+          {/* Indicador vertical lateral mais espesso (sem seta); escala confinada aos 64px sem recorte */}
           <div
-            className={`w-[4.5px] h-[44px] rounded-full transition-[background-color,box-shadow,transform] duration-150 group-hover:scale-y-[1.06] ${isPlaying
+            className={`w-[4.5px] h-[44px] rounded-full transition-[background-color,box-shadow,transform] duration-150 group-hover:scale-y-[1.12] ${isPlaying
               ? "bg-[var(--accent)] shadow-[0_0_12px_var(--accent-glow)]"
               : "bg-[#606884] group-hover:bg-[var(--accent)]"
               }`}
